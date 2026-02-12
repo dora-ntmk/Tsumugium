@@ -1,5 +1,4 @@
 import discord
-import os
 import requests
 import json
 from config import DISCORD_BOT_TOKEN
