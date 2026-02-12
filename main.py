@@ -1,7 +1,6 @@
 import discord
-import requests
-import json
 from config import DISCORD_BOT_TOKEN
+from vvtts import VvTTS
 
 # 起動設定
 intents = discord.Intents.default()
@@ -21,13 +20,7 @@ async def on_ready():
 @client.event
 async def on_message(message):
   if not message.author.bot:
-    res1 = requests.post("http://localhost:50021/audio_query", params={"text": message.content, "speaker": 8})
-    headers = {"content-type": "application/json"}
-    res2 = requests.post("http://localhost:50021/synthesis", headers=headers,params={"speaker": 8},
-                         data=json.dumps(res1.json()))
-    with open(f"tmp/{message.guild.id}-{message.id}.wav", mode="wb") as f:
-      f.write(res2.content)
-      f.close()
+    VvTTS.generate(message.content, message.guild.id, message.id, 8)
 
 # 起動
 client.run(DISCORD_BOT_TOKEN)
