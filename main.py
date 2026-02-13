@@ -23,7 +23,7 @@ async def on_ready():
 async def on_message(message):
   if not message.author.bot:
     vvtts = VvTTS(message.content, message.guild.id, message.id, 8)
-    path = vvtts.generate
+    path = vvtts.generate()
     print(path)
 
 
