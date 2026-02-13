@@ -7,6 +7,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 tree = discord.app_commands.CommandTree(client)
+vvtts = VvTTS()
 
 
 # 起動時動作
@@ -22,8 +23,7 @@ async def on_ready():
 @client.event
 async def on_message(message):
   if not message.author.bot:
-    vvtts = VvTTS(message.content, message.guild.id, message.id, 8)
-    path = vvtts.generate()
+    path = await vvtts.generate(message.content, message.guild.id, message.id, 8)
     print(path)
 
 
