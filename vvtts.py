@@ -4,7 +4,7 @@ import os
 
 
 async def edit_query(
-    res_json: any,
+    res_json,
     speed: float,
     pitch: float,
     intonation: float,
