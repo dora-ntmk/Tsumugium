@@ -31,7 +31,7 @@ async def edit_query(
 
 
 class VvTTS:
-  def __init__(self, url: str = "http://localhost:50021"):
+  def __init__(self, url: str = "http://127.0.0.1:50021"):
     self.url = url
 
   async def generate(
