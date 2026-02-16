@@ -64,6 +64,7 @@ async def on_message(message):
     return
   if message.guild.voice_client.channel.id != message.channel.id:
     return
+  print(type(message))
   asyncio.create_task(add_to_queue(message))
 
 async def add_to_queue(message):
