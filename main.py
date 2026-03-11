@@ -70,6 +70,7 @@ async def on_message(message):
   print(type(message))
   asyncio.create_task(add_to_queue(message))
 
+# キューに追加
 async def add_to_queue(message):
   src = await generate(message.content, message.guild.id, message.id, 8)
   await voice_queues[message.guild.id].put((message, src))
