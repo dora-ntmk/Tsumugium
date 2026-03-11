@@ -23,7 +23,10 @@ playing_tasks = {}
 async def on_ready():
   await tree.sync()
   stts = "Hello World!"
-  await client.change_presence(status=discord.Status.online, activity=discord.Game(name=stts))
+  await client.change_presence(
+    status=discord.Status.online,
+    activity=discord.Game(name=stts)
+  )
   print(discord.__version__)
 
 
