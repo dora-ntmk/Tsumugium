@@ -3,6 +3,8 @@ from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_PATH
 from vvtts import VvTTS
 from play import Play
 from server_config import ServerConfig
+from messages import build_embed, get_desc
+from setting import Setting
 
 
 # 起動設定
@@ -13,6 +15,7 @@ tree = discord.app_commands.CommandTree(client)
 vvtts = VvTTS()
 server_config = ServerConfig(SERVER_CONFIG_PATH)
 play = Play(client, tree, vvtts, server_config)
+setting = Setting(client, tree, server_config)
 
 
 # 起動時動作
@@ -27,49 +30,29 @@ async def on_ready():
 # 入室
 @tree.command(
   name="join",
-  description="ボイスチャンネルに接続します。"
+  description=get_desc("commands.join")
 )
 async def join(ctx):
   await ctx.response.defer()
   if ctx.user.voice:
     await ctx.user.voice.channel.connect(timeout=60, self_deaf=True)
-    embed = discord.Embed(
-      title="接続完了",
-      description="ボイスチャンネルに接続しました",
-      color=discord.Color.green()
-    )
-    await ctx.edit_original_response(embed=embed)
+    await ctx.edit_original_response(embed=build_embed("join.success"))
   else:
-    embed = discord.Embed(
-      title="接続失敗",
-      description="ボイスチャンネルに接続できませんでした",
-      color=discord.Color.red()
-    )
-    await ctx.edit_original_response(embed=embed)
+    await ctx.edit_original_response(embed=build_embed("join.failure"))
 
 
 # 退室
 @tree.command(
   name="leave",
-  description="ボイスチャンネルから切断します。"
+  description=get_desc("commands.leave")
 )
 async def leave(ctx):
   await ctx.response.defer()
   if ctx.user.voice:
     await ctx.guild.voice_client.disconnect()
-    embed = discord.Embed(
-      title="切断完了",
-      description="ボイスチャンネルから切断しました",
-      color=discord.Color.green()
-    )
-    await ctx.edit_original_response(embed=embed)
+    await ctx.edit_original_response(embed=build_embed("leave.success"))
   else:
-    embed = discord.Embed(
-      title="切断失敗",
-      description="ボイスチャンネルから切断できませんでした",
-      color=discord.Color.red()
-    )
-    await ctx.edit_original_response(embed=embed)
+    await ctx.edit_original_response(embed=build_embed("leave.failure"))
 
 
 

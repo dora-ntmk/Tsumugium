@@ -1,0 +1,33 @@
+import json
+import discord
+
+with open("messages.json", encoding="utf-8") as _f:
+    _MESSAGES = json.load(_f)
+
+_COLOR_MAP = {
+    "green": discord.Color.green,
+    "red":   discord.Color.red,
+    "blue":  discord.Color.blue,
+}
+
+
+def get_desc(key: str) -> str:
+    """ドット区切りのキー（例: "commands.join"）でコマンドdescriptionを取得する。"""
+    node = _MESSAGES
+    for part in key.split("."):
+        node = node[part]
+    return node
+
+
+def build_embed(key: str, **kwargs) -> discord.Embed:
+    """
+    ドット区切りのキー（例: "join.success"）でEmbedを生成する。
+    kwargsはdescriptionのstr.format()に渡される。
+    """
+    node = _MESSAGES
+    for part in key.split("."):
+        node = node[part]
+    title = node["title"]
+    description = node.get("description", "").format(**kwargs)
+    color = _COLOR_MAP[node["color"]]()
+    return discord.Embed(title=title, description=description or None, color=color)

@@ -1,0 +1,132 @@
+{
+  "commands": {
+    "join":  "ボイスチャンネルに接続します。",
+    "leave": "ボイスチャンネルから切断します。",
+    "clear": "読み上げキューをすべてクリアします。",
+    "setting": {
+      "_group":       "サーバー設定を管理します",
+      "view":         "現在の設定を表示します",
+      "text_target":  "読み上げ対象のテキストチャンネルを設定します（省略で現在のチャンネル）",
+      "voice_target": "自動接続先VCを設定します（省略で現在入室中のVC）",
+      "speaker":      "VOICEVOXの話者を設定します",
+      "volume":       "音量を設定します（0〜100）",
+      "max_char":     "読み上げ最大文字数を設定します（0で無制限）",
+      "auto_join":    "VCに人が入ったとき自動で参加するかを設定します",
+      "join_notice":  "VCに人が入ったときTTSで通知するかを設定します"
+    }
+  },
+  "clear": {
+    "success": {
+      "title": "キュークリア完了",
+      "description": "{cleared}件の読み上げをキャンセルしました",
+      "color": "green"
+    }
+  },
+  "join": {
+    "success": {
+      "title": "接続完了",
+      "description": "ボイスチャンネルに接続しました",
+      "color": "green"
+    },
+    "failure": {
+      "title": "接続失敗",
+      "description": "ボイスチャンネルに接続できませんでした",
+      "color": "red"
+    }
+  },
+  "leave": {
+    "success": {
+      "title": "切断完了",
+      "description": "ボイスチャンネルから切断しました",
+      "color": "green"
+    },
+    "failure": {
+      "title": "切断失敗",
+      "description": "ボイスチャンネルから切断できませんでした",
+      "color": "red"
+    }
+  },
+  "setting": {
+    "view": {
+      "title": "サーバー設定",
+      "description": "",
+      "color": "blue"
+    },
+    "text_target": {
+      "success": {
+        "title": "設定完了",
+        "description": "TextTarget を {target} に設定しました",
+        "color": "green"
+      }
+    },
+    "voice_target": {
+      "no_vc": {
+        "title": "設定失敗",
+        "description": "VCに入室していません。チャンネルを指定するか、VCに入室してから実行してください",
+        "color": "red"
+      },
+      "success": {
+        "title": "設定完了",
+        "description": "VoiceTarget を {channel} に設定しました",
+        "color": "green"
+      }
+    },
+    "speaker": {
+      "not_found": {
+        "title": "設定失敗",
+        "description": "話者が見つかりません。一覧から選択してください",
+        "color": "red"
+      },
+      "success": {
+        "title": "設定完了",
+        "description": "Speaker を {speaker}（ID: {speaker_id}）に設定しました",
+        "color": "green"
+      }
+    },
+    "volume": {
+      "invalid": {
+        "title": "設定失敗",
+        "description": "音量は 0〜100 の整数で指定してください",
+        "color": "red"
+      },
+      "success": {
+        "title": "設定完了",
+        "description": "Volume を {volume} に設定しました",
+        "color": "green"
+      }
+    },
+    "max_char": {
+      "invalid": {
+        "title": "設定失敗",
+        "description": "最大文字数は 0 以上の整数で指定してください",
+        "color": "red"
+      },
+      "success": {
+        "title": "設定完了",
+        "description": "MaxChar を {chars} に設定しました（{limit}）",
+        "color": "green"
+      }
+    },
+    "auto_join": {
+      "success": {
+        "title": "設定完了",
+        "description": "AutoJoin を {state} にしました",
+        "color": "green"
+      }
+    },
+    "join_notice": {
+      "success": {
+        "title": "設定完了",
+        "description": "JoinNotice を {state} にしました",
+        "color": "green"
+      }
+    },
+    "error": {
+      "no_permission": {
+        "title": "権限エラー",
+        "description": "サーバー管理権限が必要です",
+        "color": "red"
+      }
+    }
+  }
+}

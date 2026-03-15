@@ -1,11 +1,8 @@
 import asyncio
 import discord
-import json
 import os
 from collections import defaultdict
-
-with open("speakers.json", encoding="utf-8") as _f:
-    VOICEVOX_SPEAKERS = [(s["id"], s["name"]) for s in json.load(_f)]
+from messages import build_embed, get_desc
 
 
 class Play:
@@ -24,7 +21,7 @@ class Play:
     # キュークリア
     @self.tree.command(
       name="clear",
-      description="読み上げキューをすべてクリアします。"
+      description=get_desc("commands.clear")
     )
     async def clear(ctx, instant: bool = True):
       await ctx.response.defer()
@@ -40,12 +37,7 @@ class Play:
       self.skip_flags[ctx.guild.id] = True
       if instant and ctx.guild.voice_client and ctx.guild.voice_client.is_playing():
         ctx.guild.voice_client.stop()
-      embed = discord.Embed(
-        title="キュークリア完了",
-        description=f"{cleared}件の読み上げをキャンセルしました",
-        color=discord.Color.green()
-      )
-      await ctx.edit_original_response(embed=embed)
+      await ctx.edit_original_response(embed=build_embed("clear.success", cleared=cleared))
 
     # メッセージ検出
     @self.client.event
@@ -98,170 +90,6 @@ class Play:
           if guild.id not in self.playing_tasks or self.playing_tasks[guild.id].done():
             self.playing_tasks[guild.id] = asyncio.create_task(self.play_loop(guild))
 
-    # 設定コマンドグループ
-    setting_group = discord.app_commands.Group(
-      name="setting",
-      description="サーバー設定を管理します"
-    )
-
-    @setting_group.command(name="view", description="現在の設定を表示します")
-    async def setting_view(ctx):
-      await ctx.response.defer()
-      cfg = self.server_config.get_all(ctx.guild.id)
-      embed = discord.Embed(title="サーバー設定", color=discord.Color.blue())
-      embed.add_field(name="TextTarget",  value=str(cfg["TextTarget"])  if cfg["TextTarget"]  is not None else "未設定", inline=False)
-      embed.add_field(name="VoiceTarget", value=str(cfg["VoiceTarget"]) if cfg["VoiceTarget"] is not None else "未設定", inline=False)
-      embed.add_field(name="Speaker",     value=str(cfg["Speaker"]),    inline=True)
-      embed.add_field(name="Volume",      value=str(cfg["Volume"]),     inline=True)
-      embed.add_field(name="MaxChar",     value=str(cfg["MaxChar"]),    inline=True)
-      embed.add_field(name="AutoJoin",    value=str(cfg["AutoJoin"]),   inline=True)
-      embed.add_field(name="JoinNotice",  value=str(cfg["JoinNotice"]), inline=True)
-      await ctx.edit_original_response(embed=embed)
-
-    @setting_group.command(name="text-target", description="読み上げ対象のテキストチャンネルを設定します（省略で現在のチャンネル）")
-    @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_text_target(ctx, channel: discord.TextChannel = None):
-      await ctx.response.defer()
-      target = channel or ctx.channel
-      self.server_config.set(ctx.guild.id, "TextTarget", target.id)
-      embed = discord.Embed(
-        title="設定完了",
-        description=f"TextTarget を {target.mention} に設定しました",
-        color=discord.Color.green()
-      )
-      await ctx.edit_original_response(embed=embed)
-
-    @setting_group.command(name="voice-target", description="自動接続先VCを設定します（省略で現在入室中のVC）")
-    @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_voice_target(ctx, channel: discord.VoiceChannel = None):
-      await ctx.response.defer()
-      if channel is None:
-        if ctx.user.voice is None:
-          embed = discord.Embed(
-            title="設定失敗",
-            description="VCに入室していません。チャンネルを指定するか、VCに入室してから実行してください",
-            color=discord.Color.red()
-          )
-          await ctx.edit_original_response(embed=embed)
-          return
-        channel = ctx.user.voice.channel
-      self.server_config.set(ctx.guild.id, "VoiceTarget", channel.id)
-      embed = discord.Embed(
-        title="設定完了",
-        description=f"VoiceTarget を {channel.mention} に設定しました",
-        color=discord.Color.green()
-      )
-      await ctx.edit_original_response(embed=embed)
-
-    @setting_group.command(name="speaker", description="VOICEVOXの話者を設定します")
-    @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_speaker(ctx, speaker: str):
-      await ctx.response.defer()
-      speaker_id = next((sid for sid, name in VOICEVOX_SPEAKERS if name == speaker), None)
-      if speaker_id is None:
-        embed = discord.Embed(
-          title="設定失敗",
-          description="話者が見つかりません。一覧から選択してください",
-          color=discord.Color.red()
-        )
-        await ctx.edit_original_response(embed=embed)
-        return
-      self.server_config.set(ctx.guild.id, "Speaker", speaker_id)
-      embed = discord.Embed(
-        title="設定完了",
-        description=f"Speaker を {speaker}（ID: {speaker_id}）に設定しました",
-        color=discord.Color.green()
-      )
-      await ctx.edit_original_response(embed=embed)
-
-    @setting_speaker.autocomplete("speaker")
-    async def speaker_autocomplete(ctx, current: str):
-      filtered = [
-        discord.app_commands.Choice(name=name, value=name)
-        for _, name in VOICEVOX_SPEAKERS
-        if current in name
-      ]
-      return filtered[:25]
-
-    @setting_group.command(name="volume", description="音量を設定します（0〜100）")
-    @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_volume(ctx, volume: int):
-      await ctx.response.defer()
-      try:
-        self.server_config.set(ctx.guild.id, "Volume", volume)
-      except ValueError:
-        embed = discord.Embed(
-          title="設定失敗",
-          description="音量は 0〜100 の整数で指定してください",
-          color=discord.Color.red()
-        )
-        await ctx.edit_original_response(embed=embed)
-        return
-      embed = discord.Embed(
-        title="設定完了",
-        description=f"Volume を {volume} に設定しました",
-        color=discord.Color.green()
-      )
-      await ctx.edit_original_response(embed=embed)
-
-    @setting_group.command(name="max-char", description="読み上げ最大文字数を設定します（0で無制限）")
-    @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_max_char(ctx, chars: int):
-      await ctx.response.defer()
-      try:
-        self.server_config.set(ctx.guild.id, "MaxChar", chars)
-      except ValueError:
-        embed = discord.Embed(
-          title="設定失敗",
-          description="最大文字数は 0 以上の整数で指定してください",
-          color=discord.Color.red()
-        )
-        await ctx.edit_original_response(embed=embed)
-        return
-      embed = discord.Embed(
-        title="設定完了",
-        description=f"MaxChar を {chars} に設定しました（{'無制限' if chars == 0 else f'{chars}文字'}）",
-        color=discord.Color.green()
-      )
-      await ctx.edit_original_response(embed=embed)
-
-    @setting_group.command(name="auto-join", description="VCに人が入ったとき自動で参加するかを設定します")
-    @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_auto_join(ctx, enabled: bool):
-      await ctx.response.defer()
-      self.server_config.set(ctx.guild.id, "AutoJoin", enabled)
-      embed = discord.Embed(
-        title="設定完了",
-        description=f"AutoJoin を {'有効' if enabled else '無効'} にしました",
-        color=discord.Color.green()
-      )
-      await ctx.edit_original_response(embed=embed)
-
-    @setting_group.command(name="join-notice", description="VCに人が入ったときTTSで通知するかを設定します")
-    @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_join_notice(ctx, enabled: bool):
-      await ctx.response.defer()
-      self.server_config.set(ctx.guild.id, "JoinNotice", enabled)
-      embed = discord.Embed(
-        title="設定完了",
-        description=f"JoinNotice を {'有効' if enabled else '無効'} にしました",
-        color=discord.Color.green()
-      )
-      await ctx.edit_original_response(embed=embed)
-
-    @setting_group.error
-    async def setting_error(ctx, error):
-      if isinstance(error, discord.app_commands.MissingPermissions):
-        await ctx.response.send_message(
-          embed=discord.Embed(
-            title="権限エラー",
-            description="サーバー管理権限が必要です",
-            color=discord.Color.red()
-          ),
-          ephemeral=True
-        )
-
-    self.tree.add_command(setting_group)
 
   async def add_to_queue(self, content, msg: bool = True):
     if msg:

@@ -22,6 +22,10 @@ _TYPE_VALIDATORS = {
 }
 
 
+def _guild_key(guild_id: int) -> str:
+    return str(guild_id)
+
+
 class ServerConfig:
     def __init__(self, path: str = "config.json"):
         self.path = path
@@ -41,11 +45,8 @@ class ServerConfig:
         with open(self.path, mode="w", encoding="utf-8") as f:
             json.dump(self._data, f, ensure_ascii=False, indent=2)
 
-    def _guild_key(self, guild_id: int) -> str:
-        return str(guild_id)
-
     def init_guild(self, guild_id: int):
-        key = self._guild_key(guild_id)
+        key = _guild_key(guild_id)
         if key not in self._data:
             self._data[key] = dict(DEFAULTS)
             self._save()
@@ -53,26 +54,26 @@ class ServerConfig:
     def get(self, guild_id: int, key: str):
         if key not in DEFAULTS:
             raise KeyError(f"不明な設定キー: {key}")
-        return self._data.get(self._guild_key(guild_id), {}).get(key, DEFAULTS[key])
+        return self._data.get(_guild_key(guild_id), {}).get(key, DEFAULTS[key])
 
     def set(self, guild_id: int, key: str, value):
         if key not in DEFAULTS:
             raise KeyError(f"不明な設定キー: {key}")
         if not _TYPE_VALIDATORS[key](value):
             raise ValueError(f"{key} に無効な値です: {value!r}")
-        key_str = self._guild_key(guild_id)
+        key_str = _guild_key(guild_id)
         if key_str not in self._data:
             self._data[key_str] = {}
         self._data[key_str][key] = value
         self._save()
 
     def get_all(self, guild_id: int) -> dict:
-        return {**DEFAULTS, **self._data.get(self._guild_key(guild_id), {})}
+        return {**DEFAULTS, **self._data.get(_guild_key(guild_id), {})}
 
     def reset(self, guild_id: int, key: str):
         if key not in DEFAULTS:
             raise KeyError(f"不明な設定キー: {key}")
-        key_str = self._guild_key(guild_id)
+        key_str = _guild_key(guild_id)
         if key_str in self._data and key in self._data[key_str]:
             del self._data[key_str][key]
             self._save()
