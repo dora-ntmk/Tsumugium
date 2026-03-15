@@ -16,6 +16,7 @@ vvtts = VvTTS()
 # ギルドごとの音声キューと再生タスク
 voice_queues = defaultdict(asyncio.Queue)
 playing_tasks = {}
+skip_flags = defaultdict(bool)
 
 
 # 起動時動作
@@ -36,9 +37,19 @@ async def join(ctx):
   await ctx.response.defer()
   if ctx.user.voice:
     await ctx.user.voice.channel.connect(timeout=60, self_deaf=True)
-    await ctx.edit_original_response(content="ボイスチャンネルに接続しました")
+    embed = discord.Embed(
+      title="接続完了",
+      description="ボイスチャンネルに接続しました",
+      color=discord.Color.green()
+    )
+    await ctx.edit_original_response(embed=embed)
   else:
-    await ctx.edit_original_response(content="ボイスチャンネルに接続できませんでした")
+    embed = discord.Embed(
+      title="接続失敗",
+      description="ボイスチャンネルに接続できませんでした",
+      color=discord.Color.red()
+    )
+    await ctx.edit_original_response(embed=embed)
 
 
 # 退室
@@ -50,9 +61,48 @@ async def leave(ctx):
   await ctx.response.defer()
   if ctx.user.voice:
     await ctx.guild.voice_client.disconnect()
-    await ctx.edit_original_response(content="ボイスチャンネルから切断しました")
+    embed = discord.Embed(
+      title="切断完了",
+      description="ボイスチャンネルから切断しました",
+      color=discord.Color.green()
+    )
+    await ctx.edit_original_response(embed=embed)
   else:
-    await ctx.edit_original_response(content="ボイスチャンネルから切断できませんでした")
+    embed = discord.Embed(
+      title="切断失敗",
+      description="ボイスチャンネルから切断できませんでした",
+      color=discord.Color.red()
+    )
+    await ctx.edit_original_response(embed=embed)
+
+
+# キュークリア
+@tree.command(
+  name="clear",
+  description="読み上げキューをすべてクリアします。"
+)
+async def clear(ctx, instant: bool = True):
+  await ctx.response.defer()
+  queue = voice_queues[ctx.guild.id]
+  cleared = queue.qsize()
+  print(cleared)
+  while not queue.empty():
+    print(f"現在の数：{queue.qsize()}")
+    try:
+      message, src = queue.get_nowait()
+      queue.task_done()
+    except asyncio.QueueEmpty:
+      break
+  if instant:
+    skip_flags[ctx.guild.id] = True
+    if ctx.guild.voice_client and ctx.guild.voice_client.is_playing():
+      ctx.guild.voice_client.stop()
+  embed = discord.Embed(
+    title="キュークリア完了",
+    description=f"{cleared}件の読み上げをキャンセルしました",
+    color=discord.Color.green()
+  )
+  await ctx.edit_original_response(embed=embed)
 
 
 # メッセージ検出
@@ -64,14 +114,17 @@ async def on_message(message):
     return
   if message.guild.voice_client.channel.id != message.channel.id:
     return
-  print(type(message))
+  if message.content.startswith("!s ") or message.flags.silent:
+    return
   asyncio.create_task(add_to_queue(message))
 
-async def add_to_queue(message):
-  src = await generate(message.content, message.guild.id, message.id, 8)
-  await voice_queues[message.guild.id].put((message, src))
-  if message.guild.id not in playing_tasks or playing_tasks[message.guild.id].done():
-    playing_tasks[message.guild.id] = asyncio.create_task(play_loop(message.guild))
+async def add_to_queue(content, msg: bool = True):
+  if msg:
+    message = content
+    src = await generate(message.content, message.guild.id, message.id, 8)
+    await voice_queues[message.guild.id].put((message, src))
+    if message.guild.id not in playing_tasks or playing_tasks[message.guild.id].done():
+      playing_tasks[message.guild.id] = asyncio.create_task(play_loop(message.guild))
 
 
 # 音声生成
@@ -104,8 +157,14 @@ async def play_loop(guild):
 async def play(content, src):
   try:
     voice = await discord.FFmpegOpusAudio.from_probe(src)
+    if skip_flags[content.guild.id]:
+      skip_flags[content.guild.id] = False
+      return
     while content.guild.voice_client.is_playing():
       await asyncio.sleep(0.1)
+    if skip_flags[content.guild.id]:
+      skip_flags[content.guild.id] = False
+      return
     content.guild.voice_client.play(voice)
   except Exception as e:
     print(f"音声再生エラー: {e}")
