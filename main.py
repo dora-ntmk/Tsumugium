@@ -1,7 +1,8 @@
 import discord
-from config import DISCORD_BOT_TOKEN
+from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_PATH
 from vvtts import VvTTS
 from play import Play
+from server_config import ServerConfig
 
 
 # 起動設定
@@ -10,7 +11,8 @@ intents.message_content = True
 client = discord.Client(intents=intents)
 tree = discord.app_commands.CommandTree(client)
 vvtts = VvTTS()
-play = Play(client, tree, vvtts)
+server_config = ServerConfig(SERVER_CONFIG_PATH)
+play = Play(client, tree, vvtts, server_config)
 
 
 # 起動時動作
