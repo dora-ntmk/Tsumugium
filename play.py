@@ -271,7 +271,7 @@ class Play:
       volume = self.server_config.volume_to_vvtts(guild_id)
       text = message.content
       max_char = self.server_config.get(guild_id, "MaxChar")
-      if max_char > 0 and len(text) > max_char:
+      if 0 < max_char < len(text):
         text = text[:max_char]
       src = await self.generate(text, guild_id, message.id, speaker, volume=volume)
       if src is not None:
