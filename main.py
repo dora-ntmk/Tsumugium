@@ -108,6 +108,7 @@ async def clear(ctx, instant: bool = True):
 # メッセージ検出
 @client.event
 async def on_message(message):
+  # スキップ条件
   if message.author.bot:
     return
   if message.guild.voice_client is None:
