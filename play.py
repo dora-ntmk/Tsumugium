@@ -21,23 +21,30 @@ class Play:
     # キュークリア
     @self.tree.command(
       name="clear",
-      description=get_desc("commands.clear")
+      description=get_desc("commands.clear.description")
     )
     async def clear(ctx, instant: bool = True):
-      await ctx.response.defer()
-      queue = self.voice_queues[ctx.guild.id]
-      cleared = queue.qsize()
-      print(cleared)
-      while not queue.empty():
-        try:
-          queue.get_nowait()
-          queue.task_done()
-        except asyncio.QueueEmpty:
-          break
-      self.skip_flags[ctx.guild.id] = True
-      if instant and ctx.guild.voice_client and ctx.guild.voice_client.is_playing():
-        ctx.guild.voice_client.stop()
-      await ctx.edit_original_response(embed=build_embed("clear.success", cleared=cleared))
+      try:
+        await ctx.response.defer()
+        queue = self.voice_queues[ctx.guild.id]
+        cleared = queue.qsize()
+        print(cleared)
+        while not queue.empty():
+          try:
+            queue.get_nowait()
+            queue.task_done()
+          except asyncio.QueueEmpty:
+            break
+        self.skip_flags[ctx.guild.id] = True
+        if instant and ctx.guild.voice_client and ctx.guild.voice_client.is_playing():
+          ctx.guild.voice_client.stop()
+        await ctx.edit_original_response(embed=build_embed("clear.success", cleared=cleared))
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as e:
+        print(f"HTTPException in clear: {e}")
+      except Exception as e:
+        print(f"Exception in clear: {e}")
 
     # メッセージ検出
     @self.client.event

@@ -19,6 +19,14 @@ def get_desc(key: str) -> str:
     return node
 
 
+async def handle_os_error(ctx, e: OSError, cmd_name: str) -> None:
+    print(f"OSError in {cmd_name}: {e}")
+    try:
+        await ctx.edit_original_response(embed=build_embed("error.os_error"))
+    except Exception as inner:
+        print(f"Failed to send OSError embed in {cmd_name}: {inner}")
+
+
 def build_embed(key: str, **kwargs) -> discord.Embed:
     """
     ドット区切りのキー（例: "join.success"）でEmbedを生成する。

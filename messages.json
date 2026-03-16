@@ -1,18 +1,64 @@
 {
   "commands": {
-    "join":  "ボイスチャンネルに接続します。",
-    "leave": "ボイスチャンネルから切断します。",
-    "clear": "読み上げキューをすべてクリアします。",
+    "join": {
+      "description": "ボイスチャンネルに接続します。",
+      "args": {
+        "change_channel": "TrueにするとTextTarget・VoiceTargetをサーバー設定に適用します"
+      }
+    },
+    "leave": {
+      "description": "ボイスチャンネルから切断します。"
+    },
+    "clear": {
+      "description": "読み上げキューをすべてクリアします。"
+    },
     "setting": {
-      "_group":       "サーバー設定を管理します",
-      "view":         "現在の設定を表示します",
-      "text_target":  "読み上げ対象のテキストチャンネルを設定します（省略で現在のチャンネル）",
-      "voice_target": "自動接続先VCを設定します（省略で現在入室中のVC）",
-      "speaker":      "VOICEVOXの話者を設定します",
-      "volume":       "音量を設定します（0〜100）",
-      "max_char":     "読み上げ最大文字数を設定します（0で無制限）",
-      "auto_join":    "VCに人が入ったとき自動で参加するかを設定します",
-      "join_notice":  "VCに人が入ったときTTSで通知するかを設定します"
+      "_group": "サーバー設定を管理します",
+      "view": {
+        "description": "現在の設定を表示します"
+      },
+      "text_target": {
+        "description": "読み上げ対象のテキストチャンネルを設定します（省略で現在のチャンネル）",
+        "args": {
+          "channel": "設定するテキストチャンネル（省略で現在のチャンネル）"
+        }
+      },
+      "voice_target": {
+        "description": "自動接続先VCを設定します（省略で現在入室中のVC）",
+        "args": {
+          "channel": "設定するボイスチャンネル（省略で現在入室中のVC）"
+        }
+      },
+      "speaker": {
+        "description": "VOICEVOXの話者を設定します",
+        "args": {
+          "speaker": "使用するVOICEVOXの話者名"
+        }
+      },
+      "volume": {
+        "description": "音量を設定します（0〜100）",
+        "args": {
+          "volume": "音量（0〜100）"
+        }
+      },
+      "max_char": {
+        "description": "読み上げ最大文字数を設定します（0で無制限）",
+        "args": {
+          "chars": "読み上げ最大文字数（0で無制限）"
+        }
+      },
+      "auto_join": {
+        "description": "VCに人が入ったとき自動で参加するかを設定します",
+        "args": {
+          "enabled": "有効にするかどうか"
+        }
+      },
+      "join_notice": {
+        "description": "VCに人が入ったときTTSで通知するかを設定します",
+        "args": {
+          "enabled": "有効にするかどうか"
+        }
+      }
     }
   },
   "clear": {
@@ -27,6 +73,16 @@
       "title": "接続完了",
       "description": "ボイスチャンネルに接続しました",
       "color": "green"
+    },
+    "success_change_channel": {
+      "title": "接続完了",
+      "description": "ボイスチャンネルに接続しました。\nTextTarget: {text}\nVoiceTarget: {voice}",
+      "color": "green"
+    },
+    "failure_change_channel": {
+      "title": "設定失敗",
+      "description": "チャンネルの設定に失敗しました",
+      "color": "red"
     },
     "failure": {
       "title": "接続失敗",
@@ -46,11 +102,19 @@
       "color": "red"
     }
   },
+  "error": {
+    "os_error": {
+      "title": "システムエラー",
+      "description": "設定の保存に失敗しました",
+      "color": "red"
+    }
+  },
   "setting": {
     "view": {
       "title": "サーバー設定",
       "description": "",
-      "color": "blue"
+      "color": "blue",
+      "not_set": "未設定"
     },
     "text_target": {
       "success": {
