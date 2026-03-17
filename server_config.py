@@ -6,19 +6,21 @@ DEFAULTS = {
     "VoiceTarget": None,
     "Speaker": 8,
     "Volume": 100,
+    "Speed": 100,
     "MaxChar": 0,
     "AutoJoin": False,
-    "JoinNotice": False,
+    "AccessNotice": False,
 }
 
 _TYPE_VALIDATORS = {
-    "TextTarget":  (lambda v: v is None or (isinstance(v, int) and v > 0)),
-    "VoiceTarget": (lambda v: v is None or (isinstance(v, int) and v > 0)),
-    "Speaker":     (lambda v: isinstance(v, int) and v >= 0),
-    "Volume":      (lambda v: isinstance(v, int) and 0 <= v <= 100),
-    "MaxChar":     (lambda v: isinstance(v, int) and v >= 0),
-    "AutoJoin":    (lambda v: isinstance(v, bool)),
-    "JoinNotice":  (lambda v: isinstance(v, bool)),
+    "TextTarget":   (lambda v: v is None or (isinstance(v, int) and v > 0)),
+    "VoiceTarget":  (lambda v: v is None or (isinstance(v, int) and v > 0)),
+    "Speaker":      (lambda v: isinstance(v, int) and v >= 0),
+    "Volume":       (lambda v: isinstance(v, int) and 0 <= v <= 100),
+    "Speed":        (lambda v: isinstance(v, int) and 50 <= v <= 200),
+    "MaxChar":      (lambda v: isinstance(v, int) and v >= 0),
+    "AutoJoin":     (lambda v: isinstance(v, bool)),
+    "AccessNotice": (lambda v: isinstance(v, bool)),
 }
 
 
@@ -42,6 +44,9 @@ class ServerConfig:
                 self._data = {}
 
     def _save(self):
+        dir_name = os.path.dirname(self.path)
+        if dir_name:
+            os.makedirs(dir_name, exist_ok=True)
         with open(self.path, mode="w", encoding="utf-8") as f:
             json.dump(self._data, f, ensure_ascii=False, indent=2)
 
@@ -80,3 +85,6 @@ class ServerConfig:
 
     def volume_to_vvtts(self, guild_id: int) -> float:
         return self.get(guild_id, "Volume") / 100.0
+
+    def speed_to_vvtts(self, guild_id: int) -> float:
+        return self.get(guild_id, "Speed") / 100.0

@@ -23,11 +23,17 @@
           "channel": "設定するテキストチャンネル（省略で現在のチャンネル）"
         }
       },
+      "text_target_reset": {
+        "description": "TextTarget を未設定に戻します"
+      },
       "voice_target": {
         "description": "自動接続先VCを設定します（省略で現在入室中のVC）",
         "args": {
           "channel": "設定するボイスチャンネル（省略で現在入室中のVC）"
         }
+      },
+      "voice_target_reset": {
+        "description": "VoiceTarget を未設定に戻します"
       },
       "speaker": {
         "description": "VOICEVOXの話者を設定します",
@@ -39,6 +45,12 @@
         "description": "音量を設定します（0〜100）",
         "args": {
           "volume": "音量（0〜100）"
+        }
+      },
+      "speed": {
+        "description": "読み上げ速度を設定します（50〜200）",
+        "args": {
+          "speed": "速度（50〜200、100が等速）"
         }
       },
       "max_char": {
@@ -53,8 +65,8 @@
           "enabled": "有効にするかどうか"
         }
       },
-      "join_notice": {
-        "description": "VCに人が入ったときTTSで通知するかを設定します",
+      "access_notice": {
+        "description": "VCへの入退室をTTSで通知するかを設定します",
         "args": {
           "enabled": "有効にするかどうか"
         }
@@ -62,6 +74,11 @@
     }
   },
   "clear": {
+    "clearing": {
+      "title": "削除中",
+      "description": "キューを削除しています　しばらくお待ちください",
+      "color": "blue"
+    },
     "success": {
       "title": "キュークリア完了",
       "description": "{cleared}件の読み上げをキャンセルしました",
@@ -69,6 +86,12 @@
     }
   },
   "join": {
+    "notice_text": "{display_name}が入室しました",
+    "auto": {
+      "title": "自動入室",
+      "description": "ボイスチャンネルに自動で接続しました",
+      "color": "blue"
+    },
     "success": {
       "title": "接続完了",
       "description": "ボイスチャンネルに接続しました",
@@ -91,6 +114,7 @@
     }
   },
   "leave": {
+    "notice_text": "{display_name}が退室しました",
     "success": {
       "title": "切断完了",
       "description": "ボイスチャンネルから切断しました",
@@ -99,6 +123,16 @@
     "failure": {
       "title": "切断失敗",
       "description": "ボイスチャンネルから切断できませんでした",
+      "color": "red"
+    },
+    "auto": {
+      "title": "自動退出",
+      "description": "ボイスチャンネルに誰もいなくなったため退出しました",
+      "color": "blue"
+    },
+    "forced": {
+      "title": "切断されました",
+      "description": "ボイスチャンネルから切断されました",
       "color": "red"
     }
   },
@@ -121,6 +155,11 @@
         "title": "設定完了",
         "description": "TextTarget を {target} に設定しました",
         "color": "green"
+      },
+      "reset": {
+        "title": "設定リセット",
+        "description": "TextTarget をリセットしました",
+        "color": "green"
       }
     },
     "voice_target": {
@@ -132,6 +171,11 @@
       "success": {
         "title": "設定完了",
         "description": "VoiceTarget を {channel} に設定しました",
+        "color": "green"
+      },
+      "reset": {
+        "title": "設定リセット",
+        "description": "VoiceTarget をリセットしました",
         "color": "green"
       }
     },
@@ -159,6 +203,18 @@
         "color": "green"
       }
     },
+    "speed": {
+      "invalid": {
+        "title": "設定失敗",
+        "description": "速度は 50〜200 の整数で指定してください",
+        "color": "red"
+      },
+      "success": {
+        "title": "設定完了",
+        "description": "Speed を {speed} に設定しました",
+        "color": "green"
+      }
+    },
     "max_char": {
       "invalid": {
         "title": "設定失敗",
@@ -178,10 +234,10 @@
         "color": "green"
       }
     },
-    "join_notice": {
+    "access_notice": {
       "success": {
         "title": "設定完了",
-        "description": "JoinNotice を {state} にしました",
+        "description": "AccessNotice を {state} にしました",
         "color": "green"
       }
     },

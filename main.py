@@ -1,3 +1,4 @@
+import asyncio
 import discord
 from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_PATH
 from vvtts import VvTTS
@@ -16,6 +17,26 @@ vvtts = VvTTS()
 server_config = ServerConfig(SERVER_CONFIG_PATH)
 play = Play(client, tree, vvtts, server_config)
 setting = Setting(client, tree, server_config)
+leaving_guilds: set = set()
+
+
+def get_notify_channel(guild, vc_channel=None):
+  text_target = server_config.get(guild.id, "TextTarget")
+  if text_target:
+    return guild.get_channel(text_target)
+  return vc_channel
+
+
+async def enqueue_notice(guild, member, msg_key):
+  notice_text = get_desc(msg_key).format(display_name=member.display_name)
+  speaker = server_config.get(guild.id, "Speaker")
+  volume = server_config.volume_to_vvtts(guild.id)
+  speed = server_config.speed_to_vvtts(guild.id)
+  src = await play.generate(notice_text, guild.id, member.id, speaker, speed=speed, volume=volume)
+  if src is not None:
+    await play.voice_queues[guild.id].put((guild.id, src))
+    if guild.id not in play.playing_tasks or play.playing_tasks[guild.id].done():
+      play.playing_tasks[guild.id] = asyncio.create_task(play.play_loop(guild))
 
 
 # 起動時動作
@@ -25,6 +46,65 @@ async def on_ready():
   stts = "Hello World!"
   await client.change_presence(status=discord.Status.online, activity=discord.Game(name=stts))
   print(discord.__version__)
+
+
+# サーバー参加時にデフォルト設定を書き込む
+@client.event
+async def on_guild_join(guild):
+  server_config.init_guild(guild.id)
+
+
+# VC入退室検知（AutoJoin / JoinNotice）
+@client.event
+async def on_voice_state_update(member, before, after):
+  guild = member.guild
+
+  # Bot自身の切断検知（強制切断 vs 自発的退出の区別）
+  if member == guild.me:
+    if before.channel is not None and after.channel is None:
+      if guild.id in leaving_guilds:
+        leaving_guilds.discard(guild.id)
+      else:
+        ch = get_notify_channel(guild, before.channel)
+        if ch:
+          await ch.send(embed=build_embed("leave.forced"))
+    return
+
+  user_joined = before.channel is None and after.channel is not None
+
+  # ユーザー退出時: Botがいるチャンネルが空になったら自動退出
+  user_left = before.channel is not None
+  if user_left and guild.voice_client is not None:
+    bot_channel = guild.voice_client.channel
+    if before.channel == bot_channel:
+      human_members = [m for m in bot_channel.members if not m.bot]
+      if len(human_members) == 0:
+        ch = get_notify_channel(guild, bot_channel)
+        leaving_guilds.add(guild.id)
+        await guild.voice_client.disconnect()
+        if ch:
+          await ch.send(embed=build_embed("leave.auto"))
+      else:
+        # LeaveNotice
+        if server_config.get(guild.id, "AccessNotice"):
+          await enqueue_notice(guild, member, "leave.notice_text")
+
+  if not user_joined:
+    return
+
+  # AutoJoin: VoiceTarget が設定されている場合のみ動作
+  voice_target = server_config.get(guild.id, "VoiceTarget")
+  if server_config.get(guild.id, "AutoJoin") and guild.voice_client is None and voice_target is not None:
+    target_channel = guild.get_channel(voice_target)
+    if target_channel is not None:
+      await target_channel.connect(timeout=60, self_deaf=True)
+      ch = get_notify_channel(guild, target_channel)
+      if ch:
+        await ch.send(embed=build_embed("join.auto"))
+
+  # JoinNotice
+  if server_config.get(guild.id, "AccessNotice") and guild.voice_client is not None:
+    await enqueue_notice(guild, member, "join.notice_text")
 
 
 # 入室
@@ -76,6 +156,7 @@ async def leave(ctx):
   try:
     await ctx.response.defer()
     if ctx.user.voice:
+      leaving_guilds.add(ctx.guild.id)
       await ctx.guild.voice_client.disconnect()
       await ctx.edit_original_response(embed=build_embed("leave.success"))
     else:

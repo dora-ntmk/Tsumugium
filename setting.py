@@ -43,14 +43,17 @@ class Setting:
         embed.add_field(name="Volume",
                         value=str(cfg["Volume"]),
                         inline=True)
+        embed.add_field(name="Speed",
+                        value=str(cfg["Speed"]),
+                        inline=True)
         embed.add_field(name="MaxChar",
                         value=str(cfg["MaxChar"]),
                         inline=True)
         embed.add_field(name="AutoJoin",
                         value=str(cfg["AutoJoin"]),
                         inline=True)
-        embed.add_field(name="JoinNotice",
-                        value=str(cfg["JoinNotice"]),
+        embed.add_field(name="AccessNotice",
+                        value=str(cfg["AccessNotice"]),
                         inline=True)
         await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
@@ -91,6 +94,25 @@ class Setting:
         print(f"Exception in setting_text_target: {e}")
 
     @setting_group.command(
+      name="text-target-reset",
+      description=get_desc("commands.setting.text_target_reset.description")
+    )
+    @discord.app_commands.checks.has_permissions(manage_guild=True)
+    async def setting_text_target_reset(ctx):
+      try:
+        await ctx.response.defer()
+        self.server_config.reset(ctx.guild.id, "TextTarget")
+        await ctx.edit_original_response(embed=build_embed("setting.text_target.reset"))
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as e:
+        print(f"HTTPException in setting_text_target_reset: {e}")
+      except OSError as e:
+        await handle_os_error(ctx, e, "setting_text_target_reset")
+      except Exception as e:
+        print(f"Exception in setting_text_target_reset: {e}")
+
+    @setting_group.command(
       name="voice-target",
       description=get_desc("commands.setting.voice_target.description")
     )
@@ -123,6 +145,25 @@ class Setting:
         await handle_os_error(ctx, e, "setting_voice_target")
       except Exception as e:
         print(f"Exception in setting_voice_target: {e}")
+
+    @setting_group.command(
+      name="voice-target-reset",
+      description=get_desc("commands.setting.voice_target_reset.description")
+    )
+    @discord.app_commands.checks.has_permissions(manage_guild=True)
+    async def setting_voice_target_reset(ctx):
+      try:
+        await ctx.response.defer()
+        self.server_config.reset(ctx.guild.id, "VoiceTarget")
+        await ctx.edit_original_response(embed=build_embed("setting.voice_target.reset"))
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as e:
+        print(f"HTTPException in setting_voice_target_reset: {e}")
+      except OSError as e:
+        await handle_os_error(ctx, e, "setting_voice_target_reset")
+      except Exception as e:
+        print(f"Exception in setting_voice_target_reset: {e}")
 
     @setting_group.command(
       name="speaker",
@@ -204,6 +245,39 @@ class Setting:
         print(f"Exception in setting_volume: {e}")
 
     @setting_group.command(
+      name="speed",
+      description=get_desc("commands.setting.speed.description")
+    )
+    @discord.app_commands.describe(
+      speed=get_desc("commands.setting.speed.args.speed")
+    )
+    @discord.app_commands.checks.has_permissions(manage_guild=True)
+    async def setting_speed(ctx, speed: int):
+      try:
+        await ctx.response.defer()
+        try:
+          self.server_config.set(ctx.guild.id, "Speed", speed)
+        except ValueError:
+          await ctx.edit_original_response(
+            embed=build_embed("setting.speed.invalid")
+          )
+          return
+        await ctx.edit_original_response(
+          embed=build_embed(
+            "setting.speed.success",
+            speed=speed
+          )
+        )
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as e:
+        print(f"HTTPException in setting_speed: {e}")
+      except OSError as e:
+        await handle_os_error(ctx, e, "setting_speed")
+      except Exception as e:
+        print(f"Exception in setting_speed: {e}")
+
+    @setting_group.command(
       name="max-char",
       description=get_desc("commands.setting.max_char.description")
     )
@@ -266,31 +340,31 @@ class Setting:
         print(f"Exception in setting_auto_join: {e}")
 
     @setting_group.command(
-      name="join-notice",
-      description=get_desc("commands.setting.join_notice.description")
+      name="access-notice",
+      description=get_desc("commands.setting.access_notice.description")
     )
     @discord.app_commands.describe(
-      enabled=get_desc("commands.setting.join_notice.args.enabled")
+      enabled=get_desc("commands.setting.access_notice.args.enabled")
     )
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_join_notice(ctx, enabled: bool):
+    async def setting_access_notice(ctx, enabled: bool):
       try:
         await ctx.response.defer()
-        self.server_config.set(ctx.guild.id, "JoinNotice", enabled)
+        self.server_config.set(ctx.guild.id, "AccessNotice", enabled)
         await ctx.edit_original_response(
           embed=build_embed(
-            "setting.join_notice.success",
+            "setting.access_notice.success",
             state="有効" if enabled else "無効"
           )
         )
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_join_notice: {e}")
+        print(f"HTTPException in setting_access_notice: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_join_notice")
+        await handle_os_error(ctx, e, "setting_access_notice")
       except Exception as e:
-        print(f"Exception in setting_join_notice: {e}")
+        print(f"Exception in setting_access_notice: {e}")
 
     @setting_group.error
     async def setting_error(ctx, error):
