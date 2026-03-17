@@ -1,4 +1,5 @@
 import asyncio
+import os
 import discord
 from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_PATH
 from vvtts import VvTTS
@@ -6,6 +7,7 @@ from play import Play
 from server_config import ServerConfig
 from messages import build_embed, get_desc, handle_os_error, BotTranslator
 from setting import Setting
+from word_dict import DictManager, WordDict
 
 
 # 起動設定
@@ -15,8 +17,10 @@ client = discord.Client(intents=intents)
 tree = discord.app_commands.CommandTree(client)
 vvtts = VvTTS()
 server_config = ServerConfig(SERVER_CONFIG_PATH)
-play = Play(client, tree, vvtts, server_config)
+dict_manager = DictManager()
+play = Play(client, tree, vvtts, server_config, dict_manager)
 setting = Setting(client, tree, server_config)
+word_dict = WordDict(client, tree, dict_manager, server_config)
 leaving_guilds: set = set()
 
 
@@ -55,6 +59,30 @@ async def on_ready():
 @client.event
 async def on_guild_join(guild):
   server_config.init_guild(guild.id)
+  dict_manager.init_guild(guild.id)
+
+
+# サーバー退出時に辞書ファイルをオーナーへ送信して削除
+@client.event
+async def on_guild_remove(guild):
+  try:
+    files_to_send = []
+    for path in (f'dict/{guild.id}.json', f'dict/{guild.id}_emoji.json'):
+      if os.path.exists(path):
+        files_to_send.append(discord.File(path))
+    if files_to_send and guild.owner:
+      try:
+        dm = await guild.owner.create_dm()
+        await dm.send(
+          content=f'サーバー「{guild.name}」の辞書データをお送りします。',
+          files=files_to_send
+        )
+      except (discord.Forbidden, discord.HTTPException):
+        pass
+  except Exception as e:
+    print(f'Exception in on_guild_remove (DM): {e}')
+  finally:
+    dict_manager.remove_guild(guild.id)
 
 
 # VC入退室検知（AutoJoin / JoinNotice）

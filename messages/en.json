@@ -15,6 +15,29 @@
     "clear": {
       "description": "Clear all items in the TTS queue."
     },
+    "dict": {
+      "_group": "Manage the TTS dictionary",
+      "add": {
+        "description": "Add a word reading to the dictionary",
+        "args": {
+          "word": "Word to add",
+          "read": "Reading (up to 50 characters)"
+        }
+      },
+      "del": {
+        "description": "Remove a word reading from the dictionary",
+        "args": {
+          "word": "Word to remove"
+        }
+      },
+      "view": {
+        "description": "View the dictionary contents",
+        "args": {
+          "ephemeral": "Set to True to show only to yourself",
+          "search": "Search string (partial match)"
+        }
+      }
+    },
     "setting": {
       "_group": "Manage server settings",
       "view": {
@@ -169,6 +192,73 @@
       "title": "Disconnected",
       "description": "Disconnected from the voice channel",
       "color": "red"
+    }
+  },
+  "dict": {
+    "add": {
+      "success": {
+        "title": "Word Added Successfully",
+        "description": "The word reading has been added to the dictionary",
+        "color": "green",
+        "fields": [{"name": "Entry", "value": "`{word}` → `{read}`", "inline": false}]
+      },
+      "overwrite": {
+        "title": "Word Overwritten Successfully",
+        "description": "The word reading has been overwritten in the dictionary",
+        "color": "green",
+        "fields": [{"name": "Entry", "value": "`{word}` → `{read}`", "inline": false}]
+      },
+      "too_long": {
+        "title": "Reading Too Long",
+        "description": "`{read}` exceeds 50 characters and cannot be added.\nPlease keep the reading within 50 characters.",
+        "color": "red"
+      },
+      "failure": {
+        "title": "Failed to Add Word",
+        "description": "Could not add the word to the dictionary",
+        "color": "red"
+      }
+    },
+    "del": {
+      "success": {
+        "title": "Word Removed Successfully",
+        "description": "The word and its reading have been removed from the dictionary",
+        "color": "green",
+        "fields": [{"name": "Removed Entry", "value": "`{word}` → `{read}`", "inline": false}]
+      },
+      "not_found": {
+        "title": "Word Not Found",
+        "description": "`{word}` was not found in the dictionary. Please check and try again.",
+        "color": "red"
+      },
+      "failure": {
+        "title": "Failed to Remove Word",
+        "description": "Could not remove the word from the dictionary",
+        "color": "red"
+      }
+    },
+    "view": {
+      "title": "Dictionary",
+      "description": "",
+      "color": "blue",
+      "empty": "No words are registered in the dictionary",
+      "more": "({count} more)",
+      "page": "Page {page} / {total}",
+      "prefix": "",
+      "section_word": "Words",
+      "section_emoji": "Emoji",
+      "not_found": {
+        "title": "Not Found",
+        "description": "No entries found for \"{word}\"",
+        "color": "red"
+      }
+    },
+    "error": {
+      "no_permission": {
+        "title": "Permission Error",
+        "description": "Server management permission is required",
+        "color": "red"
+      }
     }
   },
   "error": {

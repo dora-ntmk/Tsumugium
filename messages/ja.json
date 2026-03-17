@@ -15,6 +15,29 @@
     "clear": {
       "description": "読み上げキューをすべてクリアします。"
     },
+    "dict": {
+      "_group": "読み上げ辞書を管理します",
+      "add": {
+        "description": "辞書に単語の読みを追加します",
+        "args": {
+          "word": "追加する単語",
+          "read": "読み方（50文字以内）"
+        }
+      },
+      "del": {
+        "description": "辞書から単語の読みを削除します",
+        "args": {
+          "word": "削除する単語"
+        }
+      },
+      "view": {
+        "description": "辞書の内容を確認します",
+        "args": {
+          "ephemeral": "Trueにすると自分にだけ見える形で表示します",
+          "search": "検索する文字列（部分一致）"
+        }
+      }
+    },
     "setting": {
       "_group": "サーバー設定を管理します",
       "view": {
@@ -169,6 +192,73 @@
       "title": "切断されました",
       "description": "ボイスチャンネルから切断されました",
       "color": "red"
+    }
+  },
+  "dict": {
+    "add": {
+      "success": {
+        "title": "辞書への追加が成功しました",
+        "description": "辞書に単語の読みが追加されました",
+        "color": "green",
+        "fields": [{"name": "登録内容", "value": "`{word}` → `{read}`", "inline": false}]
+      },
+      "overwrite": {
+        "title": "辞書への上書きが成功しました",
+        "description": "辞書に単語の読みが上書きされました",
+        "color": "green",
+        "fields": [{"name": "登録内容", "value": "`{word}` → `{read}`", "inline": false}]
+      },
+      "too_long": {
+        "title": "読みが長すぎるため追加できませんでした",
+        "description": "`{read}` は50文字を超えるため追加できません。\n追加する読みは50文字以内にしてください",
+        "color": "red"
+      },
+      "failure": {
+        "title": "辞書への追加が失敗しました",
+        "description": "辞書に単語が追加できませんでした",
+        "color": "red"
+      }
+    },
+    "del": {
+      "success": {
+        "title": "辞書からの削除が成功しました",
+        "description": "辞書から単語と読みが削除されました",
+        "color": "green",
+        "fields": [{"name": "削除内容", "value": "`{word}` → `{read}`", "inline": false}]
+      },
+      "not_found": {
+        "title": "辞書にその単語は見つかりませんでした",
+        "description": "辞書に`{word}`はありません。確認して入れなおしてください。",
+        "color": "red"
+      },
+      "failure": {
+        "title": "辞書からの削除が失敗しました",
+        "description": "辞書から単語が削除できませんでした",
+        "color": "red"
+      }
+    },
+    "view": {
+      "title": "辞書一覧",
+      "description": "",
+      "color": "blue",
+      "empty": "辞書に登録された単語はありません",
+      "more": "（他 {count} 件）",
+      "page": "ページ {page} / {total}",
+      "prefix": "",
+      "section_word": "単語辞書",
+      "section_emoji": "絵文字辞書",
+      "not_found": {
+        "title": "見つかりませんでした",
+        "description": "「{word}」に一致する単語は辞書にありません",
+        "color": "red"
+      }
+    },
+    "error": {
+      "no_permission": {
+        "title": "権限エラー",
+        "description": "サーバー管理権限が必要です",
+        "color": "red"
+      }
     }
   },
   "error": {

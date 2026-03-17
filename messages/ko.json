@@ -15,6 +15,29 @@
     "clear": {
       "description": "TTS 대기열을 모두 지웁니다."
     },
+    "dict": {
+      "_group": "TTS 사전을 관리합니다",
+      "add": {
+        "description": "사전에 단어 읽기를 추가합니다",
+        "args": {
+          "word": "추가할 단어",
+          "read": "읽기 방법（50자 이내）"
+        }
+      },
+      "del": {
+        "description": "사전에서 단어 읽기를 삭제합니다",
+        "args": {
+          "word": "삭제할 단어"
+        }
+      },
+      "view": {
+        "description": "사전 내용을 확인합니다",
+        "args": {
+          "ephemeral": "True로 설정하면 자신에게만 보이게 표시합니다",
+          "search": "검색 문자열（부분 일치）"
+        }
+      }
+    },
     "setting": {
       "_group": "서버 설정을 관리합니다",
       "view": {
@@ -169,6 +192,73 @@
       "title": "연결이 끊겼습니다",
       "description": "음성 채널에서 연결이 끊겼습니다",
       "color": "red"
+    }
+  },
+  "dict": {
+    "add": {
+      "success": {
+        "title": "사전 추가 성공",
+        "description": "사전에 단어 읽기가 추가되었습니다",
+        "color": "green",
+        "fields": [{"name": "등록 내용", "value": "`{word}` → `{read}`", "inline": false}]
+      },
+      "overwrite": {
+        "title": "사전 덮어쓰기 성공",
+        "description": "사전의 단어 읽기가 덮어쓰기되었습니다",
+        "color": "green",
+        "fields": [{"name": "등록 내용", "value": "`{word}` → `{read}`", "inline": false}]
+      },
+      "too_long": {
+        "title": "읽기가 너무 길어 추가할 수 없습니다",
+        "description": "`{read}` 는 50자를 초과하여 추가할 수 없습니다.\n읽기는 50자 이내로 입력해주세요.",
+        "color": "red"
+      },
+      "failure": {
+        "title": "사전 추가 실패",
+        "description": "사전에 단어를 추가할 수 없었습니다",
+        "color": "red"
+      }
+    },
+    "del": {
+      "success": {
+        "title": "사전 삭제 성공",
+        "description": "사전에서 단어와 읽기가 삭제되었습니다",
+        "color": "green",
+        "fields": [{"name": "삭제 내용", "value": "`{word}` → `{read}`", "inline": false}]
+      },
+      "not_found": {
+        "title": "사전에서 해당 단어를 찾을 수 없습니다",
+        "description": "사전에 `{word}` 가 없습니다. 확인 후 다시 입력해주세요.",
+        "color": "red"
+      },
+      "failure": {
+        "title": "사전 삭제 실패",
+        "description": "사전에서 단어를 삭제할 수 없었습니다",
+        "color": "red"
+      }
+    },
+    "view": {
+      "title": "사전 목록",
+      "description": "",
+      "color": "blue",
+      "empty": "사전에 등록된 단어가 없습니다",
+      "more": "（나머지 {count} 건）",
+      "page": "{page} / {total} 페이지",
+      "prefix": "",
+      "section_word": "단어 사전",
+      "section_emoji": "이모지 사전",
+      "not_found": {
+        "title": "찾을 수 없음",
+        "description": "사전에 「{word}」에 해당하는 단어가 없습니다",
+        "color": "red"
+      }
+    },
+    "error": {
+      "no_permission": {
+        "title": "권한 오류",
+        "description": "서버 관리 권한이 필요합니다",
+        "color": "red"
+      }
     }
   },
   "error": {

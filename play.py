@@ -6,11 +6,12 @@ from messages import build_embed, get_desc
 
 
 class Play:
-  def __init__(self, client, tree, vvtts, server_config):
+  def __init__(self, client, tree, vvtts, server_config, dict_manager=None):
     self.client = client
     self.tree = tree
     self.vvtts = vvtts
     self.server_config = server_config
+    self.dict_manager = dict_manager
     self.voice_queues = defaultdict(asyncio.Queue)
     self.playing_tasks = {}
     self.skip_flags = defaultdict(bool)
@@ -87,9 +88,17 @@ class Play:
       volume = self.server_config.volume_to_vvtts(guild_id)
       speed = self.server_config.speed_to_vvtts(guild_id)
       text = message.content
+      replaced_ranges = []
+      if self.dict_manager is not None:
+        text, replaced_ranges = self.dict_manager.preprocess_text(text, guild_id, message.guild, message.attachments)
       max_char = self.server_config.get(guild_id, "MaxChar")
       if 0 < max_char < len(text):
-        text = text[:max_char]
+        cut = max_char
+        for start, end in replaced_ranges:
+          if start < cut < end:
+            cut = end
+            break
+        text = text[:cut] + ",以下省略"
       src = await self.generate(text, guild_id, message.id, speaker, speed=speed, volume=volume)
       if src is not None:
         await self.voice_queues[guild_id].put((guild_id, src))

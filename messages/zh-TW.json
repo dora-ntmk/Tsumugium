@@ -15,6 +15,29 @@
     "clear": {
       "description": "清除所有TTS佇列。"
     },
+    "dict": {
+      "_group": "管理TTS詞典",
+      "add": {
+        "description": "向詞典中新增單字讀法",
+        "args": {
+          "word": "要新增的單字",
+          "read": "讀法（50個字元以內）"
+        }
+      },
+      "del": {
+        "description": "從詞典中刪除單字讀法",
+        "args": {
+          "word": "要刪除的單字"
+        }
+      },
+      "view": {
+        "description": "查看詞典內容",
+        "args": {
+          "ephemeral": "設為True可僅向自己顯示",
+          "search": "搜尋字串（部分符合）"
+        }
+      }
+    },
     "setting": {
       "_group": "管理伺服器設定",
       "view": {
@@ -169,6 +192,73 @@
       "title": "已斷開連接",
       "description": "已從語音頻道斷開連接",
       "color": "red"
+    }
+  },
+  "dict": {
+    "add": {
+      "success": {
+        "title": "詞典新增成功",
+        "description": "單字讀法已新增至詞典",
+        "color": "green",
+        "fields": [{"name": "登錄內容", "value": "`{word}` → `{read}`", "inline": false}]
+      },
+      "overwrite": {
+        "title": "詞典覆寫成功",
+        "description": "詞典中的單字讀法已被覆寫",
+        "color": "green",
+        "fields": [{"name": "登錄內容", "value": "`{word}` → `{read}`", "inline": false}]
+      },
+      "too_long": {
+        "title": "讀法過長，無法新增",
+        "description": "`{read}` 超過50個字元，無法新增。\n請將讀法控制在50個字元以內。",
+        "color": "red"
+      },
+      "failure": {
+        "title": "詞典新增失敗",
+        "description": "無法將單字新增至詞典",
+        "color": "red"
+      }
+    },
+    "del": {
+      "success": {
+        "title": "詞典刪除成功",
+        "description": "單字及其讀法已從詞典中刪除",
+        "color": "green",
+        "fields": [{"name": "刪除內容", "value": "`{word}` → `{read}`", "inline": false}]
+      },
+      "not_found": {
+        "title": "詞典中未找到該單字",
+        "description": "詞典中沒有 `{word}`。請確認後重新輸入。",
+        "color": "red"
+      },
+      "failure": {
+        "title": "詞典刪除失敗",
+        "description": "無法從詞典中刪除單字",
+        "color": "red"
+      }
+    },
+    "view": {
+      "title": "詞典列表",
+      "description": "",
+      "color": "blue",
+      "empty": "詞典中沒有已登錄的單字",
+      "more": "（另有 {count} 筆）",
+      "page": "第 {page} / {total} 頁",
+      "prefix": "",
+      "section_word": "單字詞典",
+      "section_emoji": "表情符號詞典",
+      "not_found": {
+        "title": "找不到",
+        "description": "詞典中找不到符合「{word}」的條目",
+        "color": "red"
+      }
+    },
+    "error": {
+      "no_permission": {
+        "title": "權限不足",
+        "description": "需要伺服器管理權限",
+        "color": "red"
+      }
     }
   },
   "error": {
