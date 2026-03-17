@@ -1,7 +1,7 @@
 import json
 import discord
 
-_LANGS = ("ja", "en", "zh-CN", "zh-TW", "ko")
+_LANGS = ("ja", "en", "zh-CN", "zh-TW", "ko", "hg")
 _MESSAGES_BY_LANG = {
     lang: json.load(open(f"messages/{lang}.json", encoding="utf-8"))
     for lang in _LANGS

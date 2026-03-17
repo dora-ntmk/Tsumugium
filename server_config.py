@@ -22,7 +22,7 @@ _TYPE_VALIDATORS = {
     "MaxChar":      (lambda v: isinstance(v, int) and 30 <= v <= 200),
     "AutoJoin":     (lambda v: isinstance(v, bool)),
     "AccessNotice": (lambda v: isinstance(v, bool)),
-    "Language":     (lambda v: isinstance(v, str) and v in ("ja", "en", "zh-CN", "zh-TW", "ko")),
+    "Language":     (lambda v: isinstance(v, str) and v in ("ja", "en", "zh-CN", "zh-TW", "ko", "hg")),
 }
 
 

@@ -406,6 +406,7 @@ class Setting:
       discord.app_commands.Choice(name="简体中文", value="zh-CN"),
       discord.app_commands.Choice(name="繁體中文", value="zh-TW"),
       discord.app_commands.Choice(name="한국어",   value="ko"),
+      discord.app_commands.Choice(name="𓂀 Hieroglyphs", value="hg"),
     ])
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_language(ctx, language: str):
