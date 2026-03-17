@@ -1,0 +1,300 @@
+{
+  "_footer": {
+    "auto_translation": "이 메시지는 AI에 의해 자동 번역된 것으로, 부정확할 수 있습니다."
+  },
+  "commands": {
+    "join": {
+      "description": "음성 채널에 연결합니다.",
+      "args": {
+        "change_channel": "True로 설정하면 TextTarget과 VoiceTarget을 서버 설정에 적용합니다"
+      }
+    },
+    "leave": {
+      "description": "음성 채널에서 연결을 끊습니다."
+    },
+    "clear": {
+      "description": "TTS 대기열을 모두 지웁니다."
+    },
+    "setting": {
+      "_group": "서버 설정을 관리합니다",
+      "view": {
+        "description": "현재 설정을 표시합니다"
+      },
+      "text_target": {
+        "description": "읽어줄 텍스트 채널을 설정합니다（생략 시 현재 채널）",
+        "args": {
+          "channel": "설정할 텍스트 채널（생략 시 현재 채널）"
+        }
+      },
+      "text_target_reset": {
+        "description": "TextTarget을 미설정으로 되돌립니다"
+      },
+      "voice_target": {
+        "description": "자동 참가할 음성 채널을 설정합니다（생략 시 현재 채널）",
+        "args": {
+          "channel": "설정할 음성 채널（생략 시 현재 채널）"
+        }
+      },
+      "voice_target_reset": {
+        "description": "VoiceTarget을 미설정으로 되돌립니다"
+      },
+      "speaker": {
+        "description": "VOICEVOX 화자를 설정합니다",
+        "args": {
+          "speaker": "사용할 VOICEVOX 화자 이름"
+        }
+      },
+      "volume": {
+        "description": "음량을 설정합니다（0〜100）",
+        "args": {
+          "volume": "음량（0〜100）"
+        }
+      },
+      "speed": {
+        "description": "읽기 속도를 설정합니다（50〜200）",
+        "args": {
+          "speed": "속도（50〜200，100이 기본 속도）"
+        }
+      },
+      "max_char": {
+        "description": "최대 읽기 글자 수를 설정합니다（30〜200，0은 기본값(50)으로 되돌림）",
+        "args": {
+          "chars": "최대 읽기 글자 수（30〜200，0은 기본값(50)으로 되돌림）"
+        }
+      },
+      "auto_join": {
+        "description": "음성 채널에 사람이 들어왔을 때 자동 참가 여부를 설정합니다",
+        "args": {
+          "enabled": "활성화 여부"
+        }
+      },
+      "access_notice": {
+        "description": "음성 채널 입퇴장을 TTS로 알릴지 설정합니다",
+        "args": {
+          "enabled": "활성화 여부"
+        }
+      },
+      "language": {
+        "description": "Bot 응답 언어를 설정합니다",
+        "args": {
+          "language": "사용할 언어"
+        }
+      }
+    }
+  },
+  "clear": {
+    "clearing": {
+      "title": "삭제 중",
+      "description": "대기열을 삭제하고 있습니다. 잠시 기다려주세요",
+      "color": "blue"
+    },
+    "success": {
+      "title": "대기열 초기화 완료",
+      "description": "{cleared}건의 읽기를 취소했습니다",
+      "color": "green"
+    }
+  },
+  "join": {
+    "notice_text": "{display_name}님이 입장했습니다",
+    "auto": {
+      "title": "자동 입장",
+      "description": "음성 채널에 자동으로 연결했습니다",
+      "color": "blue",
+      "fields": [
+        {
+          "name": "연결 정보",
+          "value": "음성 채널：{vc}  텍스트 채널：{text}",
+          "inline": false
+        }
+      ]
+    },
+    "success": {
+      "title": "연결 완료",
+      "description": "음성 채널에 연결했습니다",
+      "color": "green"
+    },
+    "success_temp": {
+      "title": "연결 완료",
+      "description": "음성 채널에 연결했습니다.\n이번 통화에 한해 {text} 의 메시지도 읽어드립니다.",
+      "color": "green",
+      "fields": [
+        {
+          "name": "연결 정보",
+          "value": "음성 채널：{vc}  텍스트 채널：{text}",
+          "inline": false
+        }
+      ]
+    },
+    "success_change_channel": {
+      "title": "연결 완료",
+      "description": "음성 채널에 연결했습니다.\nTextTarget을 {text}，VoiceTarget을 {voice}으로 설정했습니다.",
+      "color": "green",
+      "fields": [
+        {
+          "name": "연결 정보",
+          "value": "음성 채널：{vc}  텍스트 채널：{text}",
+          "inline": false
+        }
+      ]
+    },
+    "failure_change_channel": {
+      "title": "설정 실패",
+      "description": "채널 설정 저장에 실패했습니다",
+      "color": "red"
+    },
+    "failure": {
+      "title": "연결 실패",
+      "description": "음성 채널에 연결할 수 없었습니다",
+      "color": "red"
+    }
+  },
+  "leave": {
+    "notice_text": "{display_name}님이 퇴장했습니다",
+    "success": {
+      "title": "연결 해제 완료",
+      "description": "음성 채널에서 연결을 끊었습니다",
+      "color": "green"
+    },
+    "failure": {
+      "title": "연결 해제 실패",
+      "description": "음성 채널에서 연결을 끊을 수 없었습니다",
+      "color": "red"
+    },
+    "auto": {
+      "title": "자동 퇴장",
+      "description": "음성 채널에 아무도 없어서 퇴장했습니다",
+      "color": "blue"
+    },
+    "forced": {
+      "title": "연결이 끊겼습니다",
+      "description": "음성 채널에서 연결이 끊겼습니다",
+      "color": "red"
+    }
+  },
+  "error": {
+    "os_error": {
+      "title": "시스템 오류",
+      "description": "설정 저장에 실패했습니다",
+      "color": "red"
+    }
+  },
+  "setting": {
+    "view": {
+      "title": "서버 설정",
+      "description": "",
+      "color": "blue",
+      "not_set": "미설정"
+    },
+    "text_target": {
+      "success": {
+        "title": "설정 완료",
+        "description": "TextTarget을 {target}으로 설정했습니다",
+        "color": "green"
+      },
+      "reset": {
+        "title": "설정 초기화",
+        "description": "TextTarget을 초기화했습니다",
+        "color": "green"
+      }
+    },
+    "voice_target": {
+      "no_vc": {
+        "title": "설정 실패",
+        "description": "음성 채널에 입장해 있지 않습니다. 채널을 지정하거나 음성 채널에 입장 후 실행해주세요",
+        "color": "red"
+      },
+      "success": {
+        "title": "설정 완료",
+        "description": "VoiceTarget을 {channel}으로 설정했습니다",
+        "color": "green"
+      },
+      "reset": {
+        "title": "설정 초기화",
+        "description": "VoiceTarget을 초기화했습니다",
+        "color": "green"
+      }
+    },
+    "speaker": {
+      "not_found": {
+        "title": "설정 실패",
+        "description": "화자를 찾을 수 없습니다. 목록에서 선택해주세요",
+        "color": "red"
+      },
+      "success": {
+        "title": "설정 완료",
+        "description": "Speaker를 {speaker}（ID: {speaker_id}）로 설정했습니다",
+        "color": "green"
+      }
+    },
+    "volume": {
+      "invalid": {
+        "title": "설정 실패",
+        "description": "음량은 0〜100 사이의 정수로 지정해주세요",
+        "color": "red"
+      },
+      "success": {
+        "title": "설정 완료",
+        "description": "Volume을 {volume}으로 설정했습니다",
+        "color": "green"
+      }
+    },
+    "speed": {
+      "invalid": {
+        "title": "설정 실패",
+        "description": "속도는 50〜200 사이의 정수로 지정해주세요",
+        "color": "red"
+      },
+      "success": {
+        "title": "설정 완료",
+        "description": "Speed를 {speed}로 설정했습니다",
+        "color": "green"
+      }
+    },
+    "max_char": {
+      "invalid": {
+        "title": "설정 실패",
+        "description": "최대 글자 수는 30〜200의 정수로 지정해주세요（0은 기본값(50)으로 되돌림）",
+        "color": "red"
+      },
+      "success": {
+        "title": "설정 완료",
+        "description": "MaxChar를 {chars}로 설정했습니다（{limit}）",
+        "color": "green"
+      },
+      "unlimited": "무제한",
+      "limited": "{chars}자"
+    },
+    "auto_join": {
+      "success": {
+        "title": "설정 완료",
+        "description": "AutoJoin을 {state}로 설정했습니다",
+        "color": "green"
+      }
+    },
+    "access_notice": {
+      "success": {
+        "title": "설정 완료",
+        "description": "AccessNotice를 {state}로 설정했습니다",
+        "color": "green"
+      }
+    },
+    "language": {
+      "success": {
+        "title": "설정 완료",
+        "description": "언어를 {language}로 설정했습니다",
+        "color": "green"
+      }
+    },
+    "states": {
+      "enabled": "활성화",
+      "disabled": "비활성화"
+    },
+    "error": {
+      "no_permission": {
+        "title": "권한 오류",
+        "description": "서버 관리 권한이 필요합니다",
+        "color": "red"
+      }
+    }
+  }
+}

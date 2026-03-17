@@ -1,0 +1,300 @@
+{
+  "_footer": {
+    "auto_translation": "This message was automatically translated by AI and may be inaccurate."
+  },
+  "commands": {
+    "join": {
+      "description": "Connect to a voice channel.",
+      "args": {
+        "change_channel": "Set to True to apply TextTarget and VoiceTarget to server settings"
+      }
+    },
+    "leave": {
+      "description": "Disconnect from the voice channel."
+    },
+    "clear": {
+      "description": "Clear all items in the TTS queue."
+    },
+    "setting": {
+      "_group": "Manage server settings",
+      "view": {
+        "description": "Display current settings"
+      },
+      "text_target": {
+        "description": "Set the text channel to read aloud (defaults to current channel)",
+        "args": {
+          "channel": "Text channel to set (defaults to current channel)"
+        }
+      },
+      "text_target_reset": {
+        "description": "Reset TextTarget to unset"
+      },
+      "voice_target": {
+        "description": "Set the auto-join VC (defaults to current VC)",
+        "args": {
+          "channel": "Voice channel to set (defaults to current VC)"
+        }
+      },
+      "voice_target_reset": {
+        "description": "Reset VoiceTarget to unset"
+      },
+      "speaker": {
+        "description": "Set the VOICEVOX speaker",
+        "args": {
+          "speaker": "VOICEVOX speaker name to use"
+        }
+      },
+      "volume": {
+        "description": "Set the volume (0-100)",
+        "args": {
+          "volume": "Volume (0-100)"
+        }
+      },
+      "speed": {
+        "description": "Set the TTS speed (50-200)",
+        "args": {
+          "speed": "Speed (50-200, 100 is normal)"
+        }
+      },
+      "max_char": {
+        "description": "Set the max characters to read aloud (30-200, 0 resets to default (50))",
+        "args": {
+          "chars": "Max characters to read aloud (30-200, 0 resets to default (50))"
+        }
+      },
+      "auto_join": {
+        "description": "Set whether to auto-join when someone enters a VC",
+        "args": {
+          "enabled": "Whether to enable"
+        }
+      },
+      "access_notice": {
+        "description": "Set whether to announce VC join/leave via TTS",
+        "args": {
+          "enabled": "Whether to enable"
+        }
+      },
+      "language": {
+        "description": "Set the bot response language",
+        "args": {
+          "language": "Language to use"
+        }
+      }
+    }
+  },
+  "clear": {
+    "clearing": {
+      "title": "Clearing",
+      "description": "Clearing the queue, please wait...",
+      "color": "blue"
+    },
+    "success": {
+      "title": "Queue Cleared",
+      "description": "Cancelled {cleared} TTS item(s)",
+      "color": "green"
+    }
+  },
+  "join": {
+    "notice_text": "{display_name} has joined",
+    "auto": {
+      "title": "Auto Join",
+      "description": "Automatically connected to the voice channel",
+      "color": "blue",
+      "fields": [
+        {
+          "name": "Connection Info",
+          "value": "VC: {vc}  Text: {text}",
+          "inline": false
+        }
+      ]
+    },
+    "success": {
+      "title": "Connected",
+      "description": "Connected to the voice channel",
+      "color": "green"
+    },
+    "success_temp": {
+      "title": "Connected",
+      "description": "Connected to the voice channel.\nMessages from {text} will also be read aloud for this session.",
+      "color": "green",
+      "fields": [
+        {
+          "name": "Connection Info",
+          "value": "VC: {vc}  Text: {text}",
+          "inline": false
+        }
+      ]
+    },
+    "success_change_channel": {
+      "title": "Connected",
+      "description": "Connected to the voice channel.\nTextTarget set to {text}, VoiceTarget set to {voice}.",
+      "color": "green",
+      "fields": [
+        {
+          "name": "Connection Info",
+          "value": "VC: {vc}  Text: {text}",
+          "inline": false
+        }
+      ]
+    },
+    "failure_change_channel": {
+      "title": "Settings Failed",
+      "description": "Failed to save channel settings",
+      "color": "red"
+    },
+    "failure": {
+      "title": "Connection Failed",
+      "description": "Failed to connect to the voice channel",
+      "color": "red"
+    }
+  },
+  "leave": {
+    "notice_text": "{display_name} has left",
+    "success": {
+      "title": "Disconnected",
+      "description": "Disconnected from the voice channel",
+      "color": "green"
+    },
+    "failure": {
+      "title": "Disconnect Failed",
+      "description": "Failed to disconnect from the voice channel",
+      "color": "red"
+    },
+    "auto": {
+      "title": "Auto Leave",
+      "description": "Left the voice channel because it became empty",
+      "color": "blue"
+    },
+    "forced": {
+      "title": "Disconnected",
+      "description": "Disconnected from the voice channel",
+      "color": "red"
+    }
+  },
+  "error": {
+    "os_error": {
+      "title": "System Error",
+      "description": "Failed to save settings",
+      "color": "red"
+    }
+  },
+  "setting": {
+    "view": {
+      "title": "Server Settings",
+      "description": "",
+      "color": "blue",
+      "not_set": "Not set"
+    },
+    "text_target": {
+      "success": {
+        "title": "Settings Saved",
+        "description": "TextTarget set to {target}",
+        "color": "green"
+      },
+      "reset": {
+        "title": "Settings Reset",
+        "description": "TextTarget has been reset",
+        "color": "green"
+      }
+    },
+    "voice_target": {
+      "no_vc": {
+        "title": "Settings Failed",
+        "description": "You are not in a VC. Please specify a channel or join a VC first",
+        "color": "red"
+      },
+      "success": {
+        "title": "Settings Saved",
+        "description": "VoiceTarget set to {channel}",
+        "color": "green"
+      },
+      "reset": {
+        "title": "Settings Reset",
+        "description": "VoiceTarget has been reset",
+        "color": "green"
+      }
+    },
+    "speaker": {
+      "not_found": {
+        "title": "Settings Failed",
+        "description": "Speaker not found. Please select from the list",
+        "color": "red"
+      },
+      "success": {
+        "title": "Settings Saved",
+        "description": "Speaker set to {speaker} (ID: {speaker_id})",
+        "color": "green"
+      }
+    },
+    "volume": {
+      "invalid": {
+        "title": "Settings Failed",
+        "description": "Volume must be an integer between 0 and 100",
+        "color": "red"
+      },
+      "success": {
+        "title": "Settings Saved",
+        "description": "Volume set to {volume}",
+        "color": "green"
+      }
+    },
+    "speed": {
+      "invalid": {
+        "title": "Settings Failed",
+        "description": "Speed must be an integer between 50 and 200",
+        "color": "red"
+      },
+      "success": {
+        "title": "Settings Saved",
+        "description": "Speed set to {speed}",
+        "color": "green"
+      }
+    },
+    "max_char": {
+      "invalid": {
+        "title": "Settings Failed",
+        "description": "Max characters must be an integer between 30 and 200 (0 resets to default (50))",
+        "color": "red"
+      },
+      "success": {
+        "title": "Settings Saved",
+        "description": "MaxChar set to {chars} ({limit})",
+        "color": "green"
+      },
+      "unlimited": "Unlimited",
+      "limited": "{chars} chars"
+    },
+    "auto_join": {
+      "success": {
+        "title": "Settings Saved",
+        "description": "AutoJoin set to {state}",
+        "color": "green"
+      }
+    },
+    "access_notice": {
+      "success": {
+        "title": "Settings Saved",
+        "description": "AccessNotice set to {state}",
+        "color": "green"
+      }
+    },
+    "language": {
+      "success": {
+        "title": "Settings Saved",
+        "description": "Language set to {language}",
+        "color": "green"
+      }
+    },
+    "states": {
+      "enabled": "Enabled",
+      "disabled": "Disabled"
+    },
+    "error": {
+      "no_permission": {
+        "title": "Permission Error",
+        "description": "Server management permission is required",
+        "color": "red"
+      }
+    }
+  }
+}

@@ -7,9 +7,10 @@ DEFAULTS = {
     "Speaker": 8,
     "Volume": 100,
     "Speed": 100,
-    "MaxChar": 0,
+    "MaxChar": 50,
     "AutoJoin": False,
     "AccessNotice": False,
+    "Language": "ja",
 }
 
 _TYPE_VALIDATORS = {
@@ -18,9 +19,10 @@ _TYPE_VALIDATORS = {
     "Speaker":      (lambda v: isinstance(v, int) and v >= 0),
     "Volume":       (lambda v: isinstance(v, int) and 0 <= v <= 100),
     "Speed":        (lambda v: isinstance(v, int) and 50 <= v <= 200),
-    "MaxChar":      (lambda v: isinstance(v, int) and v >= 0),
+    "MaxChar":      (lambda v: isinstance(v, int) and 30 <= v <= 200),
     "AutoJoin":     (lambda v: isinstance(v, bool)),
     "AccessNotice": (lambda v: isinstance(v, bool)),
+    "Language":     (lambda v: isinstance(v, str) and v in ("ja", "en", "zh-CN", "zh-TW", "ko")),
 }
 
 

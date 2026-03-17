@@ -1,4 +1,7 @@
 {
+  "_footer": {
+    "auto_translation": ""
+  },
   "commands": {
     "join": {
       "description": "ボイスチャンネルに接続します。",
@@ -54,9 +57,9 @@
         }
       },
       "max_char": {
-        "description": "読み上げ最大文字数を設定します（0で無制限）",
+        "description": "読み上げ最大文字数を設定します（30〜200、0でデフォルト(50)に戻す）",
         "args": {
-          "chars": "読み上げ最大文字数（0で無制限）"
+          "chars": "読み上げ最大文字数（30〜200、0でデフォルト(50)に戻す）"
         }
       },
       "auto_join": {
@@ -69,6 +72,12 @@
         "description": "VCへの入退室をTTSで通知するかを設定します",
         "args": {
           "enabled": "有効にするかどうか"
+        }
+      },
+      "language": {
+        "description": "Botの応答言語を設定します",
+        "args": {
+          "language": "使用する言語"
         }
       }
     }
@@ -244,14 +253,16 @@
     "max_char": {
       "invalid": {
         "title": "設定失敗",
-        "description": "最大文字数は 0 以上の整数で指定してください",
+        "description": "最大文字数は 30〜200 の整数で指定してください（0でデフォルト(50)に戻す）",
         "color": "red"
       },
       "success": {
         "title": "設定完了",
         "description": "MaxChar を {chars} に設定しました（{limit}）",
         "color": "green"
-      }
+      },
+      "unlimited": "無制限",
+      "limited": "{chars}文字"
     },
     "auto_join": {
       "success": {
@@ -266,6 +277,17 @@
         "description": "AccessNotice を {state} にしました",
         "color": "green"
       }
+    },
+    "language": {
+      "success": {
+        "title": "設定完了",
+        "description": "言語を {language} に設定しました",
+        "color": "green"
+      }
+    },
+    "states": {
+      "enabled": "有効",
+      "disabled": "無効"
     },
     "error": {
       "no_permission": {

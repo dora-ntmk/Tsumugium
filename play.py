@@ -28,6 +28,7 @@ class Play:
     async def clear(ctx, instant: bool = True):
       try:
         await ctx.response.defer()
+        lang = self.server_config.get(ctx.guild.id, "Language")
         queue = self.voice_queues[ctx.guild.id]
         cleared = queue.qsize()
         pending_files = []
@@ -42,12 +43,12 @@ class Play:
         if instant and ctx.guild.voice_client and ctx.guild.voice_client.is_playing():
           ctx.guild.voice_client.stop()
         self.clearing_flags[ctx.guild.id] = True
-        await ctx.edit_original_response(embed=build_embed("clear.clearing"))
+        await ctx.edit_original_response(embed=build_embed("clear.clearing", lang=lang))
         await asyncio.sleep(1)
         for src in pending_files:
           await self.safe_remove(src)
         self.clearing_flags[ctx.guild.id] = False
-        await ctx.edit_original_response(embed=build_embed("clear.success", cleared=cleared))
+        await ctx.edit_original_response(embed=build_embed("clear.success", lang=lang, cleared=cleared))
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:

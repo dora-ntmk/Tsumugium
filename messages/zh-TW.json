@@ -1,0 +1,300 @@
+{
+  "_footer": {
+    "auto_translation": "此訊息由AI自動翻譯，可能存在不準確之處。"
+  },
+  "commands": {
+    "join": {
+      "description": "連接到語音頻道。",
+      "args": {
+        "change_channel": "設為True可將TextTarget和VoiceTarget套用至伺服器設定"
+      }
+    },
+    "leave": {
+      "description": "從語音頻道斷開連接。"
+    },
+    "clear": {
+      "description": "清除所有TTS佇列。"
+    },
+    "setting": {
+      "_group": "管理伺服器設定",
+      "view": {
+        "description": "顯示目前設定"
+      },
+      "text_target": {
+        "description": "設定要朗讀的文字頻道（省略則為目前頻道）",
+        "args": {
+          "channel": "要設定的文字頻道（省略則為目前頻道）"
+        }
+      },
+      "text_target_reset": {
+        "description": "將TextTarget重置為未設定"
+      },
+      "voice_target": {
+        "description": "設定自動加入的語音頻道（省略則為目前語音頻道）",
+        "args": {
+          "channel": "要設定的語音頻道（省略則為目前語音頻道）"
+        }
+      },
+      "voice_target_reset": {
+        "description": "將VoiceTarget重置為未設定"
+      },
+      "speaker": {
+        "description": "設定VOICEVOX發話者",
+        "args": {
+          "speaker": "使用的VOICEVOX發話者名稱"
+        }
+      },
+      "volume": {
+        "description": "設定音量（0〜100）",
+        "args": {
+          "volume": "音量（0〜100）"
+        }
+      },
+      "speed": {
+        "description": "設定朗讀速度（50〜200）",
+        "args": {
+          "speed": "速度（50〜200，100為正常速度）"
+        }
+      },
+      "max_char": {
+        "description": "設定最大朗讀字數（30〜200，0恢復預設值(50)）",
+        "args": {
+          "chars": "最大朗讀字數（30〜200，0恢復預設值(50)）"
+        }
+      },
+      "auto_join": {
+        "description": "設定有人進入語音頻道時是否自動加入",
+        "args": {
+          "enabled": "是否啟用"
+        }
+      },
+      "access_notice": {
+        "description": "設定是否透過TTS通知語音頻道進出",
+        "args": {
+          "enabled": "是否啟用"
+        }
+      },
+      "language": {
+        "description": "設定Bot的回應語言",
+        "args": {
+          "language": "要使用的語言"
+        }
+      }
+    }
+  },
+  "clear": {
+    "clearing": {
+      "title": "清除中",
+      "description": "正在清除佇列，請稍候...",
+      "color": "blue"
+    },
+    "success": {
+      "title": "佇列已清除",
+      "description": "已取消 {cleared} 條朗讀",
+      "color": "green"
+    }
+  },
+  "join": {
+    "notice_text": "{display_name} 進入了頻道",
+    "auto": {
+      "title": "自動加入",
+      "description": "已自動連接到語音頻道",
+      "color": "blue",
+      "fields": [
+        {
+          "name": "連接資訊",
+          "value": "語音頻道：{vc}  文字頻道：{text}",
+          "inline": false
+        }
+      ]
+    },
+    "success": {
+      "title": "連接成功",
+      "description": "已連接到語音頻道",
+      "color": "green"
+    },
+    "success_temp": {
+      "title": "連接成功",
+      "description": "已連接到語音頻道。\n本次通話將同時朗讀 {text} 的訊息。",
+      "color": "green",
+      "fields": [
+        {
+          "name": "連接資訊",
+          "value": "語音頻道：{vc}  文字頻道：{text}",
+          "inline": false
+        }
+      ]
+    },
+    "success_change_channel": {
+      "title": "連接成功",
+      "description": "已連接到語音頻道。\nTextTarget設為 {text}，VoiceTarget設為 {voice}。",
+      "color": "green",
+      "fields": [
+        {
+          "name": "連接資訊",
+          "value": "語音頻道：{vc}  文字頻道：{text}",
+          "inline": false
+        }
+      ]
+    },
+    "failure_change_channel": {
+      "title": "設定失敗",
+      "description": "頻道設定儲存失敗",
+      "color": "red"
+    },
+    "failure": {
+      "title": "連接失敗",
+      "description": "無法連接到語音頻道",
+      "color": "red"
+    }
+  },
+  "leave": {
+    "notice_text": "{display_name} 離開了頻道",
+    "success": {
+      "title": "斷開成功",
+      "description": "已從語音頻道斷開連接",
+      "color": "green"
+    },
+    "failure": {
+      "title": "斷開失敗",
+      "description": "無法從語音頻道斷開連接",
+      "color": "red"
+    },
+    "auto": {
+      "title": "自動退出",
+      "description": "語音頻道已無人，已自動退出",
+      "color": "blue"
+    },
+    "forced": {
+      "title": "已斷開連接",
+      "description": "已從語音頻道斷開連接",
+      "color": "red"
+    }
+  },
+  "error": {
+    "os_error": {
+      "title": "系統錯誤",
+      "description": "設定儲存失敗",
+      "color": "red"
+    }
+  },
+  "setting": {
+    "view": {
+      "title": "伺服器設定",
+      "description": "",
+      "color": "blue",
+      "not_set": "未設定"
+    },
+    "text_target": {
+      "success": {
+        "title": "設定成功",
+        "description": "TextTarget 已設為 {target}",
+        "color": "green"
+      },
+      "reset": {
+        "title": "設定已重置",
+        "description": "TextTarget 已重置",
+        "color": "green"
+      }
+    },
+    "voice_target": {
+      "no_vc": {
+        "title": "設定失敗",
+        "description": "您未在語音頻道中。請指定頻道或先加入語音頻道",
+        "color": "red"
+      },
+      "success": {
+        "title": "設定成功",
+        "description": "VoiceTarget 已設為 {channel}",
+        "color": "green"
+      },
+      "reset": {
+        "title": "設定已重置",
+        "description": "VoiceTarget 已重置",
+        "color": "green"
+      }
+    },
+    "speaker": {
+      "not_found": {
+        "title": "設定失敗",
+        "description": "未找到發話者，請從清單中選擇",
+        "color": "red"
+      },
+      "success": {
+        "title": "設定成功",
+        "description": "Speaker 已設為 {speaker}（ID: {speaker_id}）",
+        "color": "green"
+      }
+    },
+    "volume": {
+      "invalid": {
+        "title": "設定失敗",
+        "description": "音量請設定為0〜100的整數",
+        "color": "red"
+      },
+      "success": {
+        "title": "設定成功",
+        "description": "Volume 已設為 {volume}",
+        "color": "green"
+      }
+    },
+    "speed": {
+      "invalid": {
+        "title": "設定失敗",
+        "description": "速度請設定為50〜200的整數",
+        "color": "red"
+      },
+      "success": {
+        "title": "設定成功",
+        "description": "Speed 已設為 {speed}",
+        "color": "green"
+      }
+    },
+    "max_char": {
+      "invalid": {
+        "title": "設定失敗",
+        "description": "最大字數請設定為30〜200的整數（0恢復預設值(50)）",
+        "color": "red"
+      },
+      "success": {
+        "title": "設定成功",
+        "description": "MaxChar 已設為 {chars}（{limit}）",
+        "color": "green"
+      },
+      "unlimited": "無限制",
+      "limited": "{chars}字"
+    },
+    "auto_join": {
+      "success": {
+        "title": "設定成功",
+        "description": "AutoJoin 已設為 {state}",
+        "color": "green"
+      }
+    },
+    "access_notice": {
+      "success": {
+        "title": "設定成功",
+        "description": "AccessNotice 已設為 {state}",
+        "color": "green"
+      }
+    },
+    "language": {
+      "success": {
+        "title": "設定成功",
+        "description": "語言已設為 {language}",
+        "color": "green"
+      }
+    },
+    "states": {
+      "enabled": "啟用",
+      "disabled": "禁用"
+    },
+    "error": {
+      "no_permission": {
+        "title": "權限不足",
+        "description": "需要伺服器管理權限",
+        "color": "red"
+      }
+    }
+  }
+}

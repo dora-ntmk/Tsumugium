@@ -1,0 +1,300 @@
+{
+  "_footer": {
+    "auto_translation": "此消息由AI自动翻译，可能存在不准确之处。"
+  },
+  "commands": {
+    "join": {
+      "description": "连接到语音频道。",
+      "args": {
+        "change_channel": "设为True可将TextTarget和VoiceTarget应用到服务器设置"
+      }
+    },
+    "leave": {
+      "description": "从语音频道断开连接。"
+    },
+    "clear": {
+      "description": "清除所有TTS队列。"
+    },
+    "setting": {
+      "_group": "管理服务器设置",
+      "view": {
+        "description": "显示当前设置"
+      },
+      "text_target": {
+        "description": "设置要朗读的文字频道（省略则为当前频道）",
+        "args": {
+          "channel": "要设置的文字频道（省略则为当前频道）"
+        }
+      },
+      "text_target_reset": {
+        "description": "将TextTarget重置为未设置"
+      },
+      "voice_target": {
+        "description": "设置自动加入的语音频道（省略则为当前语音频道）",
+        "args": {
+          "channel": "要设置的语音频道（省略则为当前语音频道）"
+        }
+      },
+      "voice_target_reset": {
+        "description": "将VoiceTarget重置为未设置"
+      },
+      "speaker": {
+        "description": "设置VOICEVOX发言人",
+        "args": {
+          "speaker": "使用的VOICEVOX发言人名称"
+        }
+      },
+      "volume": {
+        "description": "设置音量（0〜100）",
+        "args": {
+          "volume": "音量（0〜100）"
+        }
+      },
+      "speed": {
+        "description": "设置朗读速度（50〜200）",
+        "args": {
+          "speed": "速度（50〜200，100为正常速度）"
+        }
+      },
+      "max_char": {
+        "description": "设置最大朗读字数（30〜200，0恢复默认值(50)）",
+        "args": {
+          "chars": "最大朗读字数（30〜200，0恢复默认值(50)）"
+        }
+      },
+      "auto_join": {
+        "description": "设置有人进入语音频道时是否自动加入",
+        "args": {
+          "enabled": "是否启用"
+        }
+      },
+      "access_notice": {
+        "description": "设置是否通过TTS通知语音频道进出",
+        "args": {
+          "enabled": "是否启用"
+        }
+      },
+      "language": {
+        "description": "设置Bot的响应语言",
+        "args": {
+          "language": "要使用的语言"
+        }
+      }
+    }
+  },
+  "clear": {
+    "clearing": {
+      "title": "清除中",
+      "description": "正在清除队列，请稍候...",
+      "color": "blue"
+    },
+    "success": {
+      "title": "队列已清除",
+      "description": "已取消 {cleared} 条朗读",
+      "color": "green"
+    }
+  },
+  "join": {
+    "notice_text": "{display_name} 进入了频道",
+    "auto": {
+      "title": "自动加入",
+      "description": "已自动连接到语音频道",
+      "color": "blue",
+      "fields": [
+        {
+          "name": "连接信息",
+          "value": "语音频道：{vc}  文字频道：{text}",
+          "inline": false
+        }
+      ]
+    },
+    "success": {
+      "title": "连接成功",
+      "description": "已连接到语音频道",
+      "color": "green"
+    },
+    "success_temp": {
+      "title": "连接成功",
+      "description": "已连接到语音频道。\n本次通话将同时朗读 {text} 的消息。",
+      "color": "green",
+      "fields": [
+        {
+          "name": "连接信息",
+          "value": "语音频道：{vc}  文字频道：{text}",
+          "inline": false
+        }
+      ]
+    },
+    "success_change_channel": {
+      "title": "连接成功",
+      "description": "已连接到语音频道。\nTextTarget设为 {text}，VoiceTarget设为 {voice}。",
+      "color": "green",
+      "fields": [
+        {
+          "name": "连接信息",
+          "value": "语音频道：{vc}  文字频道：{text}",
+          "inline": false
+        }
+      ]
+    },
+    "failure_change_channel": {
+      "title": "设置失败",
+      "description": "频道设置保存失败",
+      "color": "red"
+    },
+    "failure": {
+      "title": "连接失败",
+      "description": "无法连接到语音频道",
+      "color": "red"
+    }
+  },
+  "leave": {
+    "notice_text": "{display_name} 离开了频道",
+    "success": {
+      "title": "断开成功",
+      "description": "已从语音频道断开连接",
+      "color": "green"
+    },
+    "failure": {
+      "title": "断开失败",
+      "description": "无法从语音频道断开连接",
+      "color": "red"
+    },
+    "auto": {
+      "title": "自动退出",
+      "description": "语音频道已无人，已自动退出",
+      "color": "blue"
+    },
+    "forced": {
+      "title": "已断开连接",
+      "description": "已从语音频道断开连接",
+      "color": "red"
+    }
+  },
+  "error": {
+    "os_error": {
+      "title": "系统错误",
+      "description": "设置保存失败",
+      "color": "red"
+    }
+  },
+  "setting": {
+    "view": {
+      "title": "服务器设置",
+      "description": "",
+      "color": "blue",
+      "not_set": "未设置"
+    },
+    "text_target": {
+      "success": {
+        "title": "设置成功",
+        "description": "TextTarget 已设为 {target}",
+        "color": "green"
+      },
+      "reset": {
+        "title": "设置已重置",
+        "description": "TextTarget 已重置",
+        "color": "green"
+      }
+    },
+    "voice_target": {
+      "no_vc": {
+        "title": "设置失败",
+        "description": "您未在语音频道中。请指定频道或先加入语音频道",
+        "color": "red"
+      },
+      "success": {
+        "title": "设置成功",
+        "description": "VoiceTarget 已设为 {channel}",
+        "color": "green"
+      },
+      "reset": {
+        "title": "设置已重置",
+        "description": "VoiceTarget 已重置",
+        "color": "green"
+      }
+    },
+    "speaker": {
+      "not_found": {
+        "title": "设置失败",
+        "description": "未找到发言人，请从列表中选择",
+        "color": "red"
+      },
+      "success": {
+        "title": "设置成功",
+        "description": "Speaker 已设为 {speaker}（ID: {speaker_id}）",
+        "color": "green"
+      }
+    },
+    "volume": {
+      "invalid": {
+        "title": "设置失败",
+        "description": "音量请设置为0〜100的整数",
+        "color": "red"
+      },
+      "success": {
+        "title": "设置成功",
+        "description": "Volume 已设为 {volume}",
+        "color": "green"
+      }
+    },
+    "speed": {
+      "invalid": {
+        "title": "设置失败",
+        "description": "速度请设置为50〜200的整数",
+        "color": "red"
+      },
+      "success": {
+        "title": "设置成功",
+        "description": "Speed 已设为 {speed}",
+        "color": "green"
+      }
+    },
+    "max_char": {
+      "invalid": {
+        "title": "设置失败",
+        "description": "最大字数请设置为30〜200的整数（0恢复默认值(50)）",
+        "color": "red"
+      },
+      "success": {
+        "title": "设置成功",
+        "description": "MaxChar 已设为 {chars}（{limit}）",
+        "color": "green"
+      },
+      "unlimited": "无限制",
+      "limited": "{chars}字"
+    },
+    "auto_join": {
+      "success": {
+        "title": "设置成功",
+        "description": "AutoJoin 已设为 {state}",
+        "color": "green"
+      }
+    },
+    "access_notice": {
+      "success": {
+        "title": "设置成功",
+        "description": "AccessNotice 已设为 {state}",
+        "color": "green"
+      }
+    },
+    "language": {
+      "success": {
+        "title": "设置成功",
+        "description": "语言已设为 {language}",
+        "color": "green"
+      }
+    },
+    "states": {
+      "enabled": "启用",
+      "disabled": "禁用"
+    },
+    "error": {
+      "no_permission": {
+        "title": "权限不足",
+        "description": "需要服务器管理权限",
+        "color": "red"
+      }
+    }
+  }
+}

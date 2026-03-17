@@ -4,7 +4,7 @@ from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_PATH
 from vvtts import VvTTS
 from play import Play
 from server_config import ServerConfig
-from messages import build_embed, get_desc, handle_os_error
+from messages import build_embed, get_desc, handle_os_error, BotTranslator
 from setting import Setting
 
 
@@ -29,8 +29,8 @@ def get_notify_channel(guild, vc_channel=None):
   return vc_channel
 
 
-async def enqueue_notice(guild, member, msg_key):
-  notice_text = get_desc(msg_key).format(display_name=member.display_name)
+async def enqueue_notice(guild, member, msg_key, lang: str = "ja"):
+  notice_text = get_desc(msg_key, lang=lang).format(display_name=member.display_name)
   speaker = server_config.get(guild.id, "Speaker")
   volume = server_config.volume_to_vvtts(guild.id)
   speed = server_config.speed_to_vvtts(guild.id)
@@ -44,6 +44,7 @@ async def enqueue_notice(guild, member, msg_key):
 # 起動時動作
 @client.event
 async def on_ready():
+  await tree.set_translator(BotTranslator())
   await tree.sync()
   stts = "Hello World!"
   await client.change_presence(status=discord.Status.online, activity=discord.Game(name=stts))
@@ -60,6 +61,7 @@ async def on_guild_join(guild):
 @client.event
 async def on_voice_state_update(member, before, after):
   guild = member.guild
+  lang = server_config.get(guild.id, "Language")
 
   # Bot自身の切断検知（強制切断 vs 自発的退出の区別）
   if member == guild.me:
@@ -70,7 +72,7 @@ async def on_voice_state_update(member, before, after):
       else:
         ch = get_notify_channel(guild, before.channel)
         if ch:
-          await ch.send(embed=build_embed("leave.forced"))
+          await ch.send(embed=build_embed("leave.forced", lang=lang))
     return
 
   user_joined = before.channel is None and after.channel is not None
@@ -86,12 +88,12 @@ async def on_voice_state_update(member, before, after):
         leaving_guilds.add(guild.id)
         await guild.voice_client.disconnect()
         if ch:
-          await ch.send(embed=build_embed("leave.auto"))
+          await ch.send(embed=build_embed("leave.auto", lang=lang))
         return
       else:
         # LeaveNotice
         if server_config.get(guild.id, "AccessNotice"):
-          await enqueue_notice(guild, member, "leave.notice_text")
+          await enqueue_notice(guild, member, "leave.notice_text", lang=lang)
 
   if not user_joined:
     return
@@ -104,24 +106,28 @@ async def on_voice_state_update(member, before, after):
       await target_channel.connect(timeout=60, self_deaf=True)
       ch = get_notify_channel(guild, target_channel)
       if ch:
-        await ch.send(embed=build_embed("join.auto", vc=target_channel.mention, text=ch.mention))
+        await ch.send(embed=build_embed("join.auto", lang=lang, vc=target_channel.mention, text=ch.mention))
 
   # JoinNotice
   if server_config.get(guild.id, "AccessNotice") and guild.voice_client is not None:
-    await enqueue_notice(guild, member, "join.notice_text")
+    await enqueue_notice(guild, member, "join.notice_text", lang=lang)
 
 
 # 入室
 @tree.command(
   name="join",
-  description=get_desc("commands.join.description")
+  description=discord.app_commands.locale_str(get_desc("commands.join.description"), key="commands.join.description")
 )
 @discord.app_commands.describe(
-  change_channel=get_desc("commands.join.args.change_channel")
+  change_channel=discord.app_commands.locale_str(
+    get_desc("commands.join.args.change_channel"),
+    key="commands.join.args.change_channel"
+  )
 )
 async def join(ctx, change_channel: bool = False):
   try:
     await ctx.response.defer()
+    lang = server_config.get(ctx.guild.id, "Language")
     if ctx.user.voice:
       await ctx.user.voice.channel.connect(timeout=60, self_deaf=True)
       if change_channel:
@@ -131,26 +137,27 @@ async def join(ctx, change_channel: bool = False):
           await ctx.edit_original_response(
             embed=build_embed(
               "join.success_change_channel",
+              lang=lang,
               vc=ctx.user.voice.channel.mention,
               text=ctx.channel.mention,
               voice=ctx.user.voice.channel.mention
             )
           )
         except OSError:
-          await ctx.edit_original_response(embed=build_embed("join.failure_change_channel"))
+          await ctx.edit_original_response(embed=build_embed("join.failure_change_channel", lang=lang))
       else:
         play.temp_text_targets[ctx.guild.id] = ctx.channel.id
         await ctx.edit_original_response(
-          embed=build_embed("join.success_temp", vc=ctx.user.voice.channel.mention, text=ctx.channel.mention)
+          embed=build_embed("join.success_temp", lang=lang, vc=ctx.user.voice.channel.mention, text=ctx.channel.mention)
         )
     else:
-      await ctx.edit_original_response(embed=build_embed("join.failure"))
+      await ctx.edit_original_response(embed=build_embed("join.failure", lang=lang))
   except discord.errors.InteractionResponded:
     return
   except discord.errors.HTTPException as e:
     print(f"HTTPException in join: {e}")
   except OSError as e:
-    await handle_os_error(ctx, e, "join")
+    await handle_os_error(ctx, e, "join", lang=server_config.get(ctx.guild.id, "Language"))
   except Exception as e:
     print(f"Exception in join: {e}")
 
@@ -158,23 +165,24 @@ async def join(ctx, change_channel: bool = False):
 # 退室
 @tree.command(
   name="leave",
-  description=get_desc("commands.leave.description")
+  description=discord.app_commands.locale_str(get_desc("commands.leave.description"), key="commands.leave.description")
 )
 async def leave(ctx):
   try:
     await ctx.response.defer()
+    lang = server_config.get(ctx.guild.id, "Language")
     if ctx.user.voice:
       leaving_guilds.add(ctx.guild.id)
       await ctx.guild.voice_client.disconnect()
-      await ctx.edit_original_response(embed=build_embed("leave.success"))
+      await ctx.edit_original_response(embed=build_embed("leave.success", lang=lang))
     else:
-      await ctx.edit_original_response(embed=build_embed("leave.failure"))
+      await ctx.edit_original_response(embed=build_embed("leave.failure", lang=lang))
   except discord.errors.InteractionResponded:
     return
   except discord.errors.HTTPException as e:
     print(f"HTTPException in leave: {e}")
   except OSError as e:
-    await handle_os_error(ctx, e, "leave")
+    await handle_os_error(ctx, e, "leave", lang=server_config.get(ctx.guild.id, "Language"))
   except Exception as e:
     print(f"Exception in leave: {e}")
 
