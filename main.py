@@ -21,7 +21,9 @@ leaving_guilds: set = set()
 
 
 def get_notify_channel(guild, vc_channel=None):
-  text_target = server_config.get(guild.id, "TextTarget")
+  text_target = play.temp_text_targets.get(guild.id)
+  if text_target is None:
+    text_target = server_config.get(guild.id, "TextTarget")
   if text_target:
     return guild.get_channel(text_target)
   return vc_channel
@@ -62,6 +64,7 @@ async def on_voice_state_update(member, before, after):
   # Bot自身の切断検知（強制切断 vs 自発的退出の区別）
   if member == guild.me:
     if before.channel is not None and after.channel is None:
+      play.temp_text_targets.pop(guild.id, None)
       if guild.id in leaving_guilds:
         leaving_guilds.discard(guild.id)
       else:
@@ -84,6 +87,7 @@ async def on_voice_state_update(member, before, after):
         await guild.voice_client.disconnect()
         if ch:
           await ch.send(embed=build_embed("leave.auto"))
+        return
       else:
         # LeaveNotice
         if server_config.get(guild.id, "AccessNotice"):
@@ -100,7 +104,7 @@ async def on_voice_state_update(member, before, after):
       await target_channel.connect(timeout=60, self_deaf=True)
       ch = get_notify_channel(guild, target_channel)
       if ch:
-        await ch.send(embed=build_embed("join.auto"))
+        await ch.send(embed=build_embed("join.auto", vc=target_channel.mention, text=ch.mention))
 
   # JoinNotice
   if server_config.get(guild.id, "AccessNotice") and guild.voice_client is not None:
@@ -127,6 +131,7 @@ async def join(ctx, change_channel: bool = False):
           await ctx.edit_original_response(
             embed=build_embed(
               "join.success_change_channel",
+              vc=ctx.user.voice.channel.mention,
               text=ctx.channel.mention,
               voice=ctx.user.voice.channel.mention
             )
@@ -134,7 +139,10 @@ async def join(ctx, change_channel: bool = False):
         except OSError:
           await ctx.edit_original_response(embed=build_embed("join.failure_change_channel"))
       else:
-        await ctx.edit_original_response(embed=build_embed("join.success"))
+        play.temp_text_targets[ctx.guild.id] = ctx.channel.id
+        await ctx.edit_original_response(
+          embed=build_embed("join.success_temp", vc=ctx.user.voice.channel.mention, text=ctx.channel.mention)
+        )
     else:
       await ctx.edit_original_response(embed=build_embed("join.failure"))
   except discord.errors.InteractionResponded:

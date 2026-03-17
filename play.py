@@ -15,6 +15,7 @@ class Play:
     self.playing_tasks = {}
     self.skip_flags = defaultdict(bool)
     self.clearing_flags = defaultdict(bool)
+    self.temp_text_targets = {}
     self._register()
 
   def _register(self):
@@ -61,7 +62,9 @@ class Play:
         return
       if message.guild.voice_client is None:
         return
-      text_target = self.server_config.get(message.guild.id, "TextTarget")
+      text_target = self.temp_text_targets.get(message.guild.id)
+      if text_target is None:
+        text_target = self.server_config.get(message.guild.id, "TextTarget")
       if text_target is not None:
         if message.channel.id != text_target:
           return

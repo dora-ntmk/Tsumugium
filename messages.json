@@ -90,17 +90,43 @@
     "auto": {
       "title": "自動入室",
       "description": "ボイスチャンネルに自動で接続しました",
-      "color": "blue"
+      "color": "blue",
+      "fields": [
+        {
+          "name": "接続情報",
+          "value": "接続チャンネル：{vc}　読み上げチャンネル：{text}",
+          "inline": false
+        }
+      ]
     },
     "success": {
       "title": "接続完了",
       "description": "ボイスチャンネルに接続しました",
       "color": "green"
     },
+    "success_temp": {
+      "title": "接続完了",
+      "description": "ボイスチャンネルに接続しました。\n今回の通話に限り {text} のメッセージも読み上げます。",
+      "color": "green",
+      "fields": [
+        {
+          "name": "接続情報",
+          "value": "接続チャンネル：{vc}　読み上げチャンネル：{text}",
+          "inline": false
+        }
+      ]
+    },
     "success_change_channel": {
       "title": "接続完了",
-      "description": "ボイスチャンネルに接続しました。\nTextTarget: {text}\nVoiceTarget: {voice}",
-      "color": "green"
+      "description": "ボイスチャンネルに接続しました。\nTextTargetは {text}、VoiceTargetは {voice} に設定されました。",
+      "color": "green",
+      "fields": [
+        {
+          "name": "接続情報",
+          "value": "接続チャンネル：{vc}　読み上げチャンネル：{text}",
+          "inline": false
+        }
+      ]
     },
     "failure_change_channel": {
       "title": "設定失敗",

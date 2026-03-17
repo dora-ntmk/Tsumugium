@@ -38,4 +38,11 @@ def build_embed(key: str, **kwargs) -> discord.Embed:
     title = node["title"]
     description = node.get("description", "").format(**kwargs)
     color = _COLOR_MAP[node["color"]]()
-    return discord.Embed(title=title, description=description or None, color=color)
+    embed = discord.Embed(title=title, description=description or None, color=color)
+    for field in node.get("fields", []):
+        embed.add_field(
+            name=field["name"].format(**kwargs),
+            value=field["value"].format(**kwargs),
+            inline=field.get("inline", True)
+        )
+    return embed
