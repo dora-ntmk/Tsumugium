@@ -273,7 +273,18 @@
       "title": "伺服器設定",
       "description": "",
       "color": "blue",
-      "not_set": "未設定"
+      "not_set": "未設定",
+      "labels": {
+        "TextTarget":   "朗讀目標頻道",
+        "VoiceTarget":  "連接頻道",
+        "Speaker":      "語音",
+        "Volume":       "音量",
+        "Speed":        "語速",
+        "MaxChar":      "最大朗讀字數",
+        "AutoJoin":     "自動加入/退出",
+        "AccessNotice": "入退通知",
+        "Language":     "語言"
+      }
     },
     "text_target": {
       "success": {

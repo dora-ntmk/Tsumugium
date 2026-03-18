@@ -273,7 +273,18 @@
       "title": "서버 설정",
       "description": "",
       "color": "blue",
-      "not_set": "미설정"
+      "not_set": "미설정",
+      "labels": {
+        "TextTarget":   "읽기 대상 채널",
+        "VoiceTarget":  "연결 채널",
+        "Speaker":      "화자",
+        "Volume":       "볼륨",
+        "Speed":        "속도",
+        "MaxChar":      "최대 읽기 글자 수",
+        "AutoJoin":     "자동 입퇴장",
+        "AccessNotice": "입퇴장 알림",
+        "Language":     "언어"
+      }
     },
     "text_target": {
       "success": {

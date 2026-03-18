@@ -273,7 +273,18 @@
       "title": "サーバー設定",
       "description": "",
       "color": "blue",
-      "not_set": "未設定"
+      "not_set": "未設定",
+      "labels": {
+        "TextTarget":   "読み上げ対象チャンネル",
+        "VoiceTarget":  "接続チャンネル",
+        "Speaker":      "話者",
+        "Volume":       "音量",
+        "Speed":        "速さ",
+        "MaxChar":      "最大読み上げ文字数",
+        "AutoJoin":     "自動入退室",
+        "AccessNotice": "入退室通知",
+        "Language":     "言語"
+      }
     },
     "text_target": {
       "success": {

@@ -273,7 +273,18 @@
       "title": "服务器设置",
       "description": "",
       "color": "blue",
-      "not_set": "未设置"
+      "not_set": "未设置",
+      "labels": {
+        "TextTarget":   "朗读目标频道",
+        "VoiceTarget":  "连接频道",
+        "Speaker":      "语音",
+        "Volume":       "音量",
+        "Speed":        "语速",
+        "MaxChar":      "最大朗读字数",
+        "AutoJoin":     "自动加入/退出",
+        "AccessNotice": "入退通知",
+        "Language":     "语言"
+      }
     },
     "text_target": {
       "success": {

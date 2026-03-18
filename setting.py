@@ -34,31 +34,35 @@ class Setting:
         cfg = self.server_config.get_all(ctx.guild.id)
         embed = build_embed("setting.view", lang=lang)
         not_set = get_desc("setting.view.not_set", lang=lang)
+        lbl = lambda k: get_desc(f"setting.view.labels.{k}", lang=lang)
         text_ch  = ctx.guild.get_channel(cfg["TextTarget"])
         voice_ch = ctx.guild.get_channel(cfg["VoiceTarget"])
-        embed.add_field(name="TextTarget",
+        embed.add_field(name=lbl("TextTarget"),
                         value=not_set if text_ch is None else text_ch.mention,
                         inline=False)
-        embed.add_field(name="VoiceTarget",
+        embed.add_field(name=lbl("VoiceTarget"),
                         value=not_set if voice_ch is None else voice_ch.mention,
                         inline=False)
-        embed.add_field(name="Speaker",
+        embed.add_field(name=lbl("Speaker"),
                         value=str(cfg["Speaker"]),
                         inline=True)
-        embed.add_field(name="Volume",
+        embed.add_field(name=lbl("Volume"),
                         value=str(cfg["Volume"]),
                         inline=True)
-        embed.add_field(name="Speed",
+        embed.add_field(name=lbl("Speed"),
                         value=str(cfg["Speed"]),
                         inline=True)
-        embed.add_field(name="MaxChar",
+        embed.add_field(name=lbl("MaxChar"),
                         value=str(cfg["MaxChar"]),
                         inline=True)
-        embed.add_field(name="AutoJoin",
+        embed.add_field(name=lbl("AutoJoin"),
                         value=str(cfg["AutoJoin"]),
                         inline=True)
-        embed.add_field(name="AccessNotice",
+        embed.add_field(name=lbl("AccessNotice"),
                         value=str(cfg["AccessNotice"]),
+                        inline=True)
+        embed.add_field(name=lbl("Language"),
+                        value=str(cfg["Language"]),
                         inline=True)
         await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:

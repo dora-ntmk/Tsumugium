@@ -273,7 +273,18 @@
       "title": "Server Settings",
       "description": "",
       "color": "blue",
-      "not_set": "Not set"
+      "not_set": "Not set",
+      "labels": {
+        "TextTarget":   "TextTarget",
+        "VoiceTarget":  "VoiceTarget",
+        "Speaker":      "Speaker",
+        "Volume":       "Volume",
+        "Speed":        "Speed",
+        "MaxChar":      "MaxChar",
+        "AutoJoin":     "AutoJoin",
+        "AccessNotice": "AccessNotice",
+        "Language":     "Language"
+      }
     },
     "text_target": {
       "success": {

@@ -401,7 +401,7 @@ class WordDict:
             word=_lstr('commands.dict.add.args.word'),
             read=_lstr('commands.dict.add.args.read')
         )
-        @discord.app_commands.checks.has_permissions(manage_guild=True)
+        @discord.app_commands.checks.has_permissions()
         async def dict_add(ctx, word: str, read: str):
             try:
                 await ctx.response.defer()
@@ -433,7 +433,7 @@ class WordDict:
 
         @dict_group.command(name='del', description=_lstr('commands.dict.del.description'))
         @discord.app_commands.describe(word=_lstr('commands.dict.del.args.word'))
-        @discord.app_commands.checks.has_permissions(manage_guild=True)
+        @discord.app_commands.checks.has_permissions()
         async def dict_del(ctx, word: str):
             try:
                 await ctx.response.defer()

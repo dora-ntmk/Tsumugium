@@ -85,7 +85,7 @@ async def on_guild_remove(guild):
     dict_manager.remove_guild(guild.id)
 
 
-# VC入退室検知（AutoJoin / JoinNotice）
+# VC入退室検知（AutoJoin / AccessNotice）
 @client.event
 async def on_voice_state_update(member, before, after):
   guild = member.guild
@@ -135,8 +135,9 @@ async def on_voice_state_update(member, before, after):
       ch = get_notify_channel(guild, target_channel)
       if ch:
         await ch.send(embed=build_embed("join.auto", lang=lang, vc=target_channel.mention, text=ch.mention))
+      return  # 最初の入室者の入室通知をスキップ
 
-  # JoinNotice
+  # AccessNotice
   if server_config.get(guild.id, "AccessNotice") and guild.voice_client is not None:
     await enqueue_notice(guild, member, "join.notice_text", lang=lang)
 
