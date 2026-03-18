@@ -90,7 +90,7 @@ class Play:
       text = message.content
       replaced_ranges = []
       if self.dict_manager is not None:
-        text, replaced_ranges = self.dict_manager.preprocess_text(text, guild_id, message.guild, message.attachments)
+        text, replaced_ranges = self.dict_manager.preprocess_text(text, guild_id, message.guild, message.attachments, message.mentions)
       max_char = self.server_config.get(guild_id, "MaxChar")
       if 0 < max_char < len(text):
         cut = max_char
