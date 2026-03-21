@@ -22,3 +22,7 @@ Discord側の仕様変更により、Discord.py v2.7.0以上が必要です。
 * Discord.py
 * PyNaCl
 * その他…（思い出したときに追記）
+
+## 使用OSS
+ライセンス確認中のため不十分ですが、v3.0.0（初版）リリースまでに完全な状態にします。
+- [emoji-ja](https://github.com/yagays/emoji-ja) - MIT License, Copyright 2018 yag_ays
