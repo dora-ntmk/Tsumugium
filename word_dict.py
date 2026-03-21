@@ -77,6 +77,19 @@ def _is_emoji_word(word: str) -> bool:
     return True
 
 
+def _is_priority_word(word: str) -> bool:
+    """優先辞書に登録すべき語かどうかを判定する。"""
+    if _is_emoji_word(word):
+        return True
+    for pat in (_MENTION_USER_RE, _MENTION_CH_RE, _MENTION_ROLE_RE):
+        if pat.search(word):
+            return True
+    for url_re, _ in _URL_PATTERNS:
+        if url_re.search(word):
+            return True
+    return False
+
+
 def _load_json(path: str) -> dict:
     if not os.path.exists(path):
         return {}
@@ -291,7 +304,7 @@ class DictManager:
         """Returns True if overwriting an existing entry."""
         if len(read) > 50:
             raise ValueError('too_long')
-        is_priority = 1 if _is_emoji_word(word) else 0
+        is_priority = 1 if _is_priority_word(word) else 0
         gid = str(guild_id)
         cur = self._conn.execute(
             "SELECT 1 FROM entries WHERE guild_id = ? AND word = ?", (gid, word)
@@ -338,6 +351,16 @@ class DictManager:
 
     def preprocess_text(self, text: str, guild_id: int, guild, attachments, mentions=None) -> tuple[str, list[tuple[int, int]]]:
         segments = [(text, False)]
+        gid = str(guild_id)
+
+        # -1. 優先辞書（URL処理より前に適用）
+        cur = self._conn.execute(
+            "SELECT word, reading FROM entries WHERE guild_id = ? AND is_priority = 1 ORDER BY added_at DESC",
+            (gid,)
+        )
+        d = dict(cur.fetchall())
+        if d:
+            segments = _apply_dict(segments, d)
 
         # 0. URL処理（辞書より前に実行してURLを保護）
         for url_re, url_read in _URL_PATTERNS:
@@ -400,8 +423,6 @@ class DictManager:
         segments = _apply_regex(segments, re.compile(r'[ \u3000]+'), ',')
 
         # 2. 優先辞書 → 通常辞書 → 共通辞書
-        gid = str(guild_id)
-
         cur = self._conn.execute(
             "SELECT word, reading FROM entries WHERE guild_id = ? AND is_priority = 1 ORDER BY added_at DESC",
             (gid,)
