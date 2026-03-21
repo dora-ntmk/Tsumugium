@@ -245,8 +245,8 @@
       "more": "（另有 {count} 条）",
       "page": "第 {page} / {total} 页",
       "prefix": "",
-      "section_word": "单词词典",
-      "section_emoji": "表情符号词典",
+      "section_normal": "普通词典",
+      "section_priority": "优先词典",
       "not_found": {
         "title": "未找到",
         "description": "词典中没有与\"{word}\"匹配的条目",

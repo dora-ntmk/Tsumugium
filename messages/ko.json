@@ -245,8 +245,8 @@
       "more": "（나머지 {count} 건）",
       "page": "{page} / {total} 페이지",
       "prefix": "",
-      "section_word": "단어 사전",
-      "section_emoji": "이모지 사전",
+      "section_normal": "일반 사전",
+      "section_priority": "우선 사전",
       "not_found": {
         "title": "찾을 수 없음",
         "description": "사전에 「{word}」에 해당하는 단어가 없습니다",

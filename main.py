@@ -1,8 +1,8 @@
 import asyncio
 import io
-import os
+import json
 import discord
-from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_PATH
+from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_DB
 from vvtts import VvTTS
 from play import Play
 from server_config import ServerConfig
@@ -17,7 +17,7 @@ intents.message_content = True
 client = discord.Client(intents=intents)
 tree = discord.app_commands.CommandTree(client)
 vvtts = VvTTS()
-server_config = ServerConfig(SERVER_CONFIG_PATH)
+server_config = ServerConfig(SERVER_CONFIG_DB)
 dict_manager = DictManager()
 play = Play(client, tree, vvtts, server_config, dict_manager)
 setting = Setting(client, tree, server_config)
@@ -51,6 +51,20 @@ async def enqueue_notice(guild, member, msg_key, lang: str = "ja"):
 async def on_ready():
   await tree.set_translator(BotTranslator())
   await tree.sync()
+
+  # 起動時にサーバー設定・辞書データを同期（オフライン中の参加・追放に対応）
+  current_guild_ids = {str(g.id) for g in client.guilds}
+  db_guild_ids = server_config.get_all_guild_ids()
+
+  for gid_str in current_guild_ids - db_guild_ids:
+    server_config.init_guild(int(gid_str))
+    print(f'on_ready: init_guild {gid_str}')
+
+  for gid_str in db_guild_ids - current_guild_ids:
+    server_config.remove_guild(int(gid_str))
+    dict_manager.remove_guild(int(gid_str))
+    print(f'on_ready: remove_guild {gid_str}')
+
   stts = "Hello World!"
   await client.change_presence(status=discord.Status.online, activity=discord.Game(name=stts))
   print(discord.__version__)
@@ -60,34 +74,32 @@ async def on_ready():
 @client.event
 async def on_guild_join(guild):
   server_config.init_guild(guild.id)
-  dict_manager.init_guild(guild.id)
 
 
-# サーバー退出時に辞書ファイルをオーナーへ送信して削除
+# サーバー退出時に辞書データをオーナーへ送信して削除
 @client.event
 async def on_guild_remove(guild):
   try:
-    files_to_send = []
-    for path in (f'dict/{guild.id}.json', f'dict/{guild.id}_emoji.json'):
-      if os.path.exists(path):
-        with open(path, 'rb') as f:
-          data = f.read()
-        files_to_send.append(discord.File(io.BytesIO(data), filename=os.path.basename(path)))
-    owner = guild.owner
-    if owner is None and guild.owner_id:
-      try:
-        owner = await client.fetch_user(guild.owner_id)
-      except (discord.NotFound, discord.HTTPException):
-        pass
-    if files_to_send and owner:
-      try:
-        dm = await owner.create_dm()
-        await dm.send(
-          content=f'サーバー「{guild.name}」の辞書データをお送りします。',
-          files=files_to_send
-        )
-      except (discord.Forbidden, discord.HTTPException):
-        pass
+    normal_items, priority_items = dict_manager.get_entries(guild.id)
+    combined = dict(priority_items + normal_items)  # 優先辞書が上、通常辞書が下
+    if combined:
+      data = json.dumps(combined, ensure_ascii=False, indent=2).encode('utf-8')
+      file = discord.File(io.BytesIO(data), filename=f'{guild.id}_dict.json')
+      owner = guild.owner
+      if owner is None and guild.owner_id:
+        try:
+          owner = await client.fetch_user(guild.owner_id)
+        except (discord.NotFound, discord.HTTPException):
+          pass
+      if owner:
+        try:
+          dm = await owner.create_dm()
+          await dm.send(
+            content=f'サーバー「{guild.name}」の辞書データをお送りします。',
+            files=[file]
+          )
+        except (discord.Forbidden, discord.HTTPException):
+          pass
   except Exception as e:
     print(f'Exception in on_guild_remove (DM): {e}')
   finally:

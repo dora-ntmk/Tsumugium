@@ -245,8 +245,8 @@
       "more": "({count} more)",
       "page": "Page {page} / {total}",
       "prefix": "",
-      "section_word": "Words",
-      "section_emoji": "Emoji",
+      "section_normal": "Normal",
+      "section_priority": "Priority",
       "not_found": {
         "title": "Not Found",
         "description": "No entries found for \"{word}\"",

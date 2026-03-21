@@ -1,5 +1,5 @@
-import json
-import os
+import sqlite3
+from typing import Set
 
 DEFAULTS = {
     "TextTarget": None,
@@ -25,71 +25,113 @@ _TYPE_VALIDATORS = {
     "Language":     (lambda v: isinstance(v, str) and v in ("ja", "en", "zh-CN", "zh-TW", "ko", "hg")),
 }
 
-
-def _guild_key(guild_id: int) -> str:
-    return str(guild_id)
+# bool型のキー一覧（SQLiteの0/1 ↔ Python bool変換用）
+_BOOL_KEYS = {"AutoJoin", "AccessNotice"}
 
 
 class ServerConfig:
-    def __init__(self, path: str = "config.json"):
-        self.path = path
-        self._data: dict = {}
-        self._load()
+    def __init__(self, db_path: str = "db/config.db"):
+        self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS guild_config (
+                guild_id      TEXT    PRIMARY KEY,
+                TextTarget    INTEGER,
+                VoiceTarget   INTEGER,
+                Speaker       INTEGER NOT NULL DEFAULT 8,
+                Volume        INTEGER NOT NULL DEFAULT 100,
+                Speed         INTEGER NOT NULL DEFAULT 100,
+                MaxChar       INTEGER NOT NULL DEFAULT 50,
+                AutoJoin      INTEGER NOT NULL DEFAULT 0,
+                AccessNotice  INTEGER NOT NULL DEFAULT 0,
+                Language      TEXT    NOT NULL DEFAULT 'ja'
+            )
+        """)
+        self._conn.commit()
 
-    def _load(self):
-        if os.path.exists(self.path):
-            try:
-                with open(self.path, encoding="utf-8") as f:
-                    self._data = json.load(f)
-            except (json.JSONDecodeError, OSError) as e:
-                print(f"config.json の読み込みに失敗しました（空で初期化します）: {e}")
-                self._data = {}
+    def _to_python(self, key: str, value):
+        """SQLiteの値をPython型に変換する。"""
+        if value is None:
+            return DEFAULTS[key]
+        if key in _BOOL_KEYS:
+            return bool(value)
+        return value
 
-    def _save(self):
-        dir_name = os.path.dirname(self.path)
-        if dir_name:
-            os.makedirs(dir_name, exist_ok=True)
-        with open(self.path, mode="w", encoding="utf-8") as f:
-            json.dump(self._data, f, ensure_ascii=False, indent=2)
+    def _to_sql(self, value):
+        """Python型をSQLiteに格納できる型に変換する。"""
+        if isinstance(value, bool):
+            return int(value)
+        return value
 
     def init_guild(self, guild_id: int):
-        key = _guild_key(guild_id)
-        if key not in self._data:
-            self._data[key] = dict(DEFAULTS)
-            self._save()
+        self._conn.execute(
+            "INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)",
+            (str(guild_id),)
+        )
+        self._conn.commit()
 
     def get(self, guild_id: int, key: str):
         if key not in DEFAULTS:
             raise KeyError(f"不明な設定キー: {key}")
-        return self._data.get(_guild_key(guild_id), {}).get(key, DEFAULTS[key])
+        cur = self._conn.execute(
+            f"SELECT {key} FROM guild_config WHERE guild_id = ?",
+            (str(guild_id),)
+        )
+        row = cur.fetchone()
+        if row is None:
+            return DEFAULTS[key]
+        return self._to_python(key, row[0])
 
     def set(self, guild_id: int, key: str, value):
         if key not in DEFAULTS:
             raise KeyError(f"不明な設定キー: {key}")
         if not _TYPE_VALIDATORS[key](value):
             raise ValueError(f"{key} に無効な値です: {value!r}")
-        key_str = _guild_key(guild_id)
-        if key_str not in self._data:
-            self._data[key_str] = {}
-        self._data[key_str][key] = value
-        self._save()
+        gid = str(guild_id)
+        self._conn.execute(
+            "INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)",
+            (gid,)
+        )
+        self._conn.execute(
+            f"UPDATE guild_config SET {key} = ? WHERE guild_id = ?",
+            (self._to_sql(value), gid)
+        )
+        self._conn.commit()
 
     def get_all(self, guild_id: int) -> dict:
-        return {**DEFAULTS, **self._data.get(_guild_key(guild_id), {})}
+        cur = self._conn.execute(
+            "SELECT TextTarget, VoiceTarget, Speaker, Volume, Speed, MaxChar, AutoJoin, AccessNotice, Language"
+            " FROM guild_config WHERE guild_id = ?",
+            (str(guild_id),)
+        )
+        row = cur.fetchone()
+        if row is None:
+            return dict(DEFAULTS)
+        keys = ["TextTarget", "VoiceTarget", "Speaker", "Volume", "Speed", "MaxChar", "AutoJoin", "AccessNotice", "Language"]
+        result = {}
+        for k, v in zip(keys, row):
+            result[k] = self._to_python(k, v)
+        return result
 
     def remove_guild(self, guild_id: int):
-        key_str = _guild_key(guild_id)
-        if key_str in self._data:
-            del self._data[key_str]
-            self._save()
+        self._conn.execute(
+            "DELETE FROM guild_config WHERE guild_id = ?",
+            (str(guild_id),)
+        )
+        self._conn.commit()
 
     def reset(self, guild_id: int, key: str):
         if key not in DEFAULTS:
             raise KeyError(f"不明な設定キー: {key}")
-        key_str = _guild_key(guild_id)
-        if key_str in self._data and key in self._data[key_str]:
-            del self._data[key_str][key]
-            self._save()
+        self._conn.execute(
+            f"UPDATE guild_config SET {key} = ? WHERE guild_id = ?",
+            (self._to_sql(DEFAULTS[key]), str(guild_id))
+        )
+        self._conn.commit()
+
+    def get_all_guild_ids(self) -> Set[str]:
+        cur = self._conn.execute("SELECT guild_id FROM guild_config")
+        return {row[0] for row in cur.fetchall()}
 
     def volume_to_vvtts(self, guild_id: int) -> float:
         return self.get(guild_id, "Volume") / 100.0

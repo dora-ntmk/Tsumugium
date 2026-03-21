@@ -1,6 +1,7 @@
 import os
 import re
 import json
+import sqlite3
 import unicodedata
 import discord
 from typing import Optional
@@ -86,10 +87,6 @@ def _load_json(path: str) -> dict:
         return {}
 
 
-def _save_json(path: str, data: dict):
-    with open(path, mode='w', encoding='utf-8') as f:
-        json.dump(data, f, ensure_ascii=False, indent=2)
-
 
 def _apply_dict(segments: list, mapping: dict) -> list:
     """Literal word replacements on non-replaced segments."""
@@ -156,15 +153,15 @@ def _filter_entries(entries: dict, word: str) -> list[tuple[str, str]]:
 
 
 class DictViewPaginator(discord.ui.View):
-    def __init__(self, word_items: list[tuple[str, str]], emoji_items: list[tuple[str, str]], lang: str):
+    def __init__(self, normal_items: list[tuple[str, str]], priority_items: list[tuple[str, str]], lang: str):
         super().__init__(timeout=120)
-        self.word_items  = word_items
-        self.emoji_items = emoji_items
+        self.normal_items   = normal_items
+        self.priority_items = priority_items
         self.lang = lang
         self.page = 0
-        self.word_pages  = (len(word_items)  + _PAGE_SIZE - 1) // _PAGE_SIZE if word_items  else 0
-        self.emoji_pages = (len(emoji_items) + _PAGE_SIZE - 1) // _PAGE_SIZE if emoji_items else 0
-        self.total_pages = self.word_pages + self.emoji_pages
+        self.normal_pages   = (len(normal_items)   + _PAGE_SIZE - 1) // _PAGE_SIZE if normal_items   else 0
+        self.priority_pages = (len(priority_items) + _PAGE_SIZE - 1) // _PAGE_SIZE if priority_items else 0
+        self.total_pages = self.normal_pages + self.priority_pages
         self.message: discord.Message | None = None
         self._update_buttons()
 
@@ -172,19 +169,19 @@ class DictViewPaginator(discord.ui.View):
         embed = build_embed('dict.view', lang=self.lang)
         prefix = get_desc('dict.view.prefix', lang=self.lang)
 
-        if self.page < self.word_pages:
+        if self.page < self.normal_pages:
             start = self.page * _PAGE_SIZE
-            page_items = self.word_items[start:start + _PAGE_SIZE]
-            section = get_desc('dict.view.section_word', lang=self.lang)
+            page_items = self.normal_items[start:start + _PAGE_SIZE]
+            section = get_desc('dict.view.section_normal', lang=self.lang)
             section_page = self.page + 1
-            section_total = self.word_pages
+            section_total = self.normal_pages
         else:
-            emoji_page = self.page - self.word_pages
-            start = emoji_page * _PAGE_SIZE
-            page_items = self.emoji_items[start:start + _PAGE_SIZE]
-            section = get_desc('dict.view.section_emoji', lang=self.lang)
-            section_page = emoji_page + 1
-            section_total = self.emoji_pages
+            priority_page = self.page - self.normal_pages
+            start = priority_page * _PAGE_SIZE
+            page_items = self.priority_items[start:start + _PAGE_SIZE]
+            section = get_desc('dict.view.section_priority', lang=self.lang)
+            section_page = priority_page + 1
+            section_total = self.priority_pages
 
         lines = [f"{w}  →  {r}" for w, r in page_items]
         parts = []
@@ -202,44 +199,44 @@ class DictViewPaginator(discord.ui.View):
         return embed
 
     def _update_buttons(self):
-        in_word = self.page < self.word_pages
-        section_pages = self.word_pages if in_word else self.emoji_pages
+        in_normal = self.page < self.normal_pages
+        section_pages = self.normal_pages if in_normal else self.priority_pages
 
         self.prev_button.disabled = (section_pages <= 1)
         self.next_button.disabled = (section_pages <= 1)
 
-        self.jump_word_button.disabled  = (self.word_pages  == 0 or in_word)
-        self.jump_emoji_button.disabled = (self.emoji_pages == 0 or not in_word)
+        self.jump_normal_button.disabled   = (self.normal_pages   == 0 or in_normal)
+        self.jump_priority_button.disabled = (self.priority_pages == 0 or not in_normal)
 
     @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary)
     async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.page < self.word_pages:
-            self.page = (self.page - 1) % self.word_pages
+        if self.page < self.normal_pages:
+            self.page = (self.page - 1) % self.normal_pages
         else:
-            ep = (self.page - self.word_pages - 1) % self.emoji_pages
-            self.page = self.word_pages + ep
+            pp = (self.page - self.normal_pages - 1) % self.priority_pages
+            self.page = self.normal_pages + pp
         self._update_buttons()
         await interaction.response.edit_message(embed=self._build_embed(), view=self)
 
     @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary)
     async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        if self.page < self.word_pages:
-            self.page = (self.page + 1) % self.word_pages
+        if self.page < self.normal_pages:
+            self.page = (self.page + 1) % self.normal_pages
         else:
-            ep = (self.page - self.word_pages + 1) % self.emoji_pages
-            self.page = self.word_pages + ep
+            pp = (self.page - self.normal_pages + 1) % self.priority_pages
+            self.page = self.normal_pages + pp
         self._update_buttons()
         await interaction.response.edit_message(embed=self._build_embed(), view=self)
 
     @discord.ui.button(label="Aa", style=discord.ButtonStyle.primary)
-    async def jump_word_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+    async def jump_normal_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.page = 0
         self._update_buttons()
         await interaction.response.edit_message(embed=self._build_embed(), view=self)
 
-    @discord.ui.button(label="😃", style=discord.ButtonStyle.primary)
-    async def jump_emoji_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-        self.page = self.word_pages
+    @discord.ui.button(label="★", style=discord.ButtonStyle.primary)
+    async def jump_priority_button(self, interaction: discord.Interaction, button: discord.ui.Button):
+        self.page = self.normal_pages
         self._update_buttons()
         await interaction.response.edit_message(embed=self._build_embed(), view=self)
 
@@ -254,61 +251,90 @@ class DictViewPaginator(discord.ui.View):
 
 
 class DictManager:
-    def __init__(self):
-        os.makedirs('dict', exist_ok=True)
-        common_path = 'dict/common.json'
-        if not os.path.exists(common_path):
-            _save_json(common_path, {})
-        emoji_ja_data = _load_json('dict/emoji_ja.json')
+    def __init__(self, db_path: str = 'db/dict.db'):
+        self._conn = sqlite3.connect(db_path, check_same_thread=False)
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._conn.execute("""
+            CREATE TABLE IF NOT EXISTS entries (
+                guild_id    TEXT    NOT NULL,
+                word        TEXT    NOT NULL,
+                reading     TEXT    NOT NULL,
+                is_priority INTEGER NOT NULL DEFAULT 0,
+                added_at    INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+                PRIMARY KEY (guild_id, word)
+            )
+        """)
+        self._conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_entries_guild ON entries (guild_id)"
+        )
+        self._conn.commit()
+        emoji_ja_data = _load_json('db/emoji_ja.json')
         self._emoji_ja: dict = {
             k: v['short_name']
             for k, v in emoji_ja_data.items()
             if isinstance(v, dict) and 'short_name' in v
         }
 
-    def _guild_path(self, guild_id: int) -> str:
-        return f'dict/{guild_id}.json'
-
-    def _guild_emoji_path(self, guild_id: int) -> str:
-        return f'dict/{guild_id}_emoji.json'
-
     def init_guild(self, guild_id: int):
-        path = self._guild_path(guild_id)
-        if not os.path.exists(path):
-            _save_json(path, {})
-        emoji_path = self._guild_emoji_path(guild_id)
-        if not os.path.exists(emoji_path):
-            _save_json(emoji_path, {})
+        pass  # テーブルはすでに存在。エントリは add() 時に生成される
 
     def remove_guild(self, guild_id: int):
-        for path in (self._guild_path(guild_id), self._guild_emoji_path(guild_id)):
-            if os.path.exists(path):
-                try:
-                    os.remove(path)
-                except OSError as e:
-                    print(f'辞書ファイル削除失敗: {path}: {e}')
+        try:
+            self._conn.execute(
+                "DELETE FROM entries WHERE guild_id = ?", (str(guild_id),)
+            )
+            self._conn.commit()
+        except sqlite3.Error as e:
+            print(f'辞書削除失敗 guild_id={guild_id}: {e}')
 
     def add(self, guild_id: int, word: str, read: str) -> bool:
         """Returns True if overwriting an existing entry."""
         if len(read) > 50:
             raise ValueError('too_long')
-        path = self._guild_emoji_path(guild_id) if _is_emoji_word(word) else self._guild_path(guild_id)
-        data = _load_json(path)
-        overwrite = word in data
-        # Prepend new entry so it takes priority
-        data = {word: read, **{k: v for k, v in data.items() if k != word}}
-        _save_json(path, data)
+        is_priority = 1 if _is_emoji_word(word) else 0
+        gid = str(guild_id)
+        cur = self._conn.execute(
+            "SELECT 1 FROM entries WHERE guild_id = ? AND word = ?", (gid, word)
+        )
+        overwrite = cur.fetchone() is not None
+        self._conn.execute(
+            """INSERT OR REPLACE INTO entries (guild_id, word, reading, is_priority, added_at)
+               VALUES (?, ?, ?, ?, strftime('%s', 'now'))""",
+            (gid, word, read, is_priority)
+        )
+        self._conn.commit()
         return overwrite
 
     def delete(self, guild_id: int, word: str) -> Optional[str]:
         """Returns the removed read string, or None if not found."""
-        for path in (self._guild_path(guild_id), self._guild_emoji_path(guild_id)):
-            data = _load_json(path)
-            if word in data:
-                read = data.pop(word)
-                _save_json(path, data)
-                return read
-        return None
+        gid = str(guild_id)
+        cur = self._conn.execute(
+            "SELECT reading FROM entries WHERE guild_id = ? AND word = ?", (gid, word)
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        self._conn.execute(
+            "DELETE FROM entries WHERE guild_id = ? AND word = ?", (gid, word)
+        )
+        self._conn.commit()
+        return row[0]
+
+    def get_entries(self, guild_id: int) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+        """Returns (normal_items, priority_items), each as list of (word, reading) in added_at DESC order."""
+        gid = str(guild_id)
+        cur = self._conn.execute(
+            "SELECT word, reading, is_priority FROM entries WHERE guild_id = ? ORDER BY added_at DESC",
+            (gid,)
+        )
+        normal = []
+        priority = []
+        for word, reading, is_pri in cur.fetchall():
+            if is_pri:
+                priority.append((word, reading))
+            else:
+                normal.append((word, reading))
+        return normal, priority
 
     def preprocess_text(self, text: str, guild_id: int, guild, attachments, mentions=None) -> tuple[str, list[tuple[int, int]]]:
         segments = [(text, False)]
@@ -373,15 +399,31 @@ class DictManager:
         # 1j. Spaces (half-width and full-width)
         segments = _apply_regex(segments, re.compile(r'[ \u3000]+'), ',')
 
-        # 2. Guild emoji dict → guild word dict → common dict
-        for path in (
-            self._guild_emoji_path(guild_id),
-            self._guild_path(guild_id),
-            'dict/common.json',
-        ):
-            d = _load_json(path)
-            if d:
-                segments = _apply_dict(segments, d)
+        # 2. 優先辞書 → 通常辞書 → 共通辞書
+        gid = str(guild_id)
+
+        cur = self._conn.execute(
+            "SELECT word, reading FROM entries WHERE guild_id = ? AND is_priority = 1 ORDER BY added_at DESC",
+            (gid,)
+        )
+        d = dict(cur.fetchall())
+        if d:
+            segments = _apply_dict(segments, d)
+
+        cur = self._conn.execute(
+            "SELECT word, reading FROM entries WHERE guild_id = ? AND is_priority = 0 ORDER BY added_at DESC",
+            (gid,)
+        )
+        d = dict(cur.fetchall())
+        if d:
+            segments = _apply_dict(segments, d)
+
+        cur = self._conn.execute(
+            "SELECT word, reading FROM entries WHERE guild_id = '__common__' ORDER BY added_at DESC"
+        )
+        d = dict(cur.fetchall())
+        if d:
+            segments = _apply_dict(segments, d)
 
         # 3. emoji_ja short_name mapping
         if self._emoji_ja:
@@ -502,29 +544,28 @@ class WordDict:
             try:
                 await ctx.response.defer(ephemeral=ephemeral)
                 lang = self.server_config.get(ctx.guild.id, 'Language')
-                word_entries  = _load_json(self.dict_manager._guild_path(ctx.guild.id))
-                emoji_entries = _load_json(self.dict_manager._guild_emoji_path(ctx.guild.id))
+                normal_entries, priority_entries = self.dict_manager.get_entries(ctx.guild.id)
 
-                if not word_entries and not emoji_entries:
+                if not normal_entries and not priority_entries:
                     embed = build_embed('dict.view', lang=lang)
                     embed.description = get_desc('dict.view.empty', lang=lang)
                     await ctx.edit_original_response(embed=embed)
                     return
 
                 if search:
-                    word_items  = _filter_entries(word_entries,  search)
-                    emoji_items = _filter_entries(emoji_entries, search)
+                    normal_items   = _filter_entries(dict(normal_entries),   search)
+                    priority_items = _filter_entries(dict(priority_entries), search)
                 else:
-                    word_items  = list(word_entries.items())
-                    emoji_items = list(emoji_entries.items())
+                    normal_items   = normal_entries
+                    priority_items = priority_entries
 
-                if not word_items and not emoji_items:
+                if not normal_items and not priority_items:
                     await ctx.edit_original_response(
                         embed=build_embed('dict.view.not_found', lang=lang, word=search)
                     )
                     return
 
-                paginator = DictViewPaginator(word_items, emoji_items, lang)
+                paginator = DictViewPaginator(normal_items, priority_items, lang)
                 embed = paginator._build_embed()
 
                 if paginator.total_pages <= 1:

@@ -245,8 +245,8 @@
       "more": "（他 {count} 件）",
       "page": "ページ {page} / {total}",
       "prefix": "",
-      "section_word": "単語辞書",
-      "section_emoji": "絵文字辞書",
+      "section_normal": "通常辞書",
+      "section_priority": "優先辞書",
       "not_found": {
         "title": "見つかりませんでした",
         "description": "「{word}」に一致する単語は辞書にありません",
