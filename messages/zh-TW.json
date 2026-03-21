@@ -169,7 +169,15 @@
       "title": "連接失敗",
       "description": "無法連接到語音頻道",
       "color": "red"
-    }
+    },
+    "no_permission": {
+      "title": "權限錯誤",
+      "description": "{issues}",
+      "color": "red"
+    },
+    "no_permission_vc": "沒有連接到 {channel} 的權限。",
+    "no_permission_text": "沒有查看 {channel} 的權限。",
+    "no_permission_text_dm": "由於機器人沒有存取您連接的文字頻道的權限，自動連接失敗。"
   },
   "leave": {
     "notice_text": "{display_name} 離開了頻道",
@@ -296,6 +304,11 @@
         "title": "設定已重置",
         "description": "TextTarget 已重置",
         "color": "green"
+      },
+      "no_permission": {
+        "title": "設定失敗",
+        "description": "機器人沒有查看或發送訊息到 {channel} 的權限",
+        "color": "red"
       }
     },
     "voice_target": {
@@ -313,6 +326,11 @@
         "title": "設定已重置",
         "description": "VoiceTarget 已重置",
         "color": "green"
+      },
+      "no_permission": {
+        "title": "設定失敗",
+        "description": "機器人沒有連接到 {channel} 的權限",
+        "color": "red"
       }
     },
     "speaker": {

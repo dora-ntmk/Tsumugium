@@ -169,7 +169,15 @@
       "title": "接続失敗",
       "description": "ボイスチャンネルに接続できませんでした",
       "color": "red"
-    }
+    },
+    "no_permission": {
+      "title": "権限エラー",
+      "description": "{issues}",
+      "color": "red"
+    },
+    "no_permission_vc": "{channel} への接続権限がありません",
+    "no_permission_text": "{channel} の表示権限がありません",
+    "no_permission_text_dm": "あなたが接続したテキストチャンネルに権限がないため、自動接続が失敗しました"
   },
   "leave": {
     "notice_text": "{display_name}が退室しました",
@@ -296,6 +304,11 @@
         "title": "設定リセット",
         "description": "TextTarget をリセットしました",
         "color": "green"
+      },
+      "no_permission": {
+        "title": "設定失敗",
+        "description": "{channel} の表示・送信権限がありません",
+        "color": "red"
       }
     },
     "voice_target": {
@@ -313,6 +326,11 @@
         "title": "設定リセット",
         "description": "VoiceTarget をリセットしました",
         "color": "green"
+      },
+      "no_permission": {
+        "title": "設定失敗",
+        "description": "{channel} への接続権限がありません",
+        "color": "red"
       }
     },
     "speaker": {

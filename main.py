@@ -136,6 +136,7 @@ async def on_voice_state_update(member, before, after):
       if len(human_members) == 0:
         ch = get_notify_channel(guild, bot_channel)
         leaving_guilds.add(guild.id)
+        await asyncio.sleep(0.5)
         await guild.voice_client.disconnect()
         if ch:
           await ch.send(embed=build_embed("leave.auto", lang=lang))
@@ -153,8 +154,27 @@ async def on_voice_state_update(member, before, after):
   if server_config.get(guild.id, "AutoJoin") and guild.voice_client is None and voice_target is not None:
     target_channel = guild.get_channel(voice_target)
     if target_channel is not None:
-      await target_channel.connect(timeout=60, self_deaf=True)
       ch = get_notify_channel(guild, target_channel)
+      bot_member = guild.me
+      vc_perms = target_channel.permissions_for(bot_member)
+      vc_ok = vc_perms.connect and vc_perms.speak
+      text_ok = True
+      if ch is not None and ch != target_channel:
+        text_perms = ch.permissions_for(bot_member)
+        text_ok = text_perms.view_channel and text_perms.send_messages
+      issues = []
+      if not vc_ok:
+        issues.append(get_desc("join.no_permission_vc", lang=lang).format(channel=target_channel.mention))
+      if not text_ok:
+        issues.append(get_desc("join.no_permission_text", lang=lang).format(channel=ch.mention))
+      if issues:
+        if not text_ok:
+          await member.send(get_desc("join.no_permission_text_dm", lang=lang))
+        elif ch:
+          await ch.send(embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues)))
+        return
+      await asyncio.sleep(1)
+      await target_channel.connect(timeout=60, self_deaf=True)
       if ch:
         await ch.send(embed=build_embed("join.auto", lang=lang, vc=target_channel.mention, text=ch.mention))
       return  # 最初の入室者の入室通知をスキップ
@@ -180,7 +200,22 @@ async def join(ctx, change_channel: bool = False):
     await ctx.response.defer()
     lang = server_config.get(ctx.guild.id, "Language")
     if ctx.user.voice:
-      await ctx.user.voice.channel.connect(timeout=60, self_deaf=True)
+      voice_channel = ctx.user.voice.channel
+      text_channel  = ctx.channel
+      bot_member    = ctx.guild.me
+      vc_perms      = voice_channel.permissions_for(bot_member)
+      text_perms    = text_channel.permissions_for(bot_member)
+      issues = []
+      if not (vc_perms.connect and vc_perms.speak):
+        issues.append(get_desc("join.no_permission_vc", lang=lang).format(channel=voice_channel.mention))
+      if not (text_perms.view_channel and text_perms.send_messages):
+        issues.append(get_desc("join.no_permission_text", lang=lang).format(channel=text_channel.mention))
+      if issues:
+        await ctx.edit_original_response(
+          embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues))
+        )
+        return
+      await voice_channel.connect(timeout=60, self_deaf=True)
       if change_channel:
         try:
           server_config.set(ctx.guild.id, "TextTarget", ctx.channel.id)

@@ -87,6 +87,12 @@ class Setting:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
         target = channel or ctx.channel
+        perms = target.permissions_for(ctx.guild.me)
+        if not (perms.view_channel and perms.send_messages):
+          await ctx.edit_original_response(
+            embed=build_embed("setting.text_target.no_permission", lang=lang, channel=target.mention)
+          )
+          return
         self.server_config.set(ctx.guild.id, "TextTarget", target.id)
         await ctx.edit_original_response(
           embed=build_embed(
@@ -143,6 +149,12 @@ class Setting:
             )
             return
           channel = ctx.user.voice.channel
+        perms = channel.permissions_for(ctx.guild.me)
+        if not (perms.connect and perms.speak):
+          await ctx.edit_original_response(
+            embed=build_embed("setting.voice_target.no_permission", lang=lang, channel=channel.mention)
+          )
+          return
         self.server_config.set(ctx.guild.id, "VoiceTarget", channel.id)
         await ctx.edit_original_response(
           embed=build_embed(

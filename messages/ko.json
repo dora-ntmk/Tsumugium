@@ -169,7 +169,15 @@
       "title": "연결 실패",
       "description": "음성 채널에 연결할 수 없었습니다",
       "color": "red"
-    }
+    },
+    "no_permission": {
+      "title": "권한 오류",
+      "description": "{issues}",
+      "color": "red"
+    },
+    "no_permission_vc": "{channel} 에 연결할 권한이 없습니다.",
+    "no_permission_text": "{channel} 을 볼 권한이 없습니다.",
+    "no_permission_text_dm": "봇이 연결하신 텍스트 채널에 접근 권한이 없어 자동 접속에 실패했습니다。"
   },
   "leave": {
     "notice_text": "{display_name}님이 퇴장했습니다",
@@ -296,6 +304,11 @@
         "title": "설정 초기화",
         "description": "TextTarget을 초기화했습니다",
         "color": "green"
+      },
+      "no_permission": {
+        "title": "설정 실패",
+        "description": "봇이 {channel} 을 보거나 메시지를 보낼 권한이 없습니다",
+        "color": "red"
       }
     },
     "voice_target": {
@@ -313,6 +326,11 @@
         "title": "설정 초기화",
         "description": "VoiceTarget을 초기화했습니다",
         "color": "green"
+      },
+      "no_permission": {
+        "title": "설정 실패",
+        "description": "봇이 {channel} 에 연결할 권한이 없습니다",
+        "color": "red"
       }
     },
     "speaker": {

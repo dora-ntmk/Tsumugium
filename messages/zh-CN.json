@@ -169,7 +169,15 @@
       "title": "连接失败",
       "description": "无法连接到语音频道",
       "color": "red"
-    }
+    },
+    "no_permission": {
+      "title": "权限错误",
+      "description": "{issues}",
+      "color": "red"
+    },
+    "no_permission_vc": "没有连接到 {channel} 的权限。",
+    "no_permission_text": "没有查看 {channel} 的权限。",
+    "no_permission_text_dm": "由于机器人没有访问您连接的文字频道的权限，自动连接失败。"
   },
   "leave": {
     "notice_text": "{display_name} 离开了频道",
@@ -296,6 +304,11 @@
         "title": "设置已重置",
         "description": "TextTarget 已重置",
         "color": "green"
+      },
+      "no_permission": {
+        "title": "设置失败",
+        "description": "机器人没有查看或发送消息到 {channel} 的权限",
+        "color": "red"
       }
     },
     "voice_target": {
@@ -313,6 +326,11 @@
         "title": "设置已重置",
         "description": "VoiceTarget 已重置",
         "color": "green"
+      },
+      "no_permission": {
+        "title": "设置失败",
+        "description": "机器人没有连接到 {channel} 的权限",
+        "color": "red"
       }
     },
     "speaker": {

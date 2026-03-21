@@ -169,7 +169,15 @@
       "title": "Connection Failed",
       "description": "Failed to connect to the voice channel",
       "color": "red"
-    }
+    },
+    "no_permission": {
+      "title": "Permission Error",
+      "description": "{issues}",
+      "color": "red"
+    },
+    "no_permission_vc": "No permission to connect to {channel}.",
+    "no_permission_text": "No permission to view {channel}.",
+    "no_permission_text_dm": "Auto-join failed because the bot does not have permission to access the text channel you connected to."
   },
   "leave": {
     "notice_text": "{display_name} has left",
@@ -296,6 +304,11 @@
         "title": "Settings Reset",
         "description": "TextTarget has been reset",
         "color": "green"
+      },
+      "no_permission": {
+        "title": "Settings Failed",
+        "description": "The bot does not have permission to view or send messages in {channel}",
+        "color": "red"
       }
     },
     "voice_target": {
@@ -313,6 +326,11 @@
         "title": "Settings Reset",
         "description": "VoiceTarget has been reset",
         "color": "green"
+      },
+      "no_permission": {
+        "title": "Settings Failed",
+        "description": "The bot does not have permission to connect to {channel}",
+        "color": "red"
       }
     },
     "speaker": {

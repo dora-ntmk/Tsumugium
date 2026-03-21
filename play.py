@@ -148,7 +148,7 @@ class Play:
         self.skip_flags[guild.id] = False
         asyncio.create_task(self.safe_remove(src))
         return
-      while guild.voice_client.is_playing():
+      while guild.voice_client is not None and guild.voice_client.is_playing():
         await asyncio.sleep(0.1)
       if self.skip_flags[guild.id]:
         self.skip_flags[guild.id] = False

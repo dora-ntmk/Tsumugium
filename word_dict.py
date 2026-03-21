@@ -178,7 +178,7 @@ class DictViewPaginator(discord.ui.View):
         self.message: discord.Message | None = None
         self._update_buttons()
 
-    def _build_embed(self) -> discord.Embed:
+    def build_dict_embed(self) -> discord.Embed:
         embed = build_embed('dict.view', lang=self.lang)
         prefix = get_desc('dict.view.prefix', lang=self.lang)
 
@@ -221,7 +221,7 @@ class DictViewPaginator(discord.ui.View):
         self.jump_normal_button.disabled   = (self.normal_pages   == 0 or in_normal)
         self.jump_priority_button.disabled = (self.priority_pages == 0 or not in_normal)
 
-    @discord.ui.button(label="◀", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="◀️", style=discord.ButtonStyle.secondary)
     async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.page < self.normal_pages:
             self.page = (self.page - 1) % self.normal_pages
@@ -229,9 +229,9 @@ class DictViewPaginator(discord.ui.View):
             pp = (self.page - self.normal_pages - 1) % self.priority_pages
             self.page = self.normal_pages + pp
         self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_embed(), view=self)
+        await interaction.response.edit_message(embed=self.build_dict_embed(), view=self)
 
-    @discord.ui.button(label="▶", style=discord.ButtonStyle.secondary)
+    @discord.ui.button(label="▶️", style=discord.ButtonStyle.secondary)
     async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         if self.page < self.normal_pages:
             self.page = (self.page + 1) % self.normal_pages
@@ -239,19 +239,19 @@ class DictViewPaginator(discord.ui.View):
             pp = (self.page - self.normal_pages + 1) % self.priority_pages
             self.page = self.normal_pages + pp
         self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_embed(), view=self)
+        await interaction.response.edit_message(embed=self.build_dict_embed(), view=self)
 
-    @discord.ui.button(label="Aa", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="📚", style=discord.ButtonStyle.primary)
     async def jump_normal_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.page = 0
         self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_embed(), view=self)
+        await interaction.response.edit_message(embed=self.build_dict_embed(), view=self)
 
-    @discord.ui.button(label="★", style=discord.ButtonStyle.primary)
+    @discord.ui.button(label="⭐", style=discord.ButtonStyle.primary)
     async def jump_priority_button(self, interaction: discord.Interaction, button: discord.ui.Button):
         self.page = self.normal_pages
         self._update_buttons()
-        await interaction.response.edit_message(embed=self._build_embed(), view=self)
+        await interaction.response.edit_message(embed=self.build_dict_embed(), view=self)
 
     async def on_timeout(self):
         if self.message is not None:
@@ -259,7 +259,8 @@ class DictViewPaginator(discord.ui.View):
                 item.disabled = True
             try:
                 await self.message.edit(view=self)
-            except Exception:
+            except Exception as e:
+                print(f"on_timeout: {e}")
                 pass
 
 
@@ -587,7 +588,7 @@ class WordDict:
                     return
 
                 paginator = DictViewPaginator(normal_items, priority_items, lang)
-                embed = paginator._build_embed()
+                embed = paginator.build_dict_embed()
 
                 if paginator.total_pages <= 1:
                     await ctx.edit_original_response(embed=embed)
