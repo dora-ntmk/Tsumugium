@@ -1,4 +1,5 @@
 import asyncio
+import io
 import os
 import discord
 from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_PATH
@@ -69,10 +70,18 @@ async def on_guild_remove(guild):
     files_to_send = []
     for path in (f'dict/{guild.id}.json', f'dict/{guild.id}_emoji.json'):
       if os.path.exists(path):
-        files_to_send.append(discord.File(path))
-    if files_to_send and guild.owner:
+        with open(path, 'rb') as f:
+          data = f.read()
+        files_to_send.append(discord.File(io.BytesIO(data), filename=os.path.basename(path)))
+    owner = guild.owner
+    if owner is None and guild.owner_id:
       try:
-        dm = await guild.owner.create_dm()
+        owner = await client.fetch_user(guild.owner_id)
+      except (discord.NotFound, discord.HTTPException):
+        pass
+    if files_to_send and owner:
+      try:
+        dm = await owner.create_dm()
         await dm.send(
           content=f'サーバー「{guild.name}」の辞書データをお送りします。',
           files=files_to_send
@@ -82,6 +91,7 @@ async def on_guild_remove(guild):
   except Exception as e:
     print(f'Exception in on_guild_remove (DM): {e}')
   finally:
+    server_config.remove_guild(guild.id)
     dict_manager.remove_guild(guild.id)
 
 

@@ -276,6 +276,9 @@ class DictManager:
         path = self._guild_path(guild_id)
         if not os.path.exists(path):
             _save_json(path, {})
+        emoji_path = self._guild_emoji_path(guild_id)
+        if not os.path.exists(emoji_path):
+            _save_json(emoji_path, {})
 
     def remove_guild(self, guild_id: int):
         for path in (self._guild_path(guild_id), self._guild_emoji_path(guild_id)):

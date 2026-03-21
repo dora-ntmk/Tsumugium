@@ -77,6 +77,12 @@ class ServerConfig:
     def get_all(self, guild_id: int) -> dict:
         return {**DEFAULTS, **self._data.get(_guild_key(guild_id), {})}
 
+    def remove_guild(self, guild_id: int):
+        key_str = _guild_key(guild_id)
+        if key_str in self._data:
+            del self._data[key_str]
+            self._save()
+
     def reset(self, guild_id: int, key: str):
         if key not in DEFAULTS:
             raise KeyError(f"不明な設定キー: {key}")
