@@ -113,7 +113,7 @@
     },
     "success": {
       "title": "佇列已清除",
-      "description": "已取消 {cleared} 條朗讀",
+      "description": "已取消所有朗讀",
       "color": "green"
     }
   },
@@ -253,6 +253,7 @@
       "more": "（另有 {count} 筆）",
       "page": "第 {page} / {total} 頁",
       "prefix": "",
+      "header": "單詞  →  讀法",
       "section_normal": "普通詞典",
       "section_priority": "優先詞典",
       "not_found": {

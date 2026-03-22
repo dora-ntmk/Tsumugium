@@ -113,7 +113,7 @@
     },
     "success": {
       "title": "Queue Cleared",
-      "description": "Cancelled {cleared} TTS item(s)",
+      "description": "Cancelled all TTS item(s)",
       "color": "green"
     }
   },
@@ -253,6 +253,7 @@
       "more": "({count} more)",
       "page": "Page {page} / {total}",
       "prefix": "",
+      "header": "Word  →  Reading",
       "section_normal": "Normal",
       "section_priority": "Priority",
       "not_found": {

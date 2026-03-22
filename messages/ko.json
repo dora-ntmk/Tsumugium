@@ -113,7 +113,7 @@
     },
     "success": {
       "title": "대기열 초기화 완료",
-      "description": "{cleared}건의 읽기를 취소했습니다",
+      "description": "모든 읽어주기를 취소했습니다",
       "color": "green"
     }
   },
@@ -253,6 +253,7 @@
       "more": "（나머지 {count} 건）",
       "page": "{page} / {total} 페이지",
       "prefix": "",
+      "header": "단어  →  읽기",
       "section_normal": "일반 사전",
       "section_priority": "우선 사전",
       "not_found": {

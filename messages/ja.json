@@ -113,7 +113,7 @@
     },
     "success": {
       "title": "キュークリア完了",
-      "description": "{cleared}件の読み上げをキャンセルしました",
+      "description": "すべての読み上げをキャンセルしました",
       "color": "green"
     }
   },
@@ -253,6 +253,7 @@
       "more": "（他 {count} 件）",
       "page": "ページ {page} / {total}",
       "prefix": "",
+      "header": "単語  →  読み方",
       "section_normal": "通常辞書",
       "section_priority": "優先辞書",
       "not_found": {

@@ -196,7 +196,11 @@ class DictViewPaginator(discord.ui.View):
             section_page = priority_page + 1
             section_total = self.priority_pages
 
+        header = get_desc('dict.view.header', lang=self.lang)
         lines = [f"{w}  →  {r}" for w, r in page_items]
+        if header:
+            separator = "─" * 24
+            lines = [header, separator] + lines
         parts = []
         if prefix:
             parts.append(prefix)
