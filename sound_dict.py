@@ -3,7 +3,7 @@ import discord
 import requests
 from typing import Optional
 from messages import build_embed, get_desc
-from word_dict import DictManager, _is_priority_word, _filter_entries
+from word_dict import DictManager, _filter_entries
 from dict_view import DictViewPaginator
 
 
@@ -12,70 +12,17 @@ def _lstr(key: str) -> discord.app_commands.locale_str:
 
 
 class SoundDict:
-  def __init__(self, db_path):
-    self._conn = sqlite3.connect(db_path, check_same_thread=False)
-    self._conn.execute("PRAGMA journal_mode=WAL")
-    self._conn.execute("""
-      CREATE TABLE IF NOT EXISTS sound_entries (
-        guild_id    INTEGER NOT NULL,
-        word        TEXT    NOT NULL,
-        sound_id    TEXT    NOT NULL,
-        is_priority INTEGER NOT NULL DEFAULT 0,
-        added_at    INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-        PRIMARY KEY (guild_id, word)
-      )
-    """)
-    self._conn.execute(
-      "CREATE INDEX IF NOT EXISTS idx_sound_entries_guild ON sound_entries (guild_id)"
-    )
-    self._conn.commit()
+  def __init__(self, dict_manager: DictManager):
+    self._dm = dict_manager
 
   def add(self, guild_id: int, word: str, sound_id: str) -> bool:
-    """Returns True if overwriting an existing entry."""
-    is_priority = 1 if _is_priority_word(word) else 0
-    gid = str(guild_id)
-    cur = self._conn.execute(
-      "SELECT 1 FROM sound_entries WHERE guild_id = ? AND word = ?", (gid, word)
-    )
-    overwrite = cur.fetchone() is not None
-    self._conn.execute(
-      """INSERT OR REPLACE INTO sound_entries (guild_id, word, sound_id, is_priority, added_at)
-         VALUES (?, ?, ?, ?, strftime('%s', 'now'))""",
-      (gid, word, sound_id, is_priority)
-    )
-    self._conn.commit()
-    return overwrite
+    return self._dm.add_sound(guild_id, word, sound_id)
 
   def delete(self, guild_id: int, word: str) -> Optional[str]:
-    """Returns the removed sound_id, or None if not found."""
-    gid = str(guild_id)
-    cur = self._conn.execute(
-      "SELECT sound_id FROM sound_entries WHERE guild_id = ? AND word = ?", (gid, word)
-    )
-    row = cur.fetchone()
-    if row is None:
-      return None
-    self._conn.execute(
-      "DELETE FROM sound_entries WHERE guild_id = ? AND word = ?", (gid, word)
-    )
-    self._conn.commit()
-    return row[0]
+    return self._dm.delete_sound(guild_id, word)
 
   def get_entries(self, guild_id: int) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
-    """Returns (normal_items, priority_items), each as list of (word, sound_id) in added_at DESC order."""
-    gid = str(guild_id)
-    cur = self._conn.execute(
-      "SELECT word, sound_id, is_priority FROM sound_entries WHERE guild_id = ? ORDER BY added_at DESC",
-      (gid,)
-    )
-    normal = []
-    priority = []
-    for word, sound_id, is_pri in cur.fetchall():
-      if is_pri:
-        priority.append((word, sound_id))
-      else:
-        normal.append((word, sound_id))
-    return normal, priority
+    return self._dm.get_sound_entries(guild_id)
 
 
 class UpdateSoundBoards:

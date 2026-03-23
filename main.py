@@ -2,7 +2,7 @@ import asyncio
 import io
 import json
 import discord
-from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, WORD_DICT_DB, SOUND_DICT_DB, SOUND_BOARDS_DB, VOICEVOX_URL
+from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, WORD_DICT_DB, SOUND_BOARDS_DB, VOICEVOX_URL
 from backup import start as start_backup
 from vvtts import VvTTS
 from play import Play
@@ -21,7 +21,7 @@ tree = discord.app_commands.CommandTree(client)
 vvtts = VvTTS(VOICEVOX_URL)
 server_config = ServerConfig(SERVER_CONFIG_DB)
 dict_manager = DictManager(WORD_DICT_DB)
-sound_dict = SoundDict(SOUND_DICT_DB)
+sound_dict = SoundDict(dict_manager)
 sound_boards = UpdateSoundBoards(SOUND_BOARDS_DB)
 play = Play(client, tree, vvtts, server_config, dict_manager)
 setting = Setting(client, tree, server_config)

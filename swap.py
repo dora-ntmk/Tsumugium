@@ -102,7 +102,7 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
 
   # -1. 優先辞書（URL処理より前に適用）
   cur = conn.execute(
-    "SELECT word, reading FROM entries WHERE guild_id = ? AND is_priority = 1 ORDER BY added_at DESC",
+    "SELECT word, reading FROM dict WHERE guild_id = ? AND is_priority = 1 AND reading IS NOT NULL ORDER BY added_at DESC",
     (gid,)
   )
   d = dict(cur.fetchall())
@@ -171,7 +171,7 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
 
   # 2. 優先辞書 → 通常辞書 → 共通辞書
   cur = conn.execute(
-    "SELECT word, reading FROM entries WHERE guild_id = ? AND is_priority = 1 ORDER BY added_at DESC",
+    "SELECT word, reading FROM dict WHERE guild_id = ? AND is_priority = 1 AND reading IS NOT NULL ORDER BY added_at DESC",
     (gid,)
   )
   d = dict(cur.fetchall())
@@ -179,7 +179,7 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
     segments = _apply_dict(segments, d)
 
   cur = conn.execute(
-    "SELECT word, reading FROM entries WHERE guild_id = ? AND is_priority = 0 ORDER BY added_at DESC",
+    "SELECT word, reading FROM dict WHERE guild_id = ? AND is_priority = 0 AND reading IS NOT NULL ORDER BY added_at DESC",
     (gid,)
   )
   d = dict(cur.fetchall())
@@ -187,7 +187,7 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
     segments = _apply_dict(segments, d)
 
   cur = conn.execute(
-    "SELECT word, reading FROM entries WHERE guild_id = '__common__' ORDER BY added_at DESC"
+    "SELECT word, reading FROM dict WHERE guild_id = '__common__' AND reading IS NOT NULL ORDER BY added_at DESC"
   )
   d = dict(cur.fetchall())
   if d:
