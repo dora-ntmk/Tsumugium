@@ -226,6 +226,21 @@ class DictManager:
         normal.append((word, sound_id))
     return normal, priority
 
+  def invalidate_sound(self, guild_id, sound_id: str):
+    """指定 sound_id を参照する dict レコードを更新する。
+    reading が NULL なら行削除、reading が存在すれば sound_id を NULL 化。"""
+    gid = str(guild_id)
+    sid = str(sound_id)
+    self._conn.execute(
+      "DELETE FROM dict WHERE guild_id = ? AND sound_id = ? AND reading IS NULL",
+      (gid, sid)
+    )
+    self._conn.execute(
+      "UPDATE dict SET sound_id = NULL WHERE guild_id = ? AND sound_id = ? AND reading IS NOT NULL",
+      (gid, sid)
+    )
+    self._conn.commit()
+
   def delete_entry(self, guild_id: int, word: str):
     """reading と sound_id 両方を削除する（行ごと削除）。"""
     gid = str(guild_id)
@@ -288,9 +303,12 @@ class WordDict:
           print(f'Exception in dict_add fallback: {inner}')
 
     @dict_group.command(name='del', description=_lstr('commands.dict.del.description'))
-    @discord.app_commands.describe(word=_lstr('commands.dict.del.args.word'))
+    @discord.app_commands.describe(
+      word=_lstr('commands.dict.del.args.word'),
+      both=_lstr('commands.dict.del.args.both')
+    )
     @discord.app_commands.checks.has_permissions()
-    async def dict_del(ctx, word: str):
+    async def dict_del(ctx, word: str, both: bool = False):
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, 'Language')
@@ -300,6 +318,8 @@ class WordDict:
             embed=build_embed('dict.del.not_found', lang=lang, word=word)
           )
           return
+        if both:
+          self.dict_manager.delete_sound(ctx.guild.id, word)
         await ctx.edit_original_response(
           embed=build_embed('dict.del.success', lang=lang, word=word, read=read)
         )

@@ -2,7 +2,7 @@ import asyncio
 import io
 import json
 import discord
-from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, WORD_DICT_DB, SOUND_BOARDS_DB, VOICEVOX_URL
+from config import STATUS_MESSAGE, DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, DICT_DB, SOUND_BOARDS_DB, VOICEVOX_URL
 from backup import start as start_backup
 from vvtts import VvTTS
 from play import Play
@@ -20,13 +20,13 @@ client = discord.Client(intents=intents, enable_debug_events=True)
 tree = discord.app_commands.CommandTree(client)
 vvtts = VvTTS(VOICEVOX_URL)
 server_config = ServerConfig(SERVER_CONFIG_DB)
-dict_manager = DictManager(WORD_DICT_DB)
+dict_manager = DictManager(DICT_DB)
 sound_dict = SoundDict(dict_manager)
-sound_boards = UpdateSoundBoards(SOUND_BOARDS_DB)
+sound_boards = UpdateSoundBoards(SOUND_BOARDS_DB, dict_manager)
 play = Play(client, tree, vvtts, server_config, dict_manager)
 setting = Setting(client, tree, server_config)
 word_dict = WordDict(client, tree, dict_manager, server_config)
-sound_dict_view = SoundDictView(client, tree, sound_dict, dict_manager, server_config)
+sound_dict_view = SoundDictView(client, tree, sound_dict, dict_manager, server_config, sound_boards)
 leaving_guilds: set = set()
 
 
@@ -75,10 +75,9 @@ async def on_ready():
     sound_boards.refresh(gid_str, DISCORD_BOT_TOKEN)
     print(f'on_ready: refresh {gid_str}')
 
-  start_backup([SERVER_CONFIG_DB, WORD_DICT_DB])
+  start_backup([SERVER_CONFIG_DB, DICT_DB])
 
-  stts = "Hello World!"
-  await client.change_presence(status=discord.Status.online, activity=discord.Game(name=stts))
+  await client.change_presence(status=discord.Status.online, activity=discord.Game(name=STATUS_MESSAGE))
   print(discord.__version__)
 
 

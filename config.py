@@ -3,9 +3,10 @@ load_dotenv()
 
 import os
 
+STATUS_MESSAGE = os.getenv("STATUS_MESSAGE", "")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 SERVER_CONFIG_DB  = os.getenv("SERVER_CONFIG_DB", "db/config.db")
-WORD_DICT_DB      = os.getenv("WORD_DICT_DB", "db/dict.db")
+DICT_DB      = os.getenv("DICT_DB", "db/dict.db")
 SOUND_BOARDS_DB   = os.getenv("SOUND_BOARDS_DB", "db/soundboards.db")
 EMOJI_JA_JSON     = os.getenv("EMOJI_JA_JSON", "db/emoji_ja.json")
 SPEAKERS_JSON     = os.getenv("SPEAKERS_JSON", "speakers.json")

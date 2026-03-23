@@ -26,7 +26,7 @@ class SoundDict:
 
 
 class UpdateSoundBoards:
-  def __init__(self, db_path):
+  def __init__(self, db_path, dict_manager=None):
     self._conn = sqlite3.connect(db_path, check_same_thread=False)
     self._conn.execute("PRAGMA journal_mode=WAL")
     self._conn.execute("""
@@ -41,6 +41,7 @@ class UpdateSoundBoards:
       "CREATE INDEX IF NOT EXISTS idx_soundboards_guild ON soundboards (guild_id)"
     )
     self._conn.commit()
+    self._dict_manager = dict_manager
 
   def remove_guild(self, guild_id: int):
     try:
@@ -68,6 +69,15 @@ class UpdateSoundBoards:
       "DELETE FROM soundboards WHERE guild_id = ? AND sound_id = ?", (gid, sid)
     )
     self._conn.commit()
+    if self._dict_manager:
+      self._dict_manager.invalidate_sound(gid, sid)
+
+  def get_sounds(self, guild_id: int) -> list[tuple[str, str]]:
+    """Returns list of (sound_id, name) for the guild."""
+    gid = str(guild_id)
+    cur = self._conn.cursor()
+    cur.execute("SELECT sound_id, name FROM soundboards WHERE guild_id = ?", (gid,))
+    return cur.fetchall()
 
   def refresh(self, gid: str, token: str):
     res = requests.get(
@@ -101,14 +111,18 @@ class UpdateSoundBoards:
         "DELETE FROM soundboards WHERE guild_id = ? AND sound_id = ?", db_delete
       )
       self._conn.commit()
+      if self._dict_manager:
+        for gid_del, sid_del in db_delete:
+          self._dict_manager.invalidate_sound(gid_del, sid_del)
 
 class SoundDictView:
-  def __init__(self, client, tree, sound_dict: SoundDict, dict_manager: DictManager, server_config):
+  def __init__(self, client, tree, sound_dict: SoundDict, dict_manager: DictManager, server_config, sound_boards: UpdateSoundBoards):
     self.client = client
     self.tree = tree
     self.sound_dict = sound_dict
     self.dict_manager = dict_manager
     self.server_config = server_config
+    self.sound_boards = sound_boards
     self._register()
 
   def _register(self):
@@ -128,7 +142,14 @@ class SoundDictView:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, 'Language')
-        sound_overwrite = self.sound_dict.add(ctx.guild.id, word, sound)
+        sounds = self.sound_boards.get_sounds(ctx.guild.id)
+        sound_id = next((sid for sid, name in sounds if name == sound), None)
+        if sound_id is None:
+          await ctx.edit_original_response(
+            embed=build_embed('sounddict.add.not_found', lang=lang, sound=sound)
+          )
+          return
+        sound_overwrite = self.sound_dict.add(ctx.guild.id, word, sound_id)
         if read is not None:
           try:
             dict_overwrite = self.dict_manager.add(ctx.guild.id, word, read)
@@ -157,6 +178,17 @@ class SoundDictView:
           )
         except Exception as inner:
           print(f'Exception in sounddict_add fallback: {inner}')
+
+    # noinspection PyUnusedLocal
+    @sounddict_add.autocomplete("sound")
+    async def sound_autocomplete(ctx, current: str):
+      sounds = self.sound_boards.get_sounds(ctx.guild.id)
+      filtered = [
+        discord.app_commands.Choice(name=name, value=name)
+        for _, name in sounds
+        if current in name
+      ]
+      return filtered[:25]
 
     @sounddict_group.command(name='del', description=_lstr('commands.sounddict.del.description'))
     @discord.app_commands.describe(
@@ -210,12 +242,17 @@ class SoundDictView:
           await ctx.edit_original_response(embed=embed)
           return
 
+        sounds_map = {sid: name for sid, name in self.sound_boards.get_sounds(ctx.guild.id)}
+
+        def resolve(entries):
+          return [(w, sounds_map.get(sid, sid)) for w, sid in entries]
+
         if search:
-          normal_items   = _filter_entries(dict(normal_entries),   search)
-          priority_items = _filter_entries(dict(priority_entries), search)
+          normal_items   = _filter_entries(dict(resolve(normal_entries)),   search)
+          priority_items = _filter_entries(dict(resolve(priority_entries)), search)
         else:
-          normal_items   = normal_entries
-          priority_items = priority_entries
+          normal_items   = resolve(normal_entries)
+          priority_items = resolve(priority_entries)
 
         if not normal_items and not priority_items:
           await ctx.edit_original_response(

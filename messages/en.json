@@ -27,7 +27,8 @@
       "del": {
         "description": "Remove a word reading from the dictionary",
         "args": {
-          "word": "Word to remove"
+          "word": "Word to remove",
+          "both": "Set to True to also remove from the sound dictionary"
         }
       },
       "view": {
