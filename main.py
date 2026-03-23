@@ -2,7 +2,7 @@ import asyncio
 import io
 import json
 import discord
-from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_DB
+from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, WORD_DICT_DB, VOICEVOX_URL
 from vvtts import VvTTS
 from play import Play
 from server_config import ServerConfig
@@ -16,9 +16,9 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents)
 tree = discord.app_commands.CommandTree(client)
-vvtts = VvTTS()
+vvtts = VvTTS(VOICEVOX_URL)
 server_config = ServerConfig(SERVER_CONFIG_DB)
-dict_manager = DictManager()
+dict_manager = DictManager(WORD_DICT_DB)
 play = Play(client, tree, vvtts, server_config, dict_manager)
 setting = Setting(client, tree, server_config)
 word_dict = WordDict(client, tree, dict_manager, server_config)

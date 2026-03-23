@@ -1,6 +1,7 @@
 import requests
 import json
 import os
+from config import TMP_DIR
 
 
 async def edit_query(
@@ -60,8 +61,8 @@ class VvTTS:
         params={"speaker": speaker},
         data=res2
       )
-      os.makedirs("tmp", exist_ok=True)
-      path = f"./tmp/{guildid}-{msgid}.wav"
+      os.makedirs(TMP_DIR, exist_ok=True)
+      path = f"{TMP_DIR}/{guildid}-{msgid}.wav"
       with open(path, mode="wb") as f:
         f.write(res3.content)
         f.close()

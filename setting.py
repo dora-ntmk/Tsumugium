@@ -1,8 +1,9 @@
 import discord
 import json
 from messages import build_embed, get_desc, handle_os_error
+from config import SPEAKERS_JSON
 
-with open("speakers.json", encoding="utf-8") as _f:
+with open(SPEAKERS_JSON, encoding="utf-8") as _f:
     VOICEVOX_SPEAKERS = [(s["id"], s["name"]) for s in json.load(_f)]
 
 
