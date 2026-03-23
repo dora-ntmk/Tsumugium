@@ -3,6 +3,7 @@ import io
 import json
 import discord
 from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, WORD_DICT_DB, VOICEVOX_URL
+from backup import start as start_backup
 from vvtts import VvTTS
 from play import Play
 from server_config import ServerConfig
@@ -64,6 +65,8 @@ async def on_ready():
     server_config.remove_guild(int(gid_str))
     dict_manager.remove_guild(int(gid_str))
     print(f'on_ready: remove_guild {gid_str}')
+
+  start_backup([SERVER_CONFIG_DB, WORD_DICT_DB])
 
   stts = "Hello World!"
   await client.change_presence(status=discord.Status.online, activity=discord.Game(name=stts))

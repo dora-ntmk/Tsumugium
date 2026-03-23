@@ -212,3 +212,6 @@ tmp/
 # Claude関係
 .claude/
 plan/
+
+# DBのbackup
+backup/
