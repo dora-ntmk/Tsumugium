@@ -96,11 +96,20 @@ def _apply_regex(segments: list, pattern, repl_fn) -> list:
   return new_segments
 
 
-def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attachments, mentions=None) -> tuple[str, list[tuple[int, int]]]:
+def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attachments, mentions=None) -> tuple[str, list[tuple[int, int]], str | None]:
   segments = [(text, False)]
   gid = str(guild_id)
 
-  # -1. 優先辞書（URL処理より前に適用）
+  # 1. テキスト全体がsound_id付き辞書エントリと完全一致する場合は以降をスキップ
+  cur = conn.execute(
+    "SELECT sound_id FROM dict WHERE guild_id = ? AND word = ? AND sound_id IS NOT NULL LIMIT 1",
+    (gid, text)
+  )
+  row = cur.fetchone()
+  if row:
+    return text, [], row[0]
+
+  # 2. 優先辞書（URL処理より前に適用）
   cur = conn.execute(
     "SELECT word, reading FROM dict WHERE guild_id = ? AND is_priority = 1 AND reading IS NOT NULL ORDER BY added_at DESC",
     (gid,)
@@ -109,27 +118,27 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
   if d:
     segments = _apply_dict(segments, d)
 
-  # 0. URL処理（辞書より前に実行してURLを保護）
+  # 3. URL処理（辞書より前に実行してURLを保護）
   for url_re, url_read in _URL_PATTERNS:
     segments = _apply_regex(segments, url_re, url_read + ',')
 
-  # 0b. www pattern → N × わら（URL内の www は protected=True でスキップ済み）
+  # 3b. www pattern → N × わら（URL内の www は protected=True でスキップ済み）
   def _www_replace(m):
     return 'わら' * len(m.group(0)) + ','
   segments = _apply_regex(segments, _WWW_RE, _www_replace)
 
-  # 1a. Spoilers
+  # 4a. Spoilers
   segments = _apply_regex(segments, _SPOILER_RE, ',ネタバレ,')
-  # 1b. Strikethrough
+  # 4b. Strikethrough
   segments = _apply_regex(segments, _STRIKE_RE, ',取り消し線,')
-  # 1c. Code blocks
+  # 4c. Code blocks
   segments = _apply_regex(segments, _CODE_BLOCK_RE, ',コードブロック,')
-  # 1d. Inline code
+  # 4d. Inline code
   segments = _apply_regex(segments, _INLINE_CODE_RE, ',コードブロック,')
-  # 1e. Time stamp
+  # 4e. Time stamp
   segments = _apply_regex(segments, _TIMESTAMP_RE, ',タイムスタンプ,')
 
-  # 1f. User mentions
+  # 4f. User mentions
   mention_map = {str(u.id): u.display_name for u in (mentions or [])}
 
   def _mention_user(m):
@@ -144,7 +153,7 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
 
   segments = _apply_regex(segments, _MENTION_USER_RE, _mention_user)
 
-  # 1g. Channel links
+  # 4g. Channel links
   def _channel_link(m):
     if guild:
       ch = guild.get_channel(int(m.group(1)))
@@ -154,7 +163,7 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
 
   segments = _apply_regex(segments, _MENTION_CH_RE, _channel_link)
 
-  # 1h. Role mentions
+  # 4h. Role mentions
   def _mention_role(m):
     if guild:
       role = guild.get_role(int(m.group(1)))
@@ -164,12 +173,12 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
 
   segments = _apply_regex(segments, _MENTION_ROLE_RE, _mention_role)
 
-  # 1i. Newlines
+  # 4i. Newlines
   segments = _apply_regex(segments, re.compile(r'\n'), ',')
-  # 1j. Spaces (half-width and full-width)
+  # 4j. Spaces (half-width and full-width)
   segments = _apply_regex(segments, re.compile(r'[ \u3000]+'), ',')
 
-  # 2. 優先辞書 → 通常辞書 → 共通辞書
+  # 5. 優先辞書 → 通常辞書 → 共通辞書
   cur = conn.execute(
     "SELECT word, reading FROM dict WHERE guild_id = ? AND is_priority = 1 AND reading IS NOT NULL ORDER BY added_at DESC",
     (gid,)
@@ -193,11 +202,11 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
   if d:
     segments = _apply_dict(segments, d)
 
-  # 3. emoji_ja short_name mapping
+  # 6. emoji_ja short_name mapping
   if emoji_ja:
     segments = _apply_dict(segments, emoji_ja)
 
-  # 4. Join with replaced range tracking
+  # 7. Join with replaced range tracking
   result_parts = []
   replaced_ranges = []
   pos = 0
@@ -209,7 +218,7 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
     pos = end
   result = ''.join(result_parts)
 
-  # 5. Attachments (appended after; ranges not tracked)
+  # 8. Attachments (appended after; ranges not tracked)
   for att in attachments:
     _, ext = os.path.splitext(att.filename.lower())
     if ext in _IMAGE_EXTS:
@@ -221,4 +230,4 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
     else:
       result += ',添付ファイル'
 
-  return result, replaced_ranges
+  return result, replaced_ranges, None

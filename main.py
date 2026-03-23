@@ -204,7 +204,7 @@ async def on_voice_state_update(member, before, after):
           await ch.send(embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues)))
         return
       await asyncio.sleep(1)
-      await target_channel.connect(timeout=60, self_deaf=True)
+      await target_channel.connect(timeout=60)
       if ch:
         await ch.send(embed=build_embed("join.auto", lang=lang, vc=target_channel.mention, text=ch.mention))
       return  # 最初の入室者の入室通知をスキップ
@@ -245,7 +245,7 @@ async def join(ctx, change_channel: bool = False):
           embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues))
         )
         return
-      await voice_channel.connect(timeout=60, self_deaf=True)
+      await voice_channel.connect(timeout=60)
       if change_channel:
         try:
           server_config.set(ctx.guild.id, "TextTarget", ctx.channel.id)

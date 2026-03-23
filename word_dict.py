@@ -249,7 +249,7 @@ class DictManager:
     )
     self._conn.commit()
 
-  def preprocess_text(self, text: str, guild_id: int, guild, attachments, mentions=None) -> tuple[str, list[tuple[int, int]]]:
+  def preprocess_text(self, text: str, guild_id: int, guild, attachments, mentions=None) -> tuple[str, list[tuple[int, int]], str | None]:
     return swap.preprocess_text(text, guild_id, self._conn, self._emoji_ja, guild, attachments, mentions)
 
 

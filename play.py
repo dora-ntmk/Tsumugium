@@ -1,7 +1,10 @@
 import asyncio
+import aiohttp
 import discord
 import os
 from collections import defaultdict
+
+from config import DISCORD_BOT_TOKEN
 from messages import build_embed, get_desc
 
 
@@ -90,7 +93,25 @@ class Play:
       text = message.content
       replaced_ranges = []
       if self.dict_manager is not None:
-        text, replaced_ranges = self.dict_manager.preprocess_text(text, guild_id, message.guild, message.attachments, message.mentions)
+        text, replaced_ranges, sound_id = self.dict_manager.preprocess_text(text, guild_id, message.guild, message.attachments, message.mentions)
+        if sound_id is not None:
+          try:
+            async with aiohttp.ClientSession() as session:
+              # noinspection PyUnusedLocal
+              async with session.post(
+                f'https://discord.com/api/v10/channels/{message.guild.voice_client.channel.id}/send-soundboard-sound',
+                headers={
+                  'Authorization': f'Bot {DISCORD_BOT_TOKEN}',
+                  'Content-Type': 'application/json',
+                },
+                json={
+                  'sound_id': f'{sound_id}',
+                }
+              ) as res:
+                return
+          except Exception as e:
+            print(f'サウンドボード再生エラー：{e}')
+          return
       max_char = self.server_config.get(guild_id, "MaxChar")
       if 0 < max_char < len(text):
         cut = max_char
