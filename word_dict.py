@@ -98,9 +98,6 @@ class DictManager:
       if isinstance(v, dict) and 'short_name' in v
     }
 
-  def init_guild(self, guild_id: int):
-    pass  # テーブルはすでに存在。エントリは add() 時に生成される
-
   def remove_guild(self, guild_id: int):
     try:
       self._conn.execute(

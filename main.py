@@ -68,7 +68,12 @@ async def on_ready():
   for gid_str in db_guild_ids - current_guild_ids:
     server_config.remove_guild(int(gid_str))
     dict_manager.remove_guild(int(gid_str))
+    sound_boards.remove_guild(int(gid_str))
     print(f'on_ready: remove_guild {gid_str}')
+
+  for gid_str in current_guild_ids:
+    sound_boards.refresh(gid_str, DISCORD_BOT_TOKEN)
+    print(f'on_ready: refresh {gid_str}')
 
   start_backup([SERVER_CONFIG_DB, WORD_DICT_DB])
 
@@ -112,6 +117,25 @@ async def on_guild_remove(guild):
   finally:
     server_config.remove_guild(guild.id)
     dict_manager.remove_guild(guild.id)
+    sound_boards.remove_guild(guild.id)
+
+
+# サウンドボード更新トリガー
+@client.event
+async def on_socket_raw_receive(msg):
+  data = json.loads(msg)
+  if data.get("op") != 0:
+    return
+  t = data.get("t")
+  d = data.get("d")
+  if t == "GUILD_SOUNDBOARD_SOUND_CREATE":
+    sound_boards.add(d["guild_id"], d["sound_id"], d["name"])
+  elif t == "GUILD_SOUNDBOARD_SOUND_UPDATE":
+    sound_boards.add(d["guild_id"], d["sound_id"], d["name"])
+  elif t == "GUILD_SOUNDBOARD_SOUND_DELETE":
+    sound_boards.delete(d["guild_id"], d["sound_id"])
+  else:
+    return
 
 
 # VC入退室検知（AutoJoin / AccessNotice）
@@ -278,29 +302,6 @@ async def leave(ctx):
     await handle_os_error(ctx, e, "leave", lang=server_config.get(ctx.guild.id, "Language"))
   except Exception as e:
     print(f"Exception in leave: {e}")
-
-
-# サウンドボード更新トリガー
-@client.event
-async def on_socket_raw_receive(msg):
-  data = json.loads(msg)
-  if data.get("op") != 0:
-    return
-  t = data.get("t")
-  d = data.get("d")
-  if t == "GUILD_SOUNDBOARD_SOUND_CREATE":
-    print("サウンドボード追加")
-    print(d["name"])
-  elif t == "GUILD_SOUNDBOARD_SOUND_UPDATE":
-    print("サウンドボード更新")
-    print(d["name"])
-  elif t == "GUILD_SOUNDBOARD_SOUND_DELETE":
-    print("サウンドボード削除")
-  else:
-    return
-  print(d)
-  print(d["sound_id"])
-  print(d["guild_id"])
 
 
 # 起動

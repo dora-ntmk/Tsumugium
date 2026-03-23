@@ -1,5 +1,6 @@
 import sqlite3
 import discord
+import requests
 from typing import Optional
 from messages import build_embed, get_desc
 from word_dict import DictManager, _is_priority_word, _filter_entries
@@ -94,6 +95,65 @@ class UpdateSoundBoards:
     )
     self._conn.commit()
 
+  def remove_guild(self, guild_id: int):
+    try:
+      self._conn.execute(
+        "DELETE FROM soundboards WHERE guild_id = ?", (str(guild_id),)
+      )
+      self._conn.commit()
+    except sqlite3.Error as e:
+      print(f'サウンドボード一覧削除失敗 guild_id={guild_id}: {e}')
+
+  def add(self, guild_id: int, sound_id: int, name: str):
+    gid = str(guild_id)
+    sid = str(sound_id)
+    self._conn.execute(
+      """INSERT OR REPLACE INTO soundboards (guild_id, sound_id, name)
+         VALUES (?, ?, ?)""",
+      (gid, sid, name)
+    )
+    self._conn.commit()
+
+  def delete(self, guild_id: int, sound_id: int):
+    gid = str(guild_id)
+    sid = str(sound_id)
+    self._conn.execute(
+      "DELETE FROM soundboards WHERE guild_id = ? AND sound_id = ?", (gid, sid)
+    )
+    self._conn.commit()
+
+  def refresh(self, gid: str, token: str):
+    res = requests.get(
+      f'https://discord.com/api/v10/guilds/{gid}/soundboard-sounds',
+      headers={
+        'Authorization': f'Bot {token}',
+        'Content-Type': 'application/json',
+      })
+    d = res.json()
+    current_sound_names = list(s["name"] for s in d["items"])
+    current_sound_ids = list(str(s["sound_id"]) for s in d["items"])
+    cur = self._conn.cursor()
+    cur.execute(
+      "SELECT sound_id FROM soundboards WHERE guild_id = ?", (gid,)
+    )
+    rows = cur.fetchall()
+    db_sound_ids = list(row[0] for row in rows)
+    if rows:
+      db_insert = []
+      db_delete = []
+      for n in range(len(current_sound_ids)):
+        if current_sound_ids[n] not in db_sound_ids:
+          db_insert.append((gid, current_sound_ids[n], current_sound_names[n]))
+      for n in range(len(db_sound_ids)):
+        if db_sound_ids[n] not in current_sound_ids:
+          db_delete.append((gid, db_sound_ids[n]))
+      cur.executemany(
+        "INSERT INTO soundboards (guild_id, sound_id, name) VALUES (?, ?, ?)", db_insert
+      )
+      cur.executemany(
+        "DELETE FROM soundboards WHERE guild_id = ? AND sound_id = ?", db_delete
+      )
+      self._conn.commit()
 
 class SoundDictView:
   def __init__(self, client, tree, sound_dict: SoundDict, dict_manager: DictManager, server_config):
