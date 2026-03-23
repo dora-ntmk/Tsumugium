@@ -103,6 +103,31 @@
           "language": "使用する言語"
         }
       }
+    },
+    "sounddict": {
+      "_group": "音声辞書を管理します",
+      "add": {
+        "description": "音声辞書に単語を追加します",
+        "args": {
+          "word": "追加する単語",
+          "sound": "サウンドボードのID",
+          "read": "読み方（省略可・50文字以内）"
+        }
+      },
+      "del": {
+        "description": "音声辞書から単語を削除します",
+        "args": {
+          "word": "削除する単語",
+          "both": "Trueにすると読み上げ辞書からも削除します"
+        }
+      },
+      "view": {
+        "description": "音声辞書の内容を確認します",
+        "args": {
+          "ephemeral": "Trueにすると自分にだけ見える形で表示します",
+          "search": "検索する文字列（部分一致）"
+        }
+      }
     }
   },
   "clear": {
@@ -408,6 +433,80 @@
     "states": {
       "enabled": "有効",
       "disabled": "無効"
+    },
+    "error": {
+      "no_permission": {
+        "title": "権限エラー",
+        "description": "サーバー管理権限が必要です",
+        "color": "red"
+      }
+    }
+  },
+  "sounddict": {
+    "add": {
+      "success": {
+        "title": "音声辞書への追加が成功しました",
+        "description": "音声辞書に単語が追加されました",
+        "color": "green",
+        "fields": [{"name": "登録内容", "value": "`{word}` → `{sound}`", "inline": false}]
+      },
+      "success_both": {
+        "title": "辞書への追加が成功しました",
+        "description": "音声辞書と読み上げ辞書に単語が追加されました",
+        "color": "green",
+        "fields": [{"name": "登録内容", "value": "`{word}` → 音声: `{sound}`　読み: `{read}`", "inline": false}]
+      },
+      "overwrite": {
+        "title": "音声辞書への上書きが成功しました",
+        "description": "音声辞書の単語が上書きされました",
+        "color": "green",
+        "fields": [{"name": "登録内容", "value": "`{word}` → `{sound}`", "inline": false}]
+      },
+      "overwrite_both": {
+        "title": "辞書への上書きが成功しました",
+        "description": "音声辞書と読み上げ辞書の単語が上書きされました",
+        "color": "green",
+        "fields": [{"name": "登録内容", "value": "`{word}` → 音声: `{sound}`　読み: `{read}`", "inline": false}]
+      },
+      "failure": {
+        "title": "音声辞書への追加が失敗しました",
+        "description": "音声辞書に単語が追加できませんでした",
+        "color": "red"
+      }
+    },
+    "del": {
+      "success": {
+        "title": "音声辞書からの削除が成功しました",
+        "description": "音声辞書から単語が削除されました",
+        "color": "green",
+        "fields": [{"name": "削除内容", "value": "`{word}`", "inline": false}]
+      },
+      "not_found": {
+        "title": "音声辞書にその単語は見つかりませんでした",
+        "description": "音声辞書に`{word}`はありません。確認して入れなおしてください。",
+        "color": "red"
+      },
+      "failure": {
+        "title": "音声辞書からの削除が失敗しました",
+        "description": "音声辞書から単語が削除できませんでした",
+        "color": "red"
+      }
+    },
+    "view": {
+      "title": "音声辞書一覧",
+      "description": "",
+      "color": "blue",
+      "empty": "音声辞書に登録された単語はありません",
+      "page": "ページ {page} / {total}",
+      "prefix": "",
+      "header": "単語  →  音声名",
+      "section_normal": "通常辞書",
+      "section_priority": "優先辞書",
+      "not_found": {
+        "title": "見つかりませんでした",
+        "description": "「{word}」に一致する単語は音声辞書にありません",
+        "color": "red"
+      }
     },
     "error": {
       "no_permission": {

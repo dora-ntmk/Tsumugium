@@ -103,6 +103,31 @@
           "language": "사용할 언어"
         }
       }
+    },
+    "sounddict": {
+      "_group": "음성 사전을 관리합니다",
+      "add": {
+        "description": "음성 사전에 단어를 추가합니다",
+        "args": {
+          "word": "추가할 단어",
+          "sound": "사운드보드 ID",
+          "read": "읽기 방법（선택 사항, 50자 이내）"
+        }
+      },
+      "del": {
+        "description": "음성 사전에서 단어를 삭제합니다",
+        "args": {
+          "word": "삭제할 단어",
+          "both": "True로 설정하면 TTS 사전에서도 삭제합니다"
+        }
+      },
+      "view": {
+        "description": "음성 사전 내용을 확인합니다",
+        "args": {
+          "ephemeral": "True로 설정하면 본인에게만 표시됩니다",
+          "search": "검색할 문자열（부분 일치）"
+        }
+      }
     }
   },
   "clear": {
@@ -208,13 +233,25 @@
         "title": "사전 추가 성공",
         "description": "사전에 단어 읽기가 추가되었습니다",
         "color": "green",
-        "fields": [{"name": "등록 내용", "value": "`{word}` → `{read}`", "inline": false}]
+        "fields": [
+          {
+            "name": "등록 내용",
+            "value": "`{word}` → `{read}`",
+            "inline": false
+          }
+        ]
       },
       "overwrite": {
         "title": "사전 덮어쓰기 성공",
         "description": "사전의 단어 읽기가 덮어쓰기되었습니다",
         "color": "green",
-        "fields": [{"name": "등록 내용", "value": "`{word}` → `{read}`", "inline": false}]
+        "fields": [
+          {
+            "name": "등록 내용",
+            "value": "`{word}` → `{read}`",
+            "inline": false
+          }
+        ]
       },
       "too_long": {
         "title": "읽기가 너무 길어 추가할 수 없습니다",
@@ -232,7 +269,13 @@
         "title": "사전 삭제 성공",
         "description": "사전에서 단어와 읽기가 삭제되었습니다",
         "color": "green",
-        "fields": [{"name": "삭제 내용", "value": "`{word}` → `{read}`", "inline": false}]
+        "fields": [
+          {
+            "name": "삭제 내용",
+            "value": "`{word}` → `{read}`",
+            "inline": false
+          }
+        ]
       },
       "not_found": {
         "title": "사전에서 해당 단어를 찾을 수 없습니다",
@@ -284,15 +327,15 @@
       "color": "blue",
       "not_set": "미설정",
       "labels": {
-        "TextTarget":   "읽기 대상 채널",
-        "VoiceTarget":  "연결 채널",
-        "Speaker":      "화자",
-        "Volume":       "볼륨",
-        "Speed":        "속도",
-        "MaxChar":      "최대 읽기 글자 수",
-        "AutoJoin":     "자동 입퇴장",
+        "TextTarget": "읽기 대상 채널",
+        "VoiceTarget": "연결 채널",
+        "Speaker": "화자",
+        "Volume": "볼륨",
+        "Speed": "속도",
+        "MaxChar": "최대 읽기 글자 수",
+        "AutoJoin": "자동 입퇴장",
         "AccessNotice": "입퇴장 알림",
-        "Language":     "언어"
+        "Language": "언어"
       }
     },
     "text_target": {
@@ -408,6 +451,110 @@
     "states": {
       "enabled": "활성화",
       "disabled": "비활성화"
+    },
+    "error": {
+      "no_permission": {
+        "title": "권한 오류",
+        "description": "서버 관리 권한이 필요합니다",
+        "color": "red"
+      }
+    }
+  },
+  "sounddict": {
+    "add": {
+      "success": {
+        "title": "음성 사전에 추가되었습니다",
+        "description": "단어가 음성 사전에 추가되었습니다",
+        "color": "green",
+        "fields": [
+          {
+            "name": "등록 내용",
+            "value": "`{word}` → `{sound}`",
+            "inline": false
+          }
+        ]
+      },
+      "success_both": {
+        "title": "사전에 추가되었습니다",
+        "description": "단어가 음성 사전과 TTS 사전에 추가되었습니다",
+        "color": "green",
+        "fields": [
+          {
+            "name": "등록 내용",
+            "value": "`{word}` → 음성: `{sound}`  읽기: `{read}`",
+            "inline": false
+          }
+        ]
+      },
+      "overwrite": {
+        "title": "음성 사전 항목이 덮어쓰기되었습니다",
+        "description": "음성 사전의 단어가 덮어쓰기되었습니다",
+        "color": "green",
+        "fields": [
+          {
+            "name": "등록 내용",
+            "value": "`{word}` → `{sound}`",
+            "inline": false
+          }
+        ]
+      },
+      "overwrite_both": {
+        "title": "사전 항목이 덮어쓰기되었습니다",
+        "description": "음성 사전과 TTS 사전의 단어가 덮어쓰기되었습니다",
+        "color": "green",
+        "fields": [
+          {
+            "name": "등록 내용",
+            "value": "`{word}` → 음성: `{sound}`  읽기: `{read}`",
+            "inline": false
+          }
+        ]
+      },
+      "failure": {
+        "title": "단어 추가 실패",
+        "description": "음성 사전에 단어를 추가할 수 없습니다",
+        "color": "red"
+      }
+    },
+    "del": {
+      "success": {
+        "title": "음성 사전에서 삭제되었습니다",
+        "description": "단어가 음성 사전에서 삭제되었습니다",
+        "color": "green",
+        "fields": [
+          {
+            "name": "삭제 내용",
+            "value": "`{word}`",
+            "inline": false
+          }
+        ]
+      },
+      "not_found": {
+        "title": "음성 사전에서 단어를 찾을 수 없습니다",
+        "description": "음성 사전에 `{word}`가 없습니다. 확인 후 다시 입력해 주세요.",
+        "color": "red"
+      },
+      "failure": {
+        "title": "단어 삭제 실패",
+        "description": "음성 사전에서 단어를 삭제할 수 없습니다",
+        "color": "red"
+      }
+    },
+    "view": {
+      "title": "음성 사전 목록",
+      "description": "",
+      "color": "blue",
+      "empty": "음성 사전에 등록된 단어가 없습니다",
+      "page": "페이지 {page} / {total}",
+      "prefix": "",
+      "header": "단어  →  음성명",
+      "section_normal": "일반",
+      "section_priority": "우선순위",
+      "not_found": {
+        "title": "찾을 수 없습니다",
+        "description": "음성 사전에서 \"{word}\"에 일치하는 항목이 없습니다",
+        "color": "red"
+      }
     },
     "error": {
       "no_permission": {

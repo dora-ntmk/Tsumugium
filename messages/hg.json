@@ -103,316 +103,463 @@
           "language": "使用する言語"
         }
       }
+    },
+    "sounddict": {
+      "_group": "音声辞書を管理します",
+      "add": {
+        "description": "音声辞書に単語を追加します",
+        "args": {
+          "word": "追加する単語",
+          "sound": "サウンドボードのID",
+          "read": "読み方（省略可・50文字以内）"
+        }
+      },
+      "del": {
+        "description": "音声辞書から単語を削除します",
+        "args": {
+          "word": "削除する単語",
+          "both": "Trueにすると読み上げ辞書からも削除します"
+        }
+      },
+      "view": {
+        "description": "音声辞書の内容を確認します",
+        "args": {
+          "ephemeral": "Trueにすると自分にだけ見える形で表示します",
+          "search": "検索する文字列（部分一致）"
+        }
+      }
     }
   },
   "clear": {
     "clearing": {
-      "title": "\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD71\uD80C\uDD71",
-      "description": "\uD80C\uDFA1\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD71ー\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD71　\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCC0\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDF6F\uD80C\uDD53\uD80C\uDD3F\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDDCC",
+      "title": "𓋴𓄿𓎡𓅱𓊃𓇌𓃭𓇌𓍯𓏏𓇌𓃭𓇌𓅱𓅱",
+      "description": "𓎡𓇌𓃭𓇌𓅱ー𓍯𓋴𓄿𓎡𓅱𓊃𓇌𓃭𓇌𓍯𓋴𓇌𓏏𓇋𓇌𓅓𓄿𓋴𓅱　𓋴𓇌𓃀𓄿𓂋𓄿𓎡𓅱𓍯𓅓𓄿𓏏𓇌𓎡𓅱𓂩𓄿𓋴𓄿𓇌",
       "color": "blue"
     },
     "success": {
-      "title": "\uD80C\uDFA1\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD71ー\uD80C\uDFA1\uD80C\uDD71\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-      "description": "\uD80C\uDEF4\uD80C\uDD71\uD80C\uDCC0\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDE16\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+      "title": "𓎡𓇌𓃭𓇌𓅱ー𓎡𓅱𓂋𓇌𓄿𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+      "description": "𓋴𓅱𓃀𓇋𓏏𓇋𓈖𓍯𓇌𓍯𓅓𓇌𓄿𓎼𓇋𓍯𓎡𓇌𓃭𓇌𓄿𓈖𓋴𓇋𓂋𓅱𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
       "color": "green"
     }
   },
   "join": {
     "notice_text": "{display_name}が入室しました",
     "auto": {
-      "title": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCA9\uD80C\uDF6F\uD80C\uDD71\uD80C\uDE16\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD71\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD71",
-      "description": "\uD80C\uDCC0\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDE16\uD80C\uDDCC\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCA9\uD80C\uDF6F\uD80C\uDD71\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+      "title": "𓊃𓇌𓂩𓍯𓅱𓈖𓇌𓃭𓇌𓅱𓅱𓋴𓇌𓏏𓅱",
+      "description": "𓃀𓍯𓇌𓋴𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓈖𓇌𓊃𓇌𓂩𓍯𓅱𓂩𓇋𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
       "color": "blue",
       "fields": [
         {
-          "name": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71\uD80C\uDE54\uD80C\uDF6F\uD80C\uDD71",
-          "value": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71：{vc}　\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71：{text}",
+          "name": "𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓊃𓇌𓃭𓇌𓍯𓅱𓉔𓍯𓅱",
+          "value": "𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱：{vc}　𓇌𓍯𓅓𓇌𓄿𓎼𓇋𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱：{text}",
           "inline": false
         }
       ]
     },
     "success": {
-      "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-      "description": "\uD80C\uDCC0\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+      "title": "𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+      "description": "𓃀𓍯𓇌𓋴𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓈖𓇌𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
       "color": "green"
     },
     "success_temp": {
-      "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-      "description": "\uD80C\uDCC0\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F。\n\uD80C\uDFA1\uD80C\uDF6F\uD80C\uDE16\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDE16\uD80C\uDF6F\uD80C\uDFCF\uD80C\uDD71\uD80C\uDD71\uD80C\uDD71\uD80C\uDD3F\uD80C\uDE16\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDDCC\uD80C\uDC8B\uD80C\uDDCC {text} \uD80C\uDE16\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEF4\uD80C\uDDCBー\uD80C\uDE83\uD80C\uDDCC\uD80C\uDD53\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD71",
+      "title": "𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+      "description": "𓃀𓍯𓇌𓋴𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓈖𓇌𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿。\n𓎡𓍯𓈖𓎡𓄿𓇌𓈖𓍯𓏏𓅱𓅱𓅱𓄿𓈖𓇌𓎡𓄿𓎼𓇌𓂋𓇌 {text} 𓈖𓍯𓅓𓇋𓃭𓏏𓍢𓋴𓇋ー𓊃𓇌𓅓𓍯𓇌𓍯𓅓𓇌𓄿𓎼𓇋𓅓𓄿𓋴𓅱",
       "color": "green",
       "fields": [
         {
-          "name": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71\uD80C\uDE54\uD80C\uDF6F\uD80C\uDD71",
-          "value": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71：{vc}　\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71：{text}",
+          "name": "𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓊃𓇌𓃭𓇌𓍯𓅱𓉔𓍯𓅱",
+          "value": "𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱：{vc}　𓇌𓍯𓅓𓇌𓄿𓎼𓇋𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱：{text}",
           "inline": false
         }
       ]
     },
     "success_change_channel": {
-      "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-      "description": "\uD80C\uDCC0\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F。\n\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDE54\uD80C\uDD3F [text}、\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDE54\uD80C\uDD3F {voice} \uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCB\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F。",
+      "title": "𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+      "description": "𓃀𓍯𓇌𓋴𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓈖𓇌𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿。\n𓇌𓍯𓅓𓇌𓄿𓎼𓇋𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓉔𓄿 [text}、𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓉔𓄿 {voice} 𓈖𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓄿𓂋𓇋𓅓𓄿𓋴𓇌𓏏𓄿。",
       "color": "green",
       "fields": [
         {
-          "name": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71\uD80C\uDE54\uD80C\uDF6F\uD80C\uDD71",
-          "value": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71：{vc}　\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71：{text}",
+          "name": "𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓊃𓇌𓃭𓇌𓍯𓅱𓉔𓍯𓅱",
+          "value": "𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱：{vc}　𓇌𓍯𓅓𓇌𓄿𓎼𓇋𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱：{text}",
           "inline": false
         }
       ]
     },
     "failure_change_channel": {
-      "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC",
-      "description": "\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDE16\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+      "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌",
+      "description": "𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓈖𓍯𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓈖𓇌𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
       "color": "red"
     },
     "failure": {
-      "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC",
-      "description": "\uD80C\uDCC0\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+      "title": "𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌",
+      "description": "𓃀𓍯𓇌𓋴𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓈖𓇌𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓂩𓇋𓎡𓇌𓅓𓄿𓋴𓇋𓈖𓂩𓇋𓋴𓇌𓏏𓄿",
       "color": "red"
     },
     "no_permission": {
-      "title": "\uD80C\uDFA1\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD3Fー",
+      "title": "𓎡𓇋𓈖𓎼𓇋𓈖𓇋𓂋𓄿ー",
       "description": "{issues}",
       "color": "red"
     },
-    "no_permission_vc": "{channel} \uD80C\uDE54\uD80C\uDDCB\uD80C\uDE16\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDFA1\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16",
-    "no_permission_text": "{channel} \uD80C\uDE16\uD80C\uDF6F\uD80C\uDE54\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16",
-    "no_permission_text_dm": "\uD80C\uDD3F\uD80C\uDE16\uD80C\uDD3F\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDFCF\uD80C\uDF6F\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDE16\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDD53\uD80C\uDDCB、\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCA9\uD80C\uDF6F\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F"
+    "no_permission_vc": "{channel} 𓉔𓇋𓈖𓍯𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓎡𓇋𓈖𓎼𓇋𓈖𓎼𓄿𓄿𓂋𓇌𓅓𓄿𓋴𓇋𓈖",
+    "no_permission_text": "{channel} 𓈖𓍯𓉔𓇌𓃭𓇌𓍯𓅱𓊃𓇌𓎡𓇋𓈖𓎼𓇋𓈖𓎼𓄿𓄿𓂋𓇌𓅓𓄿𓋴𓇋𓈖",
+    "no_permission_text_dm": "𓄿𓈖𓄿𓏏𓄿𓎼𓄿𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓋴𓇌𓏏𓄿𓏏𓇋𓎡𓇌𓋴𓅱𓏏𓍯𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓈖𓇌𓎡𓇋𓈖𓎼𓇋𓈖𓎼𓄿𓈖𓄿𓇌𓏏𓄿𓅓𓇋、𓊃𓇌𓂩𓍯𓅱𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓎼𓄿𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿"
   },
   "leave": {
     "notice_text": "{display_name}が退室しました",
     "success": {
-      "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-      "description": "\uD80C\uDCC0\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDE16\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+      "title": "𓋴𓇋𓏏𓅱𓂩𓄿𓈖𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+      "description": "𓃀𓍯𓇌𓋴𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓎡𓄿𓂋𓄿𓋴𓇋𓏏𓅱𓂩𓄿𓈖𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
       "color": "green"
     },
     "failure": {
-      "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDE16\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC",
-      "description": "\uD80C\uDCC0\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDE16\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+      "title": "𓋴𓇋𓏏𓅱𓂩𓄿𓈖𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌",
+      "description": "𓃀𓍯𓇌𓋴𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓎡𓄿𓂋𓄿𓋴𓇋𓏏𓅱𓂩𓄿𓈖𓂩𓇋𓎡𓇌𓅓𓄿𓋴𓇋𓈖𓂩𓇋𓋴𓇌𓏏𓄿",
       "color": "red"
     },
     "auto": {
-      "title": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCA9\uD80C\uDF6F\uD80C\uDD71\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD71\uD80C\uDFCF\uD80C\uDD71",
-      "description": "\uD80C\uDCC0\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDE16\uD80C\uDDCC\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCB\uD80C\uDD53\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDE16\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE16\uD80C\uDD3F\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDD53\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD71\uD80C\uDFCF\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+      "title": "𓊃𓇌𓂩𓍯𓅱𓏏𓄿𓇌𓋴𓇌𓃭𓇌𓅱𓏏𓅱",
+      "description": "𓃀𓍯𓇌𓋴𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓈖𓇌𓂩𓄿𓂋𓇋𓅓𓍯𓇌𓈖𓄿𓎡𓅱𓈖𓄿𓃭𓏏𓍢𓏏𓄿𓏏𓄿𓅓𓇋𓏏𓄿𓇌𓋴𓇌𓃭𓇌𓅱𓏏𓅱𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
       "color": "blue"
     },
     "forced": {
-      "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDE16\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCB\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
-      "description": "\uD80C\uDCC0\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDE16\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCB\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+      "title": "𓋴𓇋𓏏𓅱𓂩𓄿𓈖𓋴𓄿𓂋𓇋𓅓𓄿𓋴𓇌𓏏𓄿",
+      "description": "𓃀𓍯𓇌𓋴𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓎡𓄿𓂋𓄿𓋴𓇋𓏏𓅱𓂩𓄿𓈖𓋴𓄿𓂋𓇋𓅓𓄿𓋴𓇌𓏏𓄿",
       "color": "red"
     }
   },
   "dict": {
     "add": {
       "success": {
-        "title": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE54\uD80C\uDDCB\uD80C\uDE16\uD80C\uDF6F\uD80C\uDFCF\uD80C\uDD71\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDF6F\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
-        "description": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE16\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F\uD80C\uDE16\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDFCF\uD80C\uDD71\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCB\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓉔𓇋𓈖𓍯𓏏𓅱𓇌𓎡𓄿𓎼𓄿𓋴𓇋𓇌𓎡𓍯𓅱𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
+        "description": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓈖𓇌𓏏𓄿𓈖𓎼𓍯𓈖𓍯𓇌𓍯𓅓𓇌𓎼𓄿𓏏𓅱𓇌𓎡𓄿𓋴𓄿𓂋𓇋𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green",
-        "fields": [{"name": "\uD80C\uDFCF\uD80C\uDF6F\uD80C\uDD71\uD80C\uDC8B\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE16\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71", "value": "`{word}` → `{read}`", "inline": false}]
+        "fields": [
+          {
+            "name": "𓏏𓍯𓅱𓂋𓍯𓎡𓅱𓈖𓄿𓇌𓇌𓍯𓅱",
+            "value": "`{word}` → `{read}`",
+            "inline": false
+          }
+        ]
       },
       "overwrite": {
-        "title": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE54\uD80C\uDDCB\uD80C\uDE16\uD80C\uDF6F\uD80C\uDD71\uD80C\uDD71\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDDCC\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDF6F\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
-        "description": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE16\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F\uD80C\uDE16\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDD71\uD80C\uDD71\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCB\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓉔𓇋𓈖𓍯𓅱𓅱𓄿𓎼𓄿𓎡𓇌𓎼𓄿𓋴𓇋𓇌𓎡𓍯𓅱𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
+        "description": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓈖𓇌𓏏𓄿𓈖𓎼𓍯𓈖𓍯𓇌𓍯𓅓𓇌𓎼𓄿𓅱𓅱𓄿𓎼𓄿𓎡𓇌𓋴𓄿𓂋𓇋𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green",
-        "fields": [{"name": "\uD80C\uDFCF\uD80C\uDF6F\uD80C\uDD71\uD80C\uDC8B\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE16\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71", "value": "`{word}` → `{read}`", "inline": false}]
+        "fields": [
+          {
+            "name": "𓏏𓍯𓅱𓂋𓍯𓎡𓅱𓈖𓄿𓇌𓇌𓍯𓅱",
+            "value": "`{word}` → `{read}`",
+            "inline": false
+          }
+        ]
       },
       "too_long": {
-        "title": "\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD71\uD80C\uDFBC\uD80C\uDDCC\uD80C\uDC8B\uD80C\uDD71\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDD53\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
-        "description": "`{read}` \uD80C\uDE54\uD80C\uDD3F50\uD80C\uDD53\uD80C\uDF6F\uD80C\uDE83\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDF6F\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDD53\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16。\n\uD80C\uDFCF\uD80C\uDD71\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD71\uD80C\uDC8B\uD80C\uDD71\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDE54\uD80C\uDD3F50\uD80C\uDD53\uD80C\uDF6F\uD80C\uDE83\uD80C\uDDCC\uD80C\uDDCC\uD80C\uDE16\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDDCC",
+        "title": "𓇌𓍯𓅓𓇌𓎼𓄿𓈖𓄿𓎼𓄿𓋴𓅱𓎼𓇌𓂋𓅱𓏏𓄿𓅓𓇋𓏏𓅱𓇌𓎡𓄿𓂩𓇋𓎡𓇌𓅓𓄿𓋴𓇋𓈖𓂩𓇋𓋴𓇌𓏏𓄿",
+        "description": "`{read}` 𓉔𓄿50𓅓𓍯𓊃𓇌𓍯𓎡𓍯𓇋𓂋𓅱𓏏𓄿𓅓𓇋𓏏𓅱𓇌𓎡𓄿𓂩𓇋𓎡𓇌𓅓𓄿𓋴𓇋𓈖。\n𓏏𓅱𓇌𓎡𓄿𓋴𓅱𓂋𓅱𓇌𓍯𓅓𓇌𓉔𓄿50𓅓𓍯𓊃𓇌𓇌𓈖𓄿𓇌𓈖𓇌𓋴𓇌𓏏𓇋𓎡𓅱𓂩𓄿𓋴𓄿𓇌",
         "color": "red"
       },
       "failure": {
-        "title": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE54\uD80C\uDDCB\uD80C\uDE16\uD80C\uDF6F\uD80C\uDFCF\uD80C\uDD71\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
-        "description": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE16\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDFCF\uD80C\uDD71\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓉔𓇋𓈖𓍯𓏏𓅱𓇌𓎡𓄿𓎼𓄿𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
+        "description": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓈖𓇌𓏏𓄿𓈖𓎼𓍯𓎼𓄿𓏏𓅱𓇌𓎡𓄿𓂩𓇋𓎡𓇌𓅓𓄿𓋴𓇋𓈖𓂩𓇋𓋴𓇌𓏏𓄿",
         "color": "red"
       }
     },
     "del": {
       "success": {
-        "title": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDD3F\uD80C\uDE16\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDF6F\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
-        "description": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDD3F\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F\uD80C\uDFCF\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCB\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓎡𓄿𓂋𓄿𓈖𓍯𓋴𓄿𓎡𓅱𓊃𓇌𓃭𓇌𓍯𓎼𓄿𓋴𓇋𓇌𓎡𓍯𓅱𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
+        "description": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓎡𓄿𓂋𓄿𓏏𓄿𓈖𓎼𓍯𓏏𓍯𓇌𓍯𓅓𓇌𓎼𓄿𓋴𓄿𓎡𓅱𓊃𓇌𓃭𓇌𓍯𓋴𓄿𓂋𓇋𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green",
-        "fields": [{"name": "\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE16\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71", "value": "`{word}` → `{read}`", "inline": false}]
+        "fields": [
+          {
+            "name": "𓋴𓄿𓎡𓅱𓊃𓇌𓃭𓇌𓍯𓈖𓄿𓇌𓇌𓍯𓅱",
+            "value": "`{word}` → `{read}`",
+            "inline": false
+          }
+        ]
       },
       "not_found": {
-        "title": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDF6F\uD80C\uDE16\uD80C\uDF6F\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F\uD80C\uDE54\uD80C\uDD3F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD71\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
-        "description": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE16\uD80C\uDDCC`{word}`\uD80C\uDE54\uD80C\uDD3F\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16。\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE16\uD80C\uDDCC\uD80C\uDE16\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDC8B\uD80C\uDDCB\uD80C\uDE16\uD80C\uDD3F\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDDCC",
+        "title": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓈖𓇌𓋴𓍯𓈖𓍯𓏏𓄿𓈖𓎼𓍯𓉔𓄿𓅓𓇌𓏏𓅱𓎡𓄿𓂋𓇌𓅓𓄿𓋴𓇋𓈖𓂩𓇋𓋴𓇌𓏏𓄿",
+        "description": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓈖𓇌`{word}`𓉔𓄿𓄿𓂋𓇌𓅓𓄿𓋴𓇋𓈖。𓎡𓄿𓎡𓅱𓈖𓇌𓈖𓋴𓇌𓏏𓇋𓇌𓂋𓇋𓈖𓄿𓍯𓋴𓇌𓏏𓇋𓎡𓅱𓂩𓄿𓋴𓄿𓇌",
         "color": "red"
       },
       "failure": {
-        "title": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDD3F\uD80C\uDE16\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
-        "description": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDD3F\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓎡𓄿𓂋𓄿𓈖𓍯𓋴𓄿𓎡𓅱𓊃𓇌𓃭𓇌𓍯𓎼𓄿𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
+        "description": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓎡𓄿𓂋𓄿𓏏𓄿𓈖𓎼𓍯𓎼𓄿𓋴𓄿𓎡𓅱𓊃𓇌𓃭𓇌𓍯𓂩𓇋𓎡𓇌𓅓𓄿𓋴𓇋𓈖𓂩𓇋𓋴𓇌𓏏𓄿",
         "color": "red"
       }
     },
     "view": {
-      "title": "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDC8B\uD80C\uDD3F\uD80C\uDE16",
+      "title": "𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓇌𓏏𓇌𓂋𓄿𓈖",
       "description": "",
       "color": "blue",
-      "empty": "\uD80C\uDFCF\uD80C\uDF6F\uD80C\uDD71\uD80C\uDC8B\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F\uD80C\uDE54\uD80C\uDD3F\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16",
-      "more": "（\uD80C\uDE54\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD3F {count} \uD80C\uDFA1\uD80C\uDDCB\uD80C\uDE16）",
-      "page": "\uD80C\uDEAA\uD80C\uDDCBー\uD80C\uDE83\uD80C\uDDCC {page} / {total}",
+      "empty": "𓏏𓍯𓅱𓂋𓍯𓎡𓅱𓋴𓄿𓂋𓇋𓏏𓄿𓏏𓄿𓈖𓎼𓍯𓉔𓄿𓄿𓂋𓇌𓅓𓄿𓋴𓇋𓈖",
+      "more": "（𓉔𓍯𓎡𓄿 {count} 𓎡𓇋𓈖）",
+      "page": "𓊪𓇋ー𓊃𓇌 {page} / {total}",
       "prefix": "",
-      "header": "\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F  →  \uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDFCF\uD80C\uDD3F",
-      "section_normal": "\uD80C\uDFCF\uD80C\uDD71\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F",
-      "section_priority": "\uD80C\uDDCC\uD80C\uDD71\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F",
+      "header": "𓏏𓄿𓈖𓎼𓍯  →  𓇌𓍯𓅓𓇌𓎡𓄿𓏏𓄿",
+      "section_normal": "𓏏𓅱𓅱𓊃𓇌𓃭𓇌𓍯𓅱𓊃𓇌𓋴𓇌𓃭𓇌𓍯",
+      "section_priority": "𓇌𓅱𓅱𓋴𓇋𓈖𓊃𓇌𓋴𓇌𓃭𓇌𓍯",
       "not_found": {
-        "title": "\uD80C\uDD53\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD71\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
-        "description": "「{word}」\uD80C\uDE16\uD80C\uDDCC\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDC8B\uD80C\uDD71\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F\uD80C\uDE54\uD80C\uDD3F\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE16\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16",
+        "title": "𓅓𓇌𓏏𓅱𓎡𓄿𓂋𓇌𓅓𓄿𓋴𓇋𓈖𓂩𓇋𓋴𓇌𓏏𓄿",
+        "description": "「{word}」𓈖𓇌𓇌𓃭𓏏𓍢𓏏𓇌𓋴𓅱𓂋𓅱𓏏𓄿𓈖𓎼𓍯𓉔𓄿𓊃𓇌𓋴𓇌𓃭𓇌𓍯𓈖𓇌𓄿𓂋𓇌𓅓𓄿𓋴𓇋𓈖",
         "color": "red"
       }
     },
     "error": {
       "no_permission": {
-        "title": "\uD80C\uDFA1\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD3Fー",
-        "description": "\uD80C\uDEF4\uD80C\uDD3Fー\uD80C\uDCC0\uD80C\uDD3Fー\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDE54\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD71\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDD71",
+        "title": "𓎡𓇋𓈖𓎼𓇋𓈖𓇋𓂋𓄿ー",
+        "description": "𓋴𓄿ー𓃀𓄿ー𓎡𓄿𓈖𓂋𓇌𓎡𓇋𓈖𓎼𓇋𓈖𓎼𓄿𓉔𓇌𓏏𓅱𓇌𓍯𓅱𓂩𓇋𓋴𓅱",
         "color": "red"
       }
     }
   },
   "error": {
     "os_error": {
-      "title": "\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDD53\uD80C\uDD71\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD3Fー",
-      "description": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDE16\uD80C\uDF6F\uD80C\uDE54\uD80C\uDF6F\uD80C\uDE83\uD80C\uDF6F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+      "title": "𓋴𓇌𓋴𓅱𓏏𓇋𓅓𓅱𓇋𓂋𓄿ー",
+      "description": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓈖𓍯𓉔𓍯𓊃𓍯𓈖𓈖𓇌𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
       "color": "red"
     }
   },
   "setting": {
     "view": {
-      "title": "\uD80C\uDEF4\uD80C\uDD3Fー\uD80C\uDCC0\uD80C\uDD3Fー\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC",
+      "title": "𓋴𓄿ー𓃀𓄿ー𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌",
       "description": "",
       "color": "blue",
-      "not_set": "\uD80C\uDD53\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC",
+      "not_set": "𓅓𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌",
       "labels": {
-        "TextTarget":   "\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71",
-        "VoiceTarget":  "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71",
-        "Speaker":      "\uD80C\uDD71\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F",
-        "Volume":       "\uD80C\uDF6F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-        "Speed":        "\uD80C\uDE54\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F",
-        "MaxChar":      "\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDD53\uD80C\uDF6F\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDD71",
-        "AutoJoin":     "\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCA9\uD80C\uDF6F\uD80C\uDD71\uD80C\uDE16\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD71\uD80C\uDD71\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD71",
-        "AccessNotice": "\uD80C\uDE16\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD71\uD80C\uDD71\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD71\uD80C\uDFCF\uD80C\uDD71\uD80C\uDD71\uD80C\uDFCF\uD80C\uDDCC",
-        "Language":     "\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F"
+        "TextTarget": "𓇌𓍯𓅓𓇌𓄿𓎼𓇋𓏏𓄿𓇌𓋴𓇌𓃭𓇌𓍯𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱",
+        "VoiceTarget": "𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱",
+        "Speaker": "𓅱𓄿𓋴𓇌𓃭𓇌𓄿",
+        "Volume": "𓍯𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+        "Speed": "𓉔𓄿𓇌𓄿𓋴𓄿",
+        "MaxChar": "𓋴𓄿𓇌𓂩𓄿𓇌𓇌𓍯𓅓𓇌𓄿𓎼𓇋𓅓𓍯𓊃𓇌𓋴𓅱𓅱",
+        "AutoJoin": "𓊃𓇌𓂩𓍯𓅱𓈖𓇌𓃭𓇌𓅱𓅱𓏏𓄿𓇌𓋴𓇌𓏏𓅱",
+        "AccessNotice": "𓈖𓇌𓃭𓇌𓅱𓅱𓏏𓄿𓇌𓋴𓇌𓏏𓅱𓏏𓅱𓅱𓏏𓇌",
+        "Language": "𓎼𓇋𓈖𓎼𓍯"
       }
     },
     "text_target": {
       "success": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-        "description": "TextTarget \uD80C\uDF6F {target} \uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+        "description": "TextTarget 𓍯 {target} 𓈖𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green"
       },
       "reset": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDF6F",
-        "description": "TextTarget \uD80C\uDF6F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓂋𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓍯",
+        "description": "TextTarget 𓍯𓂋𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓍯𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green"
       },
       "no_permission": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC",
-        "description": "{channel} \uD80C\uDE16\uD80C\uDF6F\uD80C\uDE54\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC・\uD80C\uDEF4\uD80C\uDF6F\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDE16\uD80C\uDFA1\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌",
+        "description": "{channel} 𓈖𓍯𓉔𓇌𓃭𓇌𓍯𓅱𓊃𓇌・𓋴𓍯𓅱𓋴𓇌𓈖𓎡𓇋𓈖𓎼𓇋𓈖𓎼𓄿𓄿𓂋𓇌𓅓𓄿𓋴𓇋𓈖",
         "color": "red"
       }
     },
     "voice_target": {
       "no_vc": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC",
-        "description": "VC\uD80C\uDE16\uD80C\uDDCC\uD80C\uDE16\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD71\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16。\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDE16\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD71\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDC8B\uD80C\uDD71\uD80C\uDFA1\uD80C\uDD3F、VC\uD80C\uDE16\uD80C\uDDCC\uD80C\uDE16\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD71\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDD3F\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFA1\uD80C\uDF6F\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDDCC",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌",
+        "description": "VC𓈖𓇌𓈖𓇌𓃭𓇌𓅱𓅱𓋴𓇌𓏏𓅱𓋴𓇌𓏏𓇋𓇌𓅓𓄿𓋴𓇋𓈖。𓏏𓇌𓃭𓇌𓄿𓈖𓈖𓇋𓂋𓅱𓍯𓋴𓇌𓏏𓇋𓇌𓋴𓅱𓂋𓅱𓎡𓄿、VC𓈖𓇌𓈖𓇌𓃭𓇌𓅱𓅱𓋴𓇌𓏏𓅱𓋴𓇌𓏏𓇋𓎡𓄿𓂋𓄿𓊃𓇌𓃭𓏏𓍢𓎡𓍯𓅱𓋴𓇌𓏏𓇋𓎡𓅱𓂩𓄿𓋴𓄿𓇌",
         "color": "red"
       },
       "success": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-        "description": "VoiceTarget \uD80C\uDF6F {channel} \uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+        "description": "VoiceTarget 𓍯 {channel} 𓈖𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green"
       },
       "reset": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDF6F",
-        "description": "VoiceTarget \uD80C\uDF6F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓂋𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓍯",
+        "description": "VoiceTarget 𓍯𓂋𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓍯𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green"
       },
       "no_permission": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC",
-        "description": "{channel} \uD80C\uDE54\uD80C\uDDCB\uD80C\uDE16\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDFCF\uD80C\uDD71\uD80C\uDE83\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDFA1\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌",
+        "description": "{channel} 𓉔𓇋𓈖𓍯𓋴𓇋𓏏𓅱𓊃𓍯𓎡𓅱𓎡𓇋𓈖𓎼𓇋𓈖𓎼𓄿𓄿𓂋𓇌𓅓𓄿𓋴𓇋𓈖",
         "color": "red"
       }
     },
     "speaker": {
       "not_found": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC",
-        "description": "\uD80C\uDD71\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDD53\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD71\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16。\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDC8B\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDDCC",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌",
+        "description": "𓅱𓄿𓋴𓇌𓃭𓇌𓄿𓎼𓄿𓅓𓇌𓏏𓅱𓎡𓄿𓂋𓇌𓅓𓄿𓋴𓇋𓈖。𓇌𓏏𓇌𓂋𓄿𓈖𓎡𓄿𓂋𓄿𓋴𓇋𓈖𓏏𓄿𓎡𓅱𓋴𓇌𓏏𓇋𓎡𓅱𓂩𓄿𓋴𓄿𓇌",
         "color": "red"
       },
       "success": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-        "description": "Speaker \uD80C\uDF6F {speaker}（ID: {speaker_id}）\uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+        "description": "Speaker 𓍯 {speaker}（ID: {speaker_id}）𓈖𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green"
       }
     },
     "volume": {
       "invalid": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC",
-        "description": "\uD80C\uDF6F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71\uD80C\uDE54\uD80C\uDD3F 0〜100 \uD80C\uDE16\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDD71\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDDCC",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌",
+        "description": "𓍯𓈖𓂋𓇌𓃭𓇌𓍯𓅱𓉔𓄿 0〜100 𓈖𓍯𓋴𓇋𓇌𓋴𓅱𓅱𓂩𓇋𓋴𓇌𓏏𓇋𓇌𓋴𓇌𓏏𓇋𓎡𓅱𓂩𓄿𓋴𓄿𓇌",
         "color": "red"
       },
       "success": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-        "description": "Volume \uD80C\uDF6F {volume} \uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+        "description": "Volume 𓍯 {volume} 𓈖𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green"
       }
     },
     "speed": {
       "invalid": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC",
-        "description": "\uD80C\uDEF4\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDCA9\uD80C\uDF6F\uD80C\uDE54\uD80C\uDD3F 50〜200 \uD80C\uDE16\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDD71\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDDCC",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌",
+        "description": "𓋴𓍯𓎡𓅱𓂩𓍯𓉔𓄿 50〜200 𓈖𓍯𓋴𓇋𓇌𓋴𓅱𓅱𓂩𓇋𓋴𓇌𓏏𓇋𓇌𓋴𓇌𓏏𓇋𓎡𓅱𓂩𓄿𓋴𓄿𓇌",
         "color": "red"
       },
       "success": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-        "description": "Speed \uD80C\uDF6F {speed} \uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+        "description": "Speed 𓍯 {speed} 𓈖𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green"
       }
     },
     "max_char": {
       "invalid": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDEAA\uD80C\uDD3F\uD80C\uDDCC",
-        "description": "\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDD53\uD80C\uDF6F\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDD71\uD80C\uDE54\uD80C\uDD3F 30〜200 \uD80C\uDE16\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDD71\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDFA1\uD80C\uDD71\uD80C\uDCA9\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDDCC（0\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDE54\uD80C\uDD71\uD80C\uDCED\uD80C\uDF6F\uD80C\uDC8B\uD80C\uDD71\uD80C\uDFCF\uD80C\uDF6F(50)\uD80C\uDE16\uD80C\uDDCC\uD80C\uDD53\uD80C\uDF6F\uD80C\uDCA9\uD80C\uDF6F\uD80C\uDEF4\uD80C\uDD71）",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓃭𓏏𓍢𓊪𓄿𓇌",
+        "description": "𓋴𓄿𓇌𓂩𓄿𓇌𓅓𓍯𓊃𓇌𓋴𓅱𓅱𓉔𓄿 30〜200 𓈖𓍯𓋴𓇋𓇌𓋴𓅱𓅱𓂩𓇋𓋴𓇌𓏏𓇋𓇌𓋴𓇌𓏏𓇋𓎡𓅱𓂩𓄿𓋴𓄿𓇌（0𓂩𓇋𓂩𓇋𓉔𓅱𓃭𓍯𓂋𓅱𓏏𓍯(50)𓈖𓇌𓅓𓍯𓂩𓍯𓋴𓅱）",
         "color": "red"
       },
       "success": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-        "description": "MaxChar \uD80C\uDF6F {chars} \uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F（{limit}）",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+        "description": "MaxChar 𓍯 {chars} 𓈖𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿（{limit}）",
         "color": "green"
       },
-      "unlimited": "\uD80C\uDD53\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16",
-      "limited": "{chars}\uD80C\uDD53\uD80C\uDF6F\uD80C\uDE83\uD80C\uDDCC"
+      "unlimited": "𓅓𓅱𓋴𓇋𓇌𓎼𓇋𓈖",
+      "limited": "{chars}𓅓𓍯𓊃𓇌"
     },
     "auto_join": {
       "success": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-        "description": "AutoJoin \uD80C\uDF6F {state} \uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+        "description": "AutoJoin 𓍯 {state} 𓈖𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green"
       }
     },
     "access_notice": {
       "success": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-        "description": "AccessNotice \uD80C\uDF6F {state} \uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+        "description": "AccessNotice 𓍯 {state} 𓈖𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green"
       }
     },
     "language": {
       "success": {
-        "title": "\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
-        "description": "\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F\uD80C\uDF6F {language} \uD80C\uDE16\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+        "description": "𓎼𓇋𓈖𓎼𓍯𓍯 {language} 𓈖𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green"
       }
     },
     "states": {
-      "enabled": "\uD80C\uDDCC\uD80C\uDD71\uD80C\uDD71\uD80C\uDFA1\uD80C\uDF6F\uD80C\uDD71",
-      "disabled": "\uD80C\uDD53\uD80C\uDD71\uD80C\uDFA1\uD80C\uDF6F\uD80C\uDD71"
+      "enabled": "𓇌𓅱𓅱𓎡𓍯𓅱",
+      "disabled": "𓅓𓅱𓎡𓍯𓅱"
     },
     "error": {
       "no_permission": {
-        "title": "\uD80C\uDFA1\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDDCB\uD80C\uDC8B\uD80C\uDD3Fー",
-        "description": "\uD80C\uDEF4\uD80C\uDD3Fー\uD80C\uDCC0\uD80C\uDD3Fー\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDE54\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD71\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDD71",
+        "title": "𓎡𓇋𓈖𓎼𓇋𓈖𓇋𓂋𓄿ー",
+        "description": "𓋴𓄿ー𓃀𓄿ー𓎡𓄿𓈖𓂋𓇌𓎡𓇋𓈖𓎼𓇋𓈖𓎼𓄿𓉔𓇌𓏏𓅱𓇌𓍯𓅱𓂩𓇋𓋴𓅱",
+        "color": "red"
+      }
+    }
+  },
+  "sounddict": {
+    "add": {
+      "success": {
+        "title": "音声辞書への追加が成功しました",
+        "description": "音声辞書に単語が追加されました",
+        "color": "green",
+        "fields": [
+          {
+            "name": "登録内容",
+            "value": "`{word}` → `{sound}`",
+            "inline": false
+          }
+        ]
+      },
+      "success_both": {
+        "title": "辞書への追加が成功しました",
+        "description": "音声辞書と読み上げ辞書に単語が追加されました",
+        "color": "green",
+        "fields": [
+          {
+            "name": "登録内容",
+            "value": "`{word}` → 音声: `{sound}`　読み: `{read}`",
+            "inline": false
+          }
+        ]
+      },
+      "overwrite": {
+        "title": "音声辞書への上書きが成功しました",
+        "description": "音声辞書の単語が上書きされました",
+        "color": "green",
+        "fields": [
+          {
+            "name": "登録内容",
+            "value": "`{word}` → `{sound}`",
+            "inline": false
+          }
+        ]
+      },
+      "overwrite_both": {
+        "title": "辞書への上書きが成功しました",
+        "description": "音声辞書と読み上げ辞書の単語が上書きされました",
+        "color": "green",
+        "fields": [
+          {
+            "name": "登録内容",
+            "value": "`{word}` → 音声: `{sound}`　読み: `{read}`",
+            "inline": false
+          }
+        ]
+      },
+      "failure": {
+        "title": "音声辞書への追加が失敗しました",
+        "description": "音声辞書に単語が追加できませんでした",
+        "color": "red"
+      }
+    },
+    "del": {
+      "success": {
+        "title": "音声辞書からの削除が成功しました",
+        "description": "音声辞書から単語が削除されました",
+        "color": "green",
+        "fields": [
+          {
+            "name": "削除内容",
+            "value": "`{word}`",
+            "inline": false
+          }
+        ]
+      },
+      "not_found": {
+        "title": "音声辞書にその単語は見つかりませんでした",
+        "description": "音声辞書に`{word}`はありません。確認して入れなおしてください。",
+        "color": "red"
+      },
+      "failure": {
+        "title": "音声辞書からの削除が失敗しました",
+        "description": "音声辞書から単語が削除できませんでした",
+        "color": "red"
+      }
+    },
+    "view": {
+      "title": "音声辞書一覧",
+      "description": "",
+      "color": "blue",
+      "empty": "音声辞書に登録された単語はありません",
+      "page": "ページ {page} / {total}",
+      "prefix": "",
+      "header": "単語  →  音声名",
+      "section_normal": "通常辞書",
+      "section_priority": "優先辞書",
+      "not_found": {
+        "title": "見つかりませんでした",
+        "description": "「{word}」に一致する単語は音声辞書にありません",
+        "color": "red"
+      }
+    },
+    "error": {
+      "no_permission": {
+        "title": "権限エラー",
+        "description": "サーバー管理権限が必要です",
         "color": "red"
       }
     }

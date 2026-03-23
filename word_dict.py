@@ -1,5 +1,4 @@
 import os
-import re
 import json
 import sqlite3
 import unicodedata
@@ -7,58 +6,17 @@ import discord
 from typing import Optional
 from messages import build_embed, get_desc
 from config import EMOJI_JA_JSON
+from dict_view import DictViewPaginator
+import swap
+from swap import (
+  _CUSTOM_EMOJI_RE, _STANDARD_EMOJI_RE,
+  _MENTION_USER_RE, _MENTION_CH_RE, _MENTION_ROLE_RE,
+  _URL_PATTERNS,
+)
 
 
 def _lstr(key: str) -> discord.app_commands.locale_str:
   return discord.app_commands.locale_str(get_desc(key), key=key)
-
-
-_CUSTOM_EMOJI_RE = re.compile(r'<a?:[\w/:%#$&?()~.=+\-]+:\d+>')
-_STANDARD_EMOJI_RE = re.compile(r'^:([\w/:%#$&?()~.=+\-]+):$')
-
-_SPOILER_RE      = re.compile(r'\|\|[\s\S]+?\|\|')
-_STRIKE_RE       = re.compile(r'~~[\s\S]+?~~')
-_CODE_BLOCK_RE   = re.compile(r'```[\s\S]+?```')
-_INLINE_CODE_RE  = re.compile(r'`[^`]+`')
-_TIMESTAMP_RE    = re.compile(r'<t:(\d+):[\s\S]>')
-_MENTION_USER_RE = re.compile(r'<@!?(\d+)>')
-_MENTION_CH_RE   = re.compile(r'<#(\d+)>')
-_MENTION_ROLE_RE = re.compile(r'<@&(\d+)>')
-_WWW_RE          = re.compile(r'[wWｗＷ]{2,}')
-
-_URL_PATTERNS = [
-  (re.compile(r'https://www.youtube[\w/:%#$&?()~.=+\-!@]+'), 'ユーチューブへのリンク'),
-  (re.compile(r'https://youtu[\w/:%#$&?()~.=+\-!@]+'), 'ユーチューブへのリンク'),
-  (re.compile(r'https://www.nicovideo[\w/:%#$&?()~.=+\-!@]+'), 'ニコニコへのリンク'),
-  (re.compile(r'https://nico[\w/:%#$&?()~.=+\-!@]+'), 'ニコニコへのリンク'),
-  (re.compile(r'https://twitter[\w/:%#$&?()~.=+\-!@]+'), 'ツイッターへのリンク'),
-  (re.compile(r'https://x[\w/:%#$&?()~.=+\-!@]+'), 'エックスへのリンク'),
-  (re.compile(r'https://www.instagram[\w/:%#$&?()~.=+\-!@]+'), 'インスタへのリンク'),
-  (re.compile(r'https://www.facebook[\w/:%#$&?()~.=+\-!@]+'), 'フェイスブックへのリンク'),
-  (re.compile(r'https://www.tiktok[\w/:%#$&?()~.=+\-!@]+'), 'ティックトックへのリンク'),
-  (re.compile(r'https://discord[\w/:%#$&?()~.=+\-!@]+'), 'ディスコードないのリンク'),
-  (re.compile(r'https://line[\w/:%#$&?()~.=+\-!@]+'), 'ラインへのリンク'),
-  (re.compile(r'https://store.steampowered[\w/:%#$&?()~.=+\-!@]+'), 'スチームへのリンク'),
-  (re.compile(r'https://www.ea[\w/:%#$&?()~.=+\-!@]+'), 'イーエーへのリンク'),
-  (re.compile(r'https://www.origin[\w/:%#$&?()~.=+\-!@]+'), 'オリジンへのリンク'),
-  (re.compile(r'https://store.epicgames[\w/:%#$&?()~.=+\-!@]+'), 'エピックゲームズへのリンク'),
-  (re.compile(r'https://www.riotgames[\w/:%#$&?()~.=+\-!@]+'), 'ライアットゲームズへのリンク'),
-  (re.compile(r'https://www.xbox[\w/:%#$&?()~.=+\-!@]+'), 'エックスボックスへのリンク'),
-  (re.compile(r'https://www.amazon[\w/:%#$&?()~.=+\-!@]+'), 'アマゾンへのリンク'),
-  (re.compile(r'https://item.rakuten[\w/:%#$&?()~.=+\-!@]+'), 'らくてんいちばへのリンク'),
-  (re.compile(r'https://www.yodobashi[\w/:%#$&?()~.=+\-!@]+'), 'ヨドバシカメラへのリンク'),
-  (re.compile(r'https://www.soundhouse[\w/:%#$&?()~.=+\-!@]+'), 'サウンドハウスへのリンク'),
-  (re.compile(r'https://www.mapcamera[\w/:%#$&?()~.=+\-!@]+'), 'マップカメラへのリンク'),
-  (re.compile(r'https://[\w/:%#$&?()~.=+\-!@]+aliexpress+[\w/:%#$&?()~.=+\-!@]+'), 'アリエクへのリンク'),
-  (re.compile(r'http://abehiroshi.la.coocan.jp/+'), 'あべひろしのホームページへのリンク'),
-  (re.compile(r'https://[\w/:%#$&?()~.=+\-!@]+'), 'リンク省略'),
-  (re.compile(r'http://[\w/:%#$&?()~.=+\-!@]+'), 'リンク省略'),
-  (re.compile(r'www\.\S+'), 'リンク省略'),
-]
-
-_IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff'}
-_VIDEO_EXTS = {'.mp4', '.mov', '.avi', '.webm', '.mkv', '.flv'}
-_AUDIO_EXTS = {'.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac'}
 
 
 def _is_emoji_word(word: str) -> bool:
@@ -101,57 +59,6 @@ def _load_json(path: str) -> dict:
     return {}
 
 
-
-def _apply_dict(segments: list, mapping: dict) -> list:
-  """Literal word replacements on non-replaced segments."""
-  for word, read in mapping.items():
-    if not word:
-      continue
-    pattern = re.escape(word)
-    new_segments = []
-    for seg_text, replaced in segments:
-      if replaced:
-        new_segments.append((seg_text, True))
-        continue
-      last_end = 0
-      for m in re.finditer(pattern, seg_text):
-        before = seg_text[last_end:m.start()]
-        if before:
-          new_segments.append((before, False))
-        new_segments.append((read, True))
-        last_end = m.end()
-      remaining = seg_text[last_end:]
-      if remaining:
-        new_segments.append((remaining, False))
-    segments = new_segments
-  return segments
-
-
-def _apply_regex(segments: list, pattern, repl_fn) -> list:
-  """Regex replacements on non-replaced segments."""
-  new_segments = []
-  for seg_text, replaced in segments:
-    if replaced:
-      new_segments.append((seg_text, True))
-      continue
-    last_end = 0
-    for m in re.finditer(pattern, seg_text):
-      before = seg_text[last_end:m.start()]
-      if before:
-        new_segments.append((before, False))
-      replacement = repl_fn(m) if callable(repl_fn) else repl_fn
-      if replacement:
-        new_segments.append((replacement, True))
-      last_end = m.end()
-    remaining = seg_text[last_end:]
-    if remaining:
-      new_segments.append((remaining, False))
-  return new_segments
-
-
-_PAGE_SIZE = 20
-
-
 def _normalize(s: str) -> str:
   """大文字小文字・半角全角を統一する。"""
   return unicodedata.normalize('NFKC', s).lower()
@@ -164,109 +71,6 @@ def _filter_entries(entries: dict, word: str) -> list[tuple[str, str]]:
   partial_key = [(k, v) for k, v in entries.items() if nword in _normalize(k) and _normalize(k) != nword]
   value_match = [(k, v) for k, v in entries.items() if nword not in _normalize(k) and nword in _normalize(v)]
   return exact_key + partial_key + value_match
-
-
-class DictViewPaginator(discord.ui.View):
-  def __init__(self, normal_items: list[tuple[str, str]], priority_items: list[tuple[str, str]], lang: str):
-    super().__init__(timeout=120)
-    self.normal_items   = normal_items
-    self.priority_items = priority_items
-    self.lang = lang
-    self.page = 0
-    self.normal_pages   = (len(normal_items)   + _PAGE_SIZE - 1) // _PAGE_SIZE if normal_items   else 0
-    self.priority_pages = (len(priority_items) + _PAGE_SIZE - 1) // _PAGE_SIZE if priority_items else 0
-    self.total_pages = self.normal_pages + self.priority_pages
-    self.message: discord.Message | None = None
-    self._update_buttons()
-
-  def build_dict_embed(self) -> discord.Embed:
-    embed = build_embed('dict.view', lang=self.lang)
-    prefix = get_desc('dict.view.prefix', lang=self.lang)
-
-    if self.page < self.normal_pages:
-      start = self.page * _PAGE_SIZE
-      page_items = self.normal_items[start:start + _PAGE_SIZE]
-      section = get_desc('dict.view.section_normal', lang=self.lang)
-      section_page = self.page + 1
-      section_total = self.normal_pages
-    else:
-      priority_page = self.page - self.normal_pages
-      start = priority_page * _PAGE_SIZE
-      page_items = self.priority_items[start:start + _PAGE_SIZE]
-      section = get_desc('dict.view.section_priority', lang=self.lang)
-      section_page = priority_page + 1
-      section_total = self.priority_pages
-
-    header = get_desc('dict.view.header', lang=self.lang)
-    lines = [f"{w}  →  {r}" for w, r in page_items]
-    if header:
-      separator = "─" * 24
-      lines = [header, separator] + lines
-    parts = []
-    if prefix:
-      parts.append(prefix)
-    if section:
-      parts.append(f"**{section}**")
-    parts.append("```\n" + "\n".join(lines) + "\n```")
-    embed.description = "\n".join(parts)
-
-    page_str = get_desc('dict.view.page', lang=self.lang).format(
-      page=section_page, total=section_total
-    )
-    embed.set_footer(text=page_str)
-    return embed
-
-  def _update_buttons(self):
-    in_normal = self.page < self.normal_pages
-    section_pages = self.normal_pages if in_normal else self.priority_pages
-
-    self.prev_button.disabled = (section_pages <= 1)
-    self.next_button.disabled = (section_pages <= 1)
-
-    self.jump_normal_button.disabled   = (self.normal_pages   == 0 or in_normal)
-    self.jump_priority_button.disabled = (self.priority_pages == 0 or not in_normal)
-
-  @discord.ui.button(label="◀️", style=discord.ButtonStyle.secondary)
-  async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-    if self.page < self.normal_pages:
-      self.page = (self.page - 1) % self.normal_pages
-    else:
-      pp = (self.page - self.normal_pages - 1) % self.priority_pages
-      self.page = self.normal_pages + pp
-    self._update_buttons()
-    await interaction.response.edit_message(embed=self.build_dict_embed(), view=self)
-
-  @discord.ui.button(label="▶️", style=discord.ButtonStyle.secondary)
-  async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-    if self.page < self.normal_pages:
-      self.page = (self.page + 1) % self.normal_pages
-    else:
-      pp = (self.page - self.normal_pages + 1) % self.priority_pages
-      self.page = self.normal_pages + pp
-    self._update_buttons()
-    await interaction.response.edit_message(embed=self.build_dict_embed(), view=self)
-
-  @discord.ui.button(label="📚", style=discord.ButtonStyle.primary)
-  async def jump_normal_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-    self.page = 0
-    self._update_buttons()
-    await interaction.response.edit_message(embed=self.build_dict_embed(), view=self)
-
-  @discord.ui.button(label="⭐", style=discord.ButtonStyle.primary)
-  async def jump_priority_button(self, interaction: discord.Interaction, button: discord.ui.Button):
-    self.page = self.normal_pages
-    self._update_buttons()
-    await interaction.response.edit_message(embed=self.build_dict_embed(), view=self)
-
-  async def on_timeout(self):
-    if self.message is not None:
-      for item in self.children:
-        item.disabled = True
-      try:
-        await self.message.edit(view=self)
-      except Exception as e:
-        print(f"on_timeout: {e}")
-        pass
 
 
 class DictManager:
@@ -356,131 +160,7 @@ class DictManager:
     return normal, priority
 
   def preprocess_text(self, text: str, guild_id: int, guild, attachments, mentions=None) -> tuple[str, list[tuple[int, int]]]:
-    segments = [(text, False)]
-    gid = str(guild_id)
-
-    # -1. 優先辞書（URL処理より前に適用）
-    cur = self._conn.execute(
-      "SELECT word, reading FROM entries WHERE guild_id = ? AND is_priority = 1 ORDER BY added_at DESC",
-      (gid,)
-    )
-    d = dict(cur.fetchall())
-    if d:
-      segments = _apply_dict(segments, d)
-
-    # 0. URL処理（辞書より前に実行してURLを保護）
-    for url_re, url_read in _URL_PATTERNS:
-      segments = _apply_regex(segments, url_re, url_read + ',')
-
-    # 0b. www pattern → N × わら（URL内の www は protected=True でスキップ済み）
-    def _www_replace(m):
-      return 'わら' * len(m.group(0)) + ','
-    segments = _apply_regex(segments, _WWW_RE, _www_replace)
-
-    # 1a. Spoilers
-    segments = _apply_regex(segments, _SPOILER_RE, ',ネタバレ,')
-    # 1b. Strikethrough
-    segments = _apply_regex(segments, _STRIKE_RE, ',取り消し線,')
-    # 1c. Code blocks
-    segments = _apply_regex(segments, _CODE_BLOCK_RE, ',コードブロック,')
-    # 1d. Inline code
-    segments = _apply_regex(segments, _INLINE_CODE_RE, ',コードブロック,')
-    # 1e. Time stamp
-    segments = _apply_regex(segments, _TIMESTAMP_RE, ',タイムスタンプ,')
-
-    # 1f. User mentions
-    mention_map = {str(u.id): u.display_name for u in (mentions or [])}
-
-    def _mention_user(m):
-      uid = m.group(1)
-      if uid in mention_map:
-        return f'{mention_map[uid]}へのメンション,'
-      if guild:
-        member = guild.get_member(int(uid))
-        if member:
-          return f'{member.display_name}へのメンション,'
-      return 'ユーザーへのメンション,'
-
-    segments = _apply_regex(segments, _MENTION_USER_RE, _mention_user)
-
-    # 1g. Channel links
-    def _channel_link(m):
-      if guild:
-        ch = guild.get_channel(int(m.group(1)))
-        if ch:
-          return f'{ch.name}へのリンク,'
-      return 'チャンネルへのリンク,'
-
-    segments = _apply_regex(segments, _MENTION_CH_RE, _channel_link)
-
-    # 1h. Role mentions
-    def _mention_role(m):
-      if guild:
-        role = guild.get_role(int(m.group(1)))
-        if role:
-          return f'{role.name}へのメンション,'
-      return 'ロールへのメンション,'
-
-    segments = _apply_regex(segments, _MENTION_ROLE_RE, _mention_role)
-
-    # 1i. Newlines
-    segments = _apply_regex(segments, re.compile(r'\n'), ',')
-    # 1j. Spaces (half-width and full-width)
-    segments = _apply_regex(segments, re.compile(r'[ \u3000]+'), ',')
-
-    # 2. 優先辞書 → 通常辞書 → 共通辞書
-    cur = self._conn.execute(
-      "SELECT word, reading FROM entries WHERE guild_id = ? AND is_priority = 1 ORDER BY added_at DESC",
-      (gid,)
-    )
-    d = dict(cur.fetchall())
-    if d:
-      segments = _apply_dict(segments, d)
-
-    cur = self._conn.execute(
-      "SELECT word, reading FROM entries WHERE guild_id = ? AND is_priority = 0 ORDER BY added_at DESC",
-      (gid,)
-    )
-    d = dict(cur.fetchall())
-    if d:
-      segments = _apply_dict(segments, d)
-
-    cur = self._conn.execute(
-      "SELECT word, reading FROM entries WHERE guild_id = '__common__' ORDER BY added_at DESC"
-    )
-    d = dict(cur.fetchall())
-    if d:
-      segments = _apply_dict(segments, d)
-
-    # 3. emoji_ja short_name mapping
-    if self._emoji_ja:
-      segments = _apply_dict(segments, self._emoji_ja)
-
-    # 4. Join with replaced range tracking
-    result_parts = []
-    replaced_ranges = []
-    pos = 0
-    for seg_text, replaced in segments:
-      end = pos + len(seg_text)
-      if replaced:
-        replaced_ranges.append((pos, end))
-      result_parts.append(seg_text)
-      pos = end
-    result = ''.join(result_parts)
-
-    # 5. Attachments (appended after; ranges not tracked)
-    for att in attachments:
-      _, ext = os.path.splitext(att.filename.lower())
-      if ext in _IMAGE_EXTS:
-        result += ',画像ファイル'
-      elif ext in _VIDEO_EXTS:
-        result += ',動画ファイル'
-      elif ext in _AUDIO_EXTS:
-        result += ',音声ファイル'
-      else:
-        result += ',添付ファイル'
-
-    return result, replaced_ranges
+    return swap.preprocess_text(text, guild_id, self._conn, self._emoji_ja, guild, attachments, mentions)
 
 
 class WordDict:
@@ -592,8 +272,8 @@ class WordDict:
           )
           return
 
-        paginator = DictViewPaginator(normal_items, priority_items, lang)
-        embed = paginator.build_dict_embed()
+        paginator = DictViewPaginator(normal_items, priority_items, lang, 'dict')
+        embed = paginator.build_embed()
 
         if paginator.total_pages <= 1:
           await ctx.edit_original_response(embed=embed)

@@ -2,7 +2,7 @@ import asyncio
 import io
 import json
 import discord
-from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, WORD_DICT_DB, VOICEVOX_URL
+from config import DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, WORD_DICT_DB, SOUND_DICT_DB, SOUND_BOARDS_DB, VOICEVOX_URL
 from backup import start as start_backup
 from vvtts import VvTTS
 from play import Play
@@ -10,19 +10,23 @@ from server_config import ServerConfig
 from messages import build_embed, get_desc, handle_os_error, BotTranslator
 from setting import Setting
 from word_dict import DictManager, WordDict
+from sound_dict import SoundDict, SoundDictView, UpdateSoundBoards
 
 
 # 起動設定
 intents = discord.Intents.default()
 intents.message_content = True
-client = discord.Client(intents=intents)
+client = discord.Client(intents=intents, enable_debug_events=True)
 tree = discord.app_commands.CommandTree(client)
 vvtts = VvTTS(VOICEVOX_URL)
 server_config = ServerConfig(SERVER_CONFIG_DB)
 dict_manager = DictManager(WORD_DICT_DB)
+sound_dict = SoundDict(SOUND_DICT_DB)
+sound_boards = UpdateSoundBoards(SOUND_BOARDS_DB)
 play = Play(client, tree, vvtts, server_config, dict_manager)
 setting = Setting(client, tree, server_config)
 word_dict = WordDict(client, tree, dict_manager, server_config)
+sound_dict_view = SoundDictView(client, tree, sound_dict, dict_manager, server_config)
 leaving_guilds: set = set()
 
 
@@ -275,6 +279,28 @@ async def leave(ctx):
   except Exception as e:
     print(f"Exception in leave: {e}")
 
+
+# サウンドボード更新トリガー
+@client.event
+async def on_socket_raw_receive(msg):
+  data = json.loads(msg)
+  if data.get("op") != 0:
+    return
+  t = data.get("t")
+  d = data.get("d")
+  if t == "GUILD_SOUNDBOARD_SOUND_CREATE":
+    print("サウンドボード追加")
+    print(d["name"])
+  elif t == "GUILD_SOUNDBOARD_SOUND_UPDATE":
+    print("サウンドボード更新")
+    print(d["name"])
+  elif t == "GUILD_SOUNDBOARD_SOUND_DELETE":
+    print("サウンドボード削除")
+  else:
+    return
+  print(d)
+  print(d["sound_id"])
+  print(d["guild_id"])
 
 
 # 起動

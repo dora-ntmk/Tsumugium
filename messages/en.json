@@ -103,6 +103,31 @@
           "language": "Language to use"
         }
       }
+    },
+    "sounddict": {
+      "_group": "Manage the sound dictionary",
+      "add": {
+        "description": "Add a word to the sound dictionary",
+        "args": {
+          "word": "Word to add",
+          "sound": "Soundboard ID",
+          "read": "Reading (optional, up to 50 characters)"
+        }
+      },
+      "del": {
+        "description": "Remove a word from the sound dictionary",
+        "args": {
+          "word": "Word to remove",
+          "both": "Set to True to also remove from the TTS dictionary"
+        }
+      },
+      "view": {
+        "description": "View the sound dictionary contents",
+        "args": {
+          "ephemeral": "Set to True to show only to yourself",
+          "search": "Search string (partial match)"
+        }
+      }
     }
   },
   "clear": {
@@ -408,6 +433,80 @@
     "states": {
       "enabled": "Enabled",
       "disabled": "Disabled"
+    },
+    "error": {
+      "no_permission": {
+        "title": "Permission Error",
+        "description": "Server management permission is required",
+        "color": "red"
+      }
+    }
+  },
+  "sounddict": {
+    "add": {
+      "success": {
+        "title": "Word Added to Sound Dictionary",
+        "description": "The word has been added to the sound dictionary",
+        "color": "green",
+        "fields": [{"name": "Entry", "value": "`{word}` → `{sound}`", "inline": false}]
+      },
+      "success_both": {
+        "title": "Word Added to Dictionaries",
+        "description": "The word has been added to the sound dictionary and TTS dictionary",
+        "color": "green",
+        "fields": [{"name": "Entry", "value": "`{word}` → Sound: `{sound}`  Reading: `{read}`", "inline": false}]
+      },
+      "overwrite": {
+        "title": "Sound Dictionary Entry Overwritten",
+        "description": "The word in the sound dictionary has been overwritten",
+        "color": "green",
+        "fields": [{"name": "Entry", "value": "`{word}` → `{sound}`", "inline": false}]
+      },
+      "overwrite_both": {
+        "title": "Dictionary Entries Overwritten",
+        "description": "The word in the sound dictionary and TTS dictionary has been overwritten",
+        "color": "green",
+        "fields": [{"name": "Entry", "value": "`{word}` → Sound: `{sound}`  Reading: `{read}`", "inline": false}]
+      },
+      "failure": {
+        "title": "Failed to Add Word",
+        "description": "Could not add the word to the sound dictionary",
+        "color": "red"
+      }
+    },
+    "del": {
+      "success": {
+        "title": "Word Removed from Sound Dictionary",
+        "description": "The word has been removed from the sound dictionary",
+        "color": "green",
+        "fields": [{"name": "Removed Entry", "value": "`{word}`", "inline": false}]
+      },
+      "not_found": {
+        "title": "Word Not Found in Sound Dictionary",
+        "description": "`{word}` was not found in the sound dictionary. Please check and try again.",
+        "color": "red"
+      },
+      "failure": {
+        "title": "Failed to Remove Word",
+        "description": "Could not remove the word from the sound dictionary",
+        "color": "red"
+      }
+    },
+    "view": {
+      "title": "Sound Dictionary",
+      "description": "",
+      "color": "blue",
+      "empty": "No words are registered in the sound dictionary",
+      "page": "Page {page} / {total}",
+      "prefix": "",
+      "header": "Word  →  Sound Name",
+      "section_normal": "Normal",
+      "section_priority": "Priority",
+      "not_found": {
+        "title": "Not Found",
+        "description": "No entries found for \"{word}\" in the sound dictionary",
+        "color": "red"
+      }
     },
     "error": {
       "no_permission": {

@@ -103,6 +103,31 @@
           "language": "要使用的语言"
         }
       }
+    },
+    "sounddict": {
+      "_group": "管理音效词典",
+      "add": {
+        "description": "向音效词典添加单词",
+        "args": {
+          "word": "要添加的单词",
+          "sound": "音效板 ID",
+          "read": "读法（可选，50个字符以内）"
+        }
+      },
+      "del": {
+        "description": "从音效词典删除单词",
+        "args": {
+          "word": "要删除的单词",
+          "both": "设为True时同时从TTS词典中删除"
+        }
+      },
+      "view": {
+        "description": "查看音效词典内容",
+        "args": {
+          "ephemeral": "设为True时仅对自己显示",
+          "search": "搜索字符串（部分匹配）"
+        }
+      }
     }
   },
   "clear": {
@@ -208,13 +233,25 @@
         "title": "词典添加成功",
         "description": "单词读法已添加到词典",
         "color": "green",
-        "fields": [{"name": "注册内容", "value": "`{word}` → `{read}`", "inline": false}]
+        "fields": [
+          {
+            "name": "注册内容",
+            "value": "`{word}` → `{read}`",
+            "inline": false
+          }
+        ]
       },
       "overwrite": {
         "title": "词典覆盖成功",
         "description": "词典中的单词读法已被覆盖",
         "color": "green",
-        "fields": [{"name": "注册内容", "value": "`{word}` → `{read}`", "inline": false}]
+        "fields": [
+          {
+            "name": "注册内容",
+            "value": "`{word}` → `{read}`",
+            "inline": false
+          }
+        ]
       },
       "too_long": {
         "title": "读法过长，无法添加",
@@ -232,7 +269,13 @@
         "title": "词典删除成功",
         "description": "单词及其读法已从词典中删除",
         "color": "green",
-        "fields": [{"name": "删除内容", "value": "`{word}` → `{read}`", "inline": false}]
+        "fields": [
+          {
+            "name": "删除内容",
+            "value": "`{word}` → `{read}`",
+            "inline": false
+          }
+        ]
       },
       "not_found": {
         "title": "词典中未找到该单词",
@@ -284,15 +327,15 @@
       "color": "blue",
       "not_set": "未设置",
       "labels": {
-        "TextTarget":   "朗读目标频道",
-        "VoiceTarget":  "连接频道",
-        "Speaker":      "语音",
-        "Volume":       "音量",
-        "Speed":        "语速",
-        "MaxChar":      "最大朗读字数",
-        "AutoJoin":     "自动加入/退出",
+        "TextTarget": "朗读目标频道",
+        "VoiceTarget": "连接频道",
+        "Speaker": "语音",
+        "Volume": "音量",
+        "Speed": "语速",
+        "MaxChar": "最大朗读字数",
+        "AutoJoin": "自动加入/退出",
         "AccessNotice": "入退通知",
-        "Language":     "语言"
+        "Language": "语言"
       }
     },
     "text_target": {
@@ -408,6 +451,110 @@
     "states": {
       "enabled": "启用",
       "disabled": "禁用"
+    },
+    "error": {
+      "no_permission": {
+        "title": "权限不足",
+        "description": "需要服务器管理权限",
+        "color": "red"
+      }
+    }
+  },
+  "sounddict": {
+    "add": {
+      "success": {
+        "title": "成功添加到音效词典",
+        "description": "单词已添加到音效词典",
+        "color": "green",
+        "fields": [
+          {
+            "name": "注册内容",
+            "value": "`{word}` → `{sound}`",
+            "inline": false
+          }
+        ]
+      },
+      "success_both": {
+        "title": "成功添加到词典",
+        "description": "单词已添加到音效词典和TTS词典",
+        "color": "green",
+        "fields": [
+          {
+            "name": "注册内容",
+            "value": "`{word}` → 音效: `{sound}`  读法: `{read}`",
+            "inline": false
+          }
+        ]
+      },
+      "overwrite": {
+        "title": "成功覆盖音效词典条目",
+        "description": "音效词典中的单词已被覆盖",
+        "color": "green",
+        "fields": [
+          {
+            "name": "注册内容",
+            "value": "`{word}` → `{sound}`",
+            "inline": false
+          }
+        ]
+      },
+      "overwrite_both": {
+        "title": "成功覆盖词典条目",
+        "description": "音效词典和TTS词典中的单词已被覆盖",
+        "color": "green",
+        "fields": [
+          {
+            "name": "注册内容",
+            "value": "`{word}` → 音效: `{sound}`  读法: `{read}`",
+            "inline": false
+          }
+        ]
+      },
+      "failure": {
+        "title": "添加单词失败",
+        "description": "无法将单词添加到音效词典",
+        "color": "red"
+      }
+    },
+    "del": {
+      "success": {
+        "title": "成功从音效词典删除",
+        "description": "单词已从音效词典中删除",
+        "color": "green",
+        "fields": [
+          {
+            "name": "删除内容",
+            "value": "`{word}`",
+            "inline": false
+          }
+        ]
+      },
+      "not_found": {
+        "title": "音效词典中未找到该单词",
+        "description": "音效词典中没有`{word}`。请确认后重新输入。",
+        "color": "red"
+      },
+      "failure": {
+        "title": "删除单词失败",
+        "description": "无法从音效词典中删除单词",
+        "color": "red"
+      }
+    },
+    "view": {
+      "title": "音效词典列表",
+      "description": "",
+      "color": "blue",
+      "empty": "音效词典中没有注册的单词",
+      "page": "第 {page} / {total} 页",
+      "prefix": "",
+      "header": "单词  →  音效名",
+      "section_normal": "普通",
+      "section_priority": "优先",
+      "not_found": {
+        "title": "未找到",
+        "description": "音效词典中没有与「{word}」匹配的条目",
+        "color": "red"
+      }
     },
     "error": {
       "no_permission": {
