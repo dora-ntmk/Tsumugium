@@ -4,7 +4,7 @@ VOICEVOXを用いたDiscord読み上げBotです。
 
 ## 必要ライブラリ
 
-【外部パッケージ】
+#### 【外部パッケージ】
 * Discord.py >= 2.7.0
 * requests >= 2.32.5
 * python-dotenv >= 1.2.2
@@ -12,10 +12,29 @@ VOICEVOXを用いたDiscord読み上げBotです。
 * PyNaCl >= 1.6.0
 * davey >= 0.1.0
 
-【標準ライブラリ】
+#### 【標準ライブラリ】
 
 asyncio, io, json, os, re, sqlite3, unicodedata, typing,
 datetime, pathlib, collections, shutill
+
+## 必要権限
+
+Discord Developer PotalのBot管理画面にて、以下のスコープと権限の許可を設定してください。
+
+#### 【スコープ】
+* applications.commands
+* bot
+
+#### 【権限】
+* メッセージを送る
+* メッセージ履歴を読む
+* リアクションを付ける ※
+* 接続
+* 発言
+* スピーカー参加をリクエスト ※
+* サウンドボードを使用
+
+※将来の拡張性のため設定しています
 
 ## 初回設定
 .envファイルを作成し、起動に必要な内容を記載してください。
