@@ -33,11 +33,11 @@ server_config = ServerConfig(SERVER_CONFIG_DB)
 dict_manager = DictManager(DICT_DB)
 sound_dict = SoundDict(dict_manager)
 sound_boards = UpdateSoundBoards(SOUND_BOARDS_DB, dict_manager)
-play = Play(client, tree, vvtts, server_config, dict_manager)
+leaving_guilds: set = set()
+play = Play(client, tree, vvtts, server_config, dict_manager, leaving_guilds)
 setting = Setting(client, tree, server_config)
 word_dict = WordDict(client, tree, dict_manager, server_config)
 sound_dict_view = SoundDictView(client, tree, sound_dict, dict_manager, server_config, sound_boards)
-leaving_guilds: set = set()
 _backup_task = None
 
 

@@ -17,12 +17,13 @@ from messages import build_embed, get_desc
 
 
 class Play:
-  def __init__(self, client, tree, vvtts, server_config, dict_manager=None):
+  def __init__(self, client, tree, vvtts, server_config, dict_manager=None, leaving_guilds=None):
     self.client = client
     self.tree = tree
     self.vvtts = vvtts
     self.server_config = server_config
     self.dict_manager = dict_manager
+    self.leaving_guilds = leaving_guilds if leaving_guilds is not None else set()
     self.voice_queues = defaultdict(asyncio.Queue)
     self.playing_tasks = {}
     self.skip_flags = defaultdict(bool)
@@ -73,6 +74,46 @@ class Play:
     async def on_message(message):
       if message.author.bot:
         return
+
+      # ボットへのメンション（単体）で入退室トグル
+      # client.user.id を使用するためIDが変わっても動作する
+      if message.guild is not None:
+        bot_id = self.client.user.id
+        if message.content.strip() in (f'<@{bot_id}>', f'<@!{bot_id}>'):
+          lang = self.server_config.get(message.guild.id, "Language")
+          try:
+            if message.guild.voice_client is not None:
+              if message.author.voice:
+                self.leaving_guilds.add(message.guild.id)
+                await message.guild.voice_client.disconnect()
+                await message.channel.send(embed=build_embed("leave.success", lang=lang))
+              else:
+                await message.channel.send(embed=build_embed("leave.failure", lang=lang))
+            else:
+              if message.author.voice:
+                voice_channel = message.author.voice.channel
+                bot_member = message.guild.me
+                vc_perms = voice_channel.permissions_for(bot_member)
+                text_perms = message.channel.permissions_for(bot_member)
+                issues = []
+                if not (vc_perms.connect and vc_perms.speak):
+                  issues.append(get_desc("join.no_permission_vc", lang=lang).format(channel=voice_channel.mention))
+                if not (text_perms.view_channel and text_perms.send_messages):
+                  issues.append(get_desc("join.no_permission_text", lang=lang).format(channel=message.channel.mention))
+                if issues:
+                  await message.channel.send(embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues)))
+                  return
+                await voice_channel.connect(timeout=60)
+                self.temp_text_targets[message.guild.id] = message.channel.id
+                await message.channel.send(
+                  embed=build_embed("join.success_temp", lang=lang, vc=voice_channel.mention, text=message.channel.mention)
+                )
+              else:
+                await message.channel.send(embed=build_embed("join.failure", lang=lang))
+          except Exception as e:
+            print(f"Exception in mention join/leave: {e}")
+          return
+
       if message.guild.voice_client is None:
         return
       text_target = self.temp_text_targets.get(message.guild.id)
@@ -85,6 +126,10 @@ class Play:
         if message.guild.voice_client.channel.id != message.channel.id:
           return
       if message.content.startswith("!s ") or message.flags.silent:
+        return
+      if message.content.strip() == "s":
+        if message.guild.voice_client.is_playing():
+          message.guild.voice_client.stop()
         return
       asyncio.create_task(self.add_to_queue(message))
 
