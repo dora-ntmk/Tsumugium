@@ -84,7 +84,7 @@ def _filter_entries(entries: dict, word: str) -> list[tuple[str, str]]:
 
 class DictManager:
   def __init__(self, db_path):
-    self._conn = sqlite3.connect(db_path, check_same_thread=False)
+    self._conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30)
     self._conn.execute("PRAGMA journal_mode=WAL")
     self._conn.execute("""
                        CREATE TABLE IF NOT EXISTS dict (

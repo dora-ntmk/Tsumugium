@@ -10,10 +10,12 @@
 import discord
 import json
 from messages import build_embed, get_desc, handle_os_error
-from config import SPEAKERS_JSON
+from config import SPEAKERS_JSON, DEFAULT_SPEAKER
 
 with open(SPEAKERS_JSON, encoding="utf-8") as _f:
     VOICEVOX_SPEAKERS = [(s["id"], s["name"]) for s in json.load(_f)]
+
+BOT_DEFAULT_LABEL = "Botのデフォルト"
 
 
 def _lstr(key: str) -> discord.app_commands.locale_str:
@@ -53,8 +55,16 @@ class Setting:
         embed.add_field(name=lbl("VoiceTarget"),
                         value=not_set if voice_ch is None else voice_ch.mention,
                         inline=False)
+        raw_speaker = self.server_config.get_raw_speaker(ctx.guild.id)
+        if raw_speaker is None:
+          speaker_display = BOT_DEFAULT_LABEL
+        else:
+          speaker_display = next(
+            (name for sid, name in VOICEVOX_SPEAKERS if sid == raw_speaker),
+            str(raw_speaker)
+          )
         embed.add_field(name=lbl("Speaker"),
-                        value=str(cfg["Speaker"]),
+                        value=speaker_display,
                         inline=True)
         embed.add_field(name=lbl("Volume"),
                         value=str(cfg["Volume"]),
@@ -214,6 +224,12 @@ class Setting:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
+        if speaker == BOT_DEFAULT_LABEL:
+          self.server_config.set(ctx.guild.id, "Speaker", None)
+          await ctx.edit_original_response(
+            embed=build_embed("setting.speaker.default", lang=lang)
+          )
+          return
         speaker_id = next(
           (sid for sid, name in VOICEVOX_SPEAKERS if name == speaker), None
         )
@@ -243,12 +259,18 @@ class Setting:
     # noinspection PyUnusedLocal
     @setting_speaker.autocomplete("speaker")
     async def speaker_autocomplete(ctx, current: str):
+      choices = []
+      if not current or current in BOT_DEFAULT_LABEL:
+        choices.append(discord.app_commands.Choice(
+          name=BOT_DEFAULT_LABEL,
+          value=BOT_DEFAULT_LABEL
+        ))
       filtered = [
         discord.app_commands.Choice(name=name, value=name)
         for _, name in VOICEVOX_SPEAKERS
         if current in name
       ]
-      return filtered[:25]
+      return (choices + filtered)[:25]
 
     @setting_group.command(
       name="volume",

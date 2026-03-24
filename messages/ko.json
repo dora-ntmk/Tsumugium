@@ -388,6 +388,11 @@
         "title": "설정 완료",
         "description": "Speaker를 {speaker}（ID: {speaker_id}）로 설정했습니다",
         "color": "green"
+      },
+      "default": {
+        "title": "설정 완료",
+        "description": "Speaker를 봇 기본값으로 설정했습니다",
+        "color": "green"
       }
     },
     "volume": {

@@ -370,6 +370,11 @@
         "title": "Settings Saved",
         "description": "Speaker set to {speaker} (ID: {speaker_id})",
         "color": "green"
+      },
+      "default": {
+        "title": "Settings Saved",
+        "description": "Speaker set to Bot Default",
+        "color": "green"
       }
     },
     "volume": {

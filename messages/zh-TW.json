@@ -388,6 +388,11 @@
         "title": "設定成功",
         "description": "Speaker 已設為 {speaker}（ID: {speaker_id}）",
         "color": "green"
+      },
+      "default": {
+        "title": "設定成功",
+        "description": "Speaker 已設為機器人預設值",
+        "color": "green"
       }
     },
     "volume": {

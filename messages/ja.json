@@ -370,6 +370,11 @@
         "title": "設定完了",
         "description": "Speaker を {speaker}（ID: {speaker_id}）に設定しました",
         "color": "green"
+      },
+      "default": {
+        "title": "設定完了",
+        "description": "Speaker を Botのデフォルトに設定しました",
+        "color": "green"
       }
     },
     "volume": {

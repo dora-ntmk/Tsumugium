@@ -74,8 +74,8 @@ def backup_db(db_path: str, backup_dir: str) -> str | None:
   dest_path = dest_dir / f"backup_{src.stem}_{timestamp}.db"
 
   try:
-    src_conn = sqlite3.connect(str(src))
-    dest_conn = sqlite3.connect(str(dest_path))
+    src_conn = sqlite3.connect(str(src), timeout=30)
+    dest_conn = sqlite3.connect(str(dest_path), timeout=30)
     with dest_conn:
       src_conn.backup(dest_conn)
     src_conn.close()
