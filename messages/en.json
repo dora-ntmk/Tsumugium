@@ -203,7 +203,12 @@
     },
     "no_permission_vc": "No permission to connect to {channel}.",
     "no_permission_text": "No permission to view {channel}.",
-    "no_permission_text_dm": "Auto-join failed because the bot does not have permission to access the text channel you connected to."
+    "no_permission_text_dm": "Auto-join failed because the bot does not have permission to access the text channel you connected to.",
+    "no_permission_change_channel": {
+      "title": "Connected",
+      "description": "Connected to the voice channel, but changing channel settings requires server management permission.",
+      "color": "yellow"
+    }
   },
   "leave": {
     "notice_text": "{display_name} has left",

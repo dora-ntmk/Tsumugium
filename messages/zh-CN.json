@@ -203,7 +203,12 @@
     },
     "no_permission_vc": "没有连接到 {channel} 的权限。",
     "no_permission_text": "没有查看 {channel} 的权限。",
-    "no_permission_text_dm": "由于机器人没有访问您连接的文字频道的权限，自动连接失败。"
+    "no_permission_text_dm": "由于机器人没有访问您连接的文字频道的权限，自动连接失败。",
+    "no_permission_change_channel": {
+      "title": "连接完成",
+      "description": "已连接到语音频道，但更改频道设置需要服务器管理权限。",
+      "color": "yellow"
+    }
   },
   "leave": {
     "notice_text": "{display_name} 离开了频道",

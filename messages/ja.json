@@ -203,7 +203,12 @@
     },
     "no_permission_vc": "{channel} への接続権限がありません",
     "no_permission_text": "{channel} の表示権限がありません",
-    "no_permission_text_dm": "あなたが接続したテキストチャンネルに権限がないため、自動接続が失敗しました"
+    "no_permission_text_dm": "あなたが接続したテキストチャンネルに権限がないため、自動接続が失敗しました",
+    "no_permission_change_channel": {
+      "title": "接続完了",
+      "description": "ボイスチャンネルへの接続は完了しましたが、チャンネルの設定変更にはサーバーの管理権限が必要です。",
+      "color": "yellow"
+    }
   },
   "leave": {
     "notice_text": "{display_name}が退室しました",

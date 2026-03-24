@@ -20,9 +20,10 @@ def _load_messages(lang: str) -> dict:
 _MESSAGES_BY_LANG = {lang: _load_messages(lang) for lang in _LANGS}
 
 _COLOR_MAP = {
-  "green": discord.Color.green,
-  "red":   discord.Color.red,
-  "blue":  discord.Color.blue,
+  "green":  discord.Color.green,
+  "red":    discord.Color.red,
+  "blue":   discord.Color.blue,
+  "yellow": discord.Color.yellow,
 }
 
 _DISCORD_LOCALE_TO_LANG = {

@@ -203,7 +203,12 @@
     },
     "no_permission_vc": "沒有連接到 {channel} 的權限。",
     "no_permission_text": "沒有查看 {channel} 的權限。",
-    "no_permission_text_dm": "由於機器人沒有存取您連接的文字頻道的權限，自動連接失敗。"
+    "no_permission_text_dm": "由於機器人沒有存取您連接的文字頻道的權限，自動連接失敗。",
+    "no_permission_change_channel": {
+      "title": "連接完成",
+      "description": "已連接到語音頻道，但更改頻道設定需要伺服器管理權限。",
+      "color": "yellow"
+    }
   },
   "leave": {
     "notice_text": "{display_name} 離開了頻道",

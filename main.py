@@ -261,20 +261,25 @@ async def join(ctx, change_channel: bool = False):
         return
       await voice_channel.connect(timeout=60)
       if change_channel:
-        try:
-          server_config.set(ctx.guild.id, "TextTarget", ctx.channel.id)
-          server_config.set(ctx.guild.id, "VoiceTarget", ctx.user.voice.channel.id)
+        if not ctx.user.guild_permissions.manage_guild:
           await ctx.edit_original_response(
-            embed=build_embed(
-              "join.success_change_channel",
-              lang=lang,
-              vc=ctx.user.voice.channel.mention,
-              text=ctx.channel.mention,
-              voice=ctx.user.voice.channel.mention
-            )
+            embed=build_embed("join.no_permission_change_channel", lang=lang)
           )
-        except OSError:
-          await ctx.edit_original_response(embed=build_embed("join.failure_change_channel", lang=lang))
+        else:
+          try:
+            server_config.set(ctx.guild.id, "TextTarget", ctx.channel.id)
+            server_config.set(ctx.guild.id, "VoiceTarget", ctx.user.voice.channel.id)
+            await ctx.edit_original_response(
+              embed=build_embed(
+                "join.success_change_channel",
+                lang=lang,
+                vc=ctx.user.voice.channel.mention,
+                text=ctx.channel.mention,
+                voice=ctx.user.voice.channel.mention
+              )
+            )
+          except OSError:
+            await ctx.edit_original_response(embed=build_embed("join.failure_change_channel", lang=lang))
       else:
         play.temp_text_targets[ctx.guild.id] = ctx.channel.id
         await ctx.edit_original_response(
