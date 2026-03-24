@@ -29,9 +29,9 @@ def _lstr(key: str) -> discord.app_commands.locale_str:
 
 
 def _is_emoji_word(word: str) -> bool:
-  if _CUSTOM_EMOJI_RE.fullmatch(word):
+  if _CUSTOM_EMOJI_RE.findall(word):
     return True
-  if _STANDARD_EMOJI_RE.fullmatch(word):
+  if _STANDARD_EMOJI_RE.findall(word):
     return True
   if not word:
     return False
