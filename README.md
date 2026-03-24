@@ -58,7 +58,7 @@ python main.py
 
 なお、これとは別に[VOICEVOX ENGINE](https://github.com/VOICEVOX/voicevox_engine)またはそれを内包したプログラムを動作させておく必要があります。
 
-##使用方法
+## 使用方法
 
 使用方法については、[ユーザーガイド](USERGUIDE.md)をご覧ください。
 
