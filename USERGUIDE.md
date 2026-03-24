@@ -15,6 +15,8 @@ v3.0.0（2026/03/24）時点の情報です。
     * [読み上げ停止](#読み上げ停止)
       * [読み上げ中のみ停止](#読み上げ中のみ停止)
       * [キュークリア](#キュークリア)
+
+
 * [一般ユーザー向け設定](#一般ユーザー向け設定)
   * [辞書](#辞書)
     * [/dict add](#dict-add)
@@ -24,6 +26,8 @@ v3.0.0（2026/03/24）時点の情報です。
     * [/sounddict add](#sounddict-add)
     * [/sounddict del](#sounddict-del)
     * [/sounddict view](#sounddict-view)
+
+
 * [サーバー管理者向け設定](#サーバー管理者向け設定)
   * [読み上げチャンネル](#読み上げチャンネル)
     * [/setting text-target](#setting-text-target)
@@ -48,6 +52,8 @@ v3.0.0（2026/03/24）時点の情報です。
     * [/setting access-notice](#setting-access-notice)
   * [言語](#言語)
     * [/setting language](#setting-language)
+
+
 * [辞書機能の仕様](#辞書機能の仕様)
   * [音声辞書について](#音声辞書について)
   * [優先辞書について](#優先辞書について)
@@ -59,7 +65,9 @@ Tsumugiumの基本的な使い方を説明します。
 
 ### 接続・切断
 
+接続と切断について説明します。
+
 #### /join
 
-
-#### /setting text-target
+`/join`を使用すると、ボイスチャンネルに接続することができます。
+`change_channel: True`にすると、デフォルトの読み上げチャンネルと接続チャンネルを変更します（サーバー管理権限が必要）。
