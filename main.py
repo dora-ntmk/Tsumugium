@@ -1,3 +1,13 @@
+"""
+ファイル名：main.py
+作者：どら
+説明：Tsumugium - Discord 読み上げボット エントリーポイント。
+      ボットの初期化・起動、スラッシュコマンド (/join, /leave) の定義、
+      VC入退室イベントに基づく AutoJoin・AccessNotice（入退室通知）処理、
+      およびギルド退出時の辞書データ保全を担当する。
+      VvTTS / ServerConfig / DictManager / SoundDict などのモジュールを統括する。
+依存関係：discord.py
+"""
 import asyncio
 import io
 import json
@@ -28,6 +38,7 @@ setting = Setting(client, tree, server_config)
 word_dict = WordDict(client, tree, dict_manager, server_config)
 sound_dict_view = SoundDictView(client, tree, sound_dict, dict_manager, server_config, sound_boards)
 leaving_guilds: set = set()
+_backup_task = None
 
 
 def get_notify_channel(guild, vc_channel=None):
@@ -75,7 +86,8 @@ async def on_ready():
     sound_boards.refresh(gid_str, DISCORD_BOT_TOKEN)
     print(f'on_ready: refresh {gid_str}')
 
-  start_backup([SERVER_CONFIG_DB, DICT_DB])
+  global _backup_task
+  _backup_task = start_backup([SERVER_CONFIG_DB, DICT_DB])
 
   await client.change_presence(status=discord.Status.online, activity=discord.Game(name=STATUS_MESSAGE))
   print(discord.__version__)
@@ -127,6 +139,8 @@ async def on_socket_raw_receive(msg):
     return
   t = data.get("t")
   d = data.get("d")
+  if d is None:
+    return
   if t == "GUILD_SOUNDBOARD_SOUND_CREATE":
     sound_boards.add(d["guild_id"], d["sound_id"], d["name"])
   elif t == "GUILD_SOUNDBOARD_SOUND_UPDATE":

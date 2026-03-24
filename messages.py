@@ -1,13 +1,23 @@
+"""
+ファイル名：messages.py
+作者：どら
+説明：多言語メッセージ管理モジュール。
+      JSON ファイル (conf/<lang>.json) からメッセージを読み込み、
+      ドット区切りキーによる階層参照・Discord Embed 生成・スラッシュコマンド翻訳を提供する。
+依存関係：discord.py
+"""
 import json
 import os
 import discord
 from config import MESSAGES_DIR
 
 _LANGS = ("ja", "en", "zh-CN", "zh-TW", "ko", "hg")
-_MESSAGES_BY_LANG = {
-  lang: json.load(open(os.path.join(MESSAGES_DIR, f"{lang}.json"), encoding="utf-8"))
-  for lang in _LANGS
-}
+
+def _load_messages(lang: str) -> dict:
+  with open(os.path.join(MESSAGES_DIR, f"{lang}.json"), encoding="utf-8") as f:
+    return json.load(f)
+
+_MESSAGES_BY_LANG = {lang: _load_messages(lang) for lang in _LANGS}
 
 _COLOR_MAP = {
   "green": discord.Color.green,
@@ -30,7 +40,10 @@ def get_desc(key: str, lang: str = "ja") -> str:
   messages = _MESSAGES_BY_LANG.get(lang, _MESSAGES_BY_LANG["ja"])
   node = messages
   for part in key.split("."):
-    node = node[part]
+    node = node.get(part) if isinstance(node, dict) else None
+    if node is None:
+      print(f"[messages] 翻訳キーが見つかりません: '{key}' (lang={lang})")
+      return key
   return node
 
 
@@ -50,7 +63,10 @@ def build_embed(key: str, lang: str = "ja", **kwargs) -> discord.Embed:
   messages = _MESSAGES_BY_LANG.get(lang, _MESSAGES_BY_LANG["ja"])
   node = messages
   for part in key.split("."):
-    node = node[part]
+    node = node.get(part) if isinstance(node, dict) else None
+    if node is None:
+      print(f"[messages] Embedキーが見つかりません: '{key}' (lang={lang})")
+      return discord.Embed(title=key, color=discord.Color.red())
   title = node["title"]
   description = node.get("description", "").format(**kwargs)
   color = _COLOR_MAP[node["color"]]()

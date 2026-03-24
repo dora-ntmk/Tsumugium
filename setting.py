@@ -1,3 +1,12 @@
+"""
+ファイル名：setting.py
+作者：どら
+説明：サーバー設定コマンドモジュール。
+      スラッシュコマンドグループ /setting を実装する。
+      テキスト/ボイスチャンネルの設定、話者・音量・速度・最大文字数などの数値設定、
+      AutoJoin・AccessNotice・言語などの状態設定をサーバー管理者向けに提供する。
+依存関係：discord.py
+"""
 import discord
 import json
 from messages import build_embed, get_desc, handle_os_error

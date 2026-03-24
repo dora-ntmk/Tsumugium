@@ -1,3 +1,12 @@
+"""
+ファイル名：word_dict.py
+作者：どら
+説明：テキスト辞書モジュール。
+      単語の読み方・サウンドボード ID を SQLite で管理する DictManager、
+      およびスラッシュコマンド /dict (add / del / view) を実装する WordDict を提供する。
+      テキスト前処理は swap モジュールに委譲する。
+依存関係：discord.py
+"""
 import os
 import json
 import sqlite3

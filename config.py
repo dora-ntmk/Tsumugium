@@ -1,3 +1,10 @@
+"""
+ファイル名：config.py
+作者：どら
+説明：設定値モジュール。
+      .env ファイルから環境変数を読み込み、プロジェクト全体で使用する定数として公開する。
+依存関係：python-dotenv
+"""
 from dotenv import load_dotenv
 load_dotenv()
 

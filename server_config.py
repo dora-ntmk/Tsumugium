@@ -1,3 +1,11 @@
+"""
+ファイル名：server_config.py
+作者：どら
+説明：サーバー設定 DB 管理モジュール。
+      ギルドごとの設定値を SQLite に保存・取得する ServerConfig クラスを提供する。
+      設定値のバリデーション、デフォルト値管理、VOICEVOX パラメータへの変換を担う。
+依存関係：なし
+"""
 import sqlite3
 from typing import Set
 

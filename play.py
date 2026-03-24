@@ -1,3 +1,11 @@
+"""
+ファイル名：play.py
+作者：どら
+説明：音声再生キュー管理モジュール。
+      ギルドごとに asyncio.Queue を持ち、TTS 音声の生成・再生・スキップを管理する Play クラスを提供する。
+      サウンドボード ID が一致する場合は Discord API で直接再生する。
+依存関係：discord.py, aiohttp
+"""
 import asyncio
 import aiohttp
 import discord

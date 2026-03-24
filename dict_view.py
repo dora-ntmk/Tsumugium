@@ -1,3 +1,11 @@
+"""
+ファイル名：dict_view.py
+作者：どら
+説明：辞書ページング表示 UI モジュール。
+      辞書エントリ一覧を 20 件/ページで表示する discord.ui.View。
+      通常辞書・優先辞書を分けて表示し、セクション間ジャンプにも対応する。
+依存関係：discord.py
+"""
 import discord
 from messages import build_embed, get_desc
 
@@ -106,4 +114,3 @@ class DictViewPaginator(discord.ui.View):
         await self.message.edit(view=self)
       except Exception as e:
         print(f"on_timeout: {e}")
-        pass

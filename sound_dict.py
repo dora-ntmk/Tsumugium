@@ -1,3 +1,13 @@
+"""
+ファイル名：sound_dict.py
+作者：どら
+説明：音声辞書モジュール。
+      キーワードとサウンドボード音声の紐付け管理 (SoundDict)、
+      Discord サウンドボード一覧の DB 同期 (UpdateSoundBoards)、
+      およびスラッシュコマンド /sounddict (add / del / view) の実装 (SoundDictView) を提供する。
+      view サブコマンドでは DictViewPaginator によるページング表示に対応する。
+依存関係：discord.py, requests
+"""
 import sqlite3
 import discord
 import requests
@@ -86,6 +96,7 @@ class UpdateSoundBoards:
         'Authorization': f'Bot {token}',
         'Content-Type': 'application/json',
       })
+    res.raise_for_status()
     d = res.json()
     current_sound_names = list(s["name"] for s in d["items"])
     current_sound_ids = list(str(s["sound_id"]) for s in d["items"])
@@ -95,25 +106,24 @@ class UpdateSoundBoards:
     )
     rows = cur.fetchall()
     db_sound_ids = list(row[0] for row in rows)
-    if rows:
-      db_insert = []
-      db_delete = []
-      for n in range(len(current_sound_ids)):
-        if current_sound_ids[n] not in db_sound_ids:
-          db_insert.append((gid, current_sound_ids[n], current_sound_names[n]))
-      for n in range(len(db_sound_ids)):
-        if db_sound_ids[n] not in current_sound_ids:
-          db_delete.append((gid, db_sound_ids[n]))
-      cur.executemany(
-        "INSERT INTO soundboards (guild_id, sound_id, name) VALUES (?, ?, ?)", db_insert
-      )
-      cur.executemany(
-        "DELETE FROM soundboards WHERE guild_id = ? AND sound_id = ?", db_delete
-      )
-      self._conn.commit()
-      if self._dict_manager:
-        for gid_del, sid_del in db_delete:
-          self._dict_manager.invalidate_sound(gid_del, sid_del)
+    db_insert = []
+    db_delete = []
+    for n in range(len(current_sound_ids)):
+      if current_sound_ids[n] not in db_sound_ids:
+        db_insert.append((gid, current_sound_ids[n], current_sound_names[n]))
+    for n in range(len(db_sound_ids)):
+      if db_sound_ids[n] not in current_sound_ids:
+        db_delete.append((gid, db_sound_ids[n]))
+    cur.executemany(
+      "INSERT INTO soundboards (guild_id, sound_id, name) VALUES (?, ?, ?)", db_insert
+    )
+    cur.executemany(
+      "DELETE FROM soundboards WHERE guild_id = ? AND sound_id = ?", db_delete
+    )
+    self._conn.commit()
+    if self._dict_manager:
+      for gid_del, sid_del in db_delete:
+        self._dict_manager.invalidate_sound(gid_del, sid_del)
 
 class SoundDictView:
   def __init__(self, client, tree, sound_dict: SoundDict, dict_manager: DictManager, server_config, sound_boards: UpdateSoundBoards):

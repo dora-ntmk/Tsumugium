@@ -1,10 +1,18 @@
+"""
+ファイル名：vvtts.py
+作者：どら
+説明：VOICEVOX TTS 連携モジュール。
+      VOICEVOX エンジン (HTTP API) に接続し、テキストから WAV 音声ファイルを生成する。
+      生成ファイルは TMP_DIR/{guild_id}-{msg_id}.wav に保存される。
+依存関係：requests
+"""
 import requests
 import json
 import os
 from config import TMP_DIR
 
 
-async def edit_query(
+def edit_query(
     res_json,
     speed: float,
     pitch: float,
@@ -54,18 +62,19 @@ class VvTTS:
       elif msgid is None:
         raise ValueError("msgid cannot be None")
       res1 = requests.post(f"{self.url}/audio_query", params={"text": msg, "speaker": speaker})
-      res2 = await edit_query(res1.json(), speed, pitch, intonation, volume)
+      res1.raise_for_status()
+      res2 = edit_query(res1.json(), speed, pitch, intonation, volume)
       res3 = requests.post(
         f"{self.url}/synthesis",
         headers={"content-type": "application/json"},
         params={"speaker": speaker},
         data=res2
       )
+      res3.raise_for_status()
       os.makedirs(TMP_DIR, exist_ok=True)
       path = f"{TMP_DIR}/{guildid}-{msgid}.wav"
       with open(path, mode="wb") as f:
         f.write(res3.content)
-        f.close()
       return path
     except Exception as e:
       print(e)
