@@ -185,6 +185,8 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
   segments = _apply_regex(segments, re.compile(r'\n'), ',')
   # 4j. Spaces (half-width and full-width)
   segments = _apply_regex(segments, re.compile(r'[ \u3000]+'), ',')
+  # 4k. Custom Emojis
+  segments = _apply_regex(segments, re.compile(_CUSTOM_EMOJI_RE), ',')
 
   # 5. 優先辞書 → 通常辞書 → 共通辞書
   cur = conn.execute(
