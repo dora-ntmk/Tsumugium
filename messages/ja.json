@@ -304,7 +304,7 @@
   "error": {
     "os_error": {
       "title": "システムエラー",
-      "description": "設定の保存に失敗しました",
+      "description": "設定の読み書きに失敗しました",
       "color": "red"
     }
   },

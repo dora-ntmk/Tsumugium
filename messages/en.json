@@ -304,7 +304,7 @@
   "error": {
     "os_error": {
       "title": "System Error",
-      "description": "Failed to save settings",
+      "description": "Failed to read/write settings",
       "color": "red"
     }
   },

@@ -322,7 +322,7 @@
   "error": {
     "os_error": {
       "title": "시스템 오류",
-      "description": "설정 저장에 실패했습니다",
+      "description": "설정 읽기/쓰기에 실패했습니다",
       "color": "red"
     }
   },

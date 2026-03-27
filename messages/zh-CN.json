@@ -322,7 +322,7 @@
   "error": {
     "os_error": {
       "title": "系统错误",
-      "description": "设置保存失败",
+      "description": "设置读写失败",
       "color": "red"
     }
   },
