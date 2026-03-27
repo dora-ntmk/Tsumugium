@@ -144,7 +144,7 @@
     }
   },
   "join": {
-    "notice_text": "{display_name}が入室しました",
+    "notice_text": "{display_name}さんが入室しました",
     "auto": {
       "title": "自動入室",
       "description": "ボイスチャンネルに自動で接続しました",
@@ -211,7 +211,7 @@
     }
   },
   "leave": {
-    "notice_text": "{display_name}が退室しました",
+    "notice_text": "{display_name}さんが退室しました",
     "success": {
       "title": "切断完了",
       "description": "ボイスチャンネルから切断しました",

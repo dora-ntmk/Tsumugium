@@ -172,7 +172,7 @@ async def on_voice_state_update(member, before, after):
   user_joined = before.channel is None and after.channel is not None
 
   # ユーザー退出時: Botがいるチャンネルが空になったら自動退出
-  user_left = before.channel is not None
+  user_left = before.channel is not None and after.channel != before.channel
   if user_left and guild.voice_client is not None:
     bot_channel = guild.voice_client.channel
     if before.channel == bot_channel:
