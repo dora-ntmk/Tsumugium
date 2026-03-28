@@ -178,7 +178,10 @@ async def on_voice_state_update(member, before, after):
     if before.channel == bot_channel:
       human_members = [m for m in bot_channel.members if not m.bot]
       if len(human_members) == 0:
-        ch = get_notify_channel(guild, bot_channel)
+        temp_ch_id = play.temp_text_targets.get(guild.id)
+        ch = guild.get_channel(temp_ch_id) if temp_ch_id else None
+        if ch is None:
+          ch = bot_channel
         leaving_guilds.add(guild.id)
         await asyncio.sleep(0.5)
         await guild.voice_client.disconnect()
@@ -195,7 +198,7 @@ async def on_voice_state_update(member, before, after):
 
   # AutoJoin: VoiceTarget が設定されている場合のみ動作
   voice_target = server_config.get(guild.id, "VoiceTarget")
-  if server_config.get(guild.id, "AutoJoin") and guild.voice_client is None and voice_target is not None:
+  if server_config.get(guild.id, "AutoJoin") and guild.voice_client is None and voice_target is not None and after.channel.id == voice_target:
     target_channel = guild.get_channel(voice_target)
     if target_channel is not None:
       ch = get_notify_channel(guild, target_channel)
@@ -224,7 +227,7 @@ async def on_voice_state_update(member, before, after):
       return  # 最初の入室者の入室通知をスキップ
 
   # AccessNotice
-  if server_config.get(guild.id, "AccessNotice") and guild.voice_client is not None:
+  if server_config.get(guild.id, "AccessNotice") and guild.voice_client is not None and after.channel == guild.voice_client.channel:
     await enqueue_notice(guild, member, "join.notice_text", lang=lang)
 
 
