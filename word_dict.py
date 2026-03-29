@@ -13,7 +13,7 @@ import sqlite3
 import unicodedata
 import discord
 from typing import Optional
-from messages import build_embed, get_desc
+from messages import build_embed, get_desc, handle_internal_error
 from config import EMOJI_JA_JSON
 from dict_view import DictViewPaginator
 import swap
@@ -302,14 +302,7 @@ class WordDict:
       except discord.errors.HTTPException as e:
         print(f'HTTPException in dict_add: {e}')
       except Exception as e:
-        print(f'Exception in dict_add: {e}')
-        try:
-          lang = self.server_config.get(ctx.guild.id, 'Language')
-          await ctx.edit_original_response(
-            embed=build_embed('dict.add.failure', lang=lang)
-          )
-        except Exception as inner:
-          print(f'Exception in dict_add fallback: {inner}')
+        await handle_internal_error(ctx, e, "dict_add", lang=self.server_config.get(ctx.guild.id, 'Language'))
 
     @dict_group.command(name='del', description=_lstr('commands.dict.del.description'))
     @discord.app_commands.describe(
@@ -337,14 +330,7 @@ class WordDict:
       except discord.errors.HTTPException as e:
         print(f'HTTPException in dict_del: {e}')
       except Exception as e:
-        print(f'Exception in dict_del: {e}')
-        try:
-          lang = self.server_config.get(ctx.guild.id, 'Language')
-          await ctx.edit_original_response(
-            embed=build_embed('dict.del.failure', lang=lang)
-          )
-        except Exception as inner:
-          print(f'Exception in dict_del fallback: {inner}')
+        await handle_internal_error(ctx, e, "dict_del", lang=self.server_config.get(ctx.guild.id, 'Language'))
 
     @dict_group.command(name='view', description=_lstr('commands.dict.view.description'))
     @discord.app_commands.describe(
@@ -390,7 +376,7 @@ class WordDict:
       except discord.errors.HTTPException as e:
         print(f'HTTPException in dict_view: {e}')
       except Exception as e:
-        print(f'Exception in dict_view: {e}')
+        await handle_internal_error(ctx, e, "dict_view", lang=self.server_config.get(ctx.guild.id, 'Language'))
 
     @dict_group.error
     async def dict_error(ctx, error):

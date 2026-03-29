@@ -15,6 +15,9 @@
     "clear": {
       "description": "TTS 대기열을 모두 지웁니다."
     },
+    "version": {
+      "description": "버전 정보를 표시합니다"
+    },
     "dict": {
       "_group": "TTS 사전을 관리합니다",
       "add": {
@@ -210,6 +213,16 @@
       "color": "yellow"
     }
   },
+  "version": {
+    "info": {
+      "title": "버전 정보",
+      "color": "blue",
+      "fields": [
+        {"name": "Tsumugium 버전", "value": "{version}", "inline": false},
+        {"name": "Tsumugium 최종 업데이트", "value": "{last_updated}", "inline": false}
+      ]
+    }
+  },
   "leave": {
     "notice_text": "{display_name}님이 퇴장했습니다",
     "success": {
@@ -323,6 +336,11 @@
     "os_error": {
       "title": "시스템 오류",
       "description": "설정 읽기/쓰기에 실패했습니다",
+      "color": "red"
+    },
+    "internal": {
+      "title": "내부 오류가 발생했습니다",
+      "description": "{error_type}",
       "color": "red"
     }
   },

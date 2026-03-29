@@ -56,6 +56,14 @@ async def handle_os_error(ctx, e: OSError, cmd_name: str, lang: str = "ja") -> N
     print(f"Failed to send OSError embed in {cmd_name}: {inner}")
 
 
+async def handle_internal_error(ctx, e: Exception, cmd_name: str, lang: str = "ja") -> None:
+  print(f"Exception in {cmd_name}: {e}")
+  try:
+    await ctx.edit_original_response(embed=build_embed("error.internal", lang=lang, error_type=type(e).__name__))
+  except Exception as inner:
+    print(f"Failed to send internal error embed in {cmd_name}: {inner}")
+
+
 def build_embed(key: str, lang: str = "ja", **kwargs) -> discord.Embed:
   """
   ドット区切りのキー（例: "join.success"）でEmbedを生成する。

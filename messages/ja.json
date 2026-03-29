@@ -15,6 +15,9 @@
     "clear": {
       "description": "読み上げキューをすべてクリアします。"
     },
+    "version": {
+      "description": "バージョン情報を表示します"
+    },
     "dict": {
       "_group": "読み上げ辞書を管理します",
       "add": {
@@ -210,6 +213,16 @@
       "color": "yellow"
     }
   },
+  "version": {
+    "info": {
+      "title": "バージョン情報",
+      "color": "blue",
+      "fields": [
+        {"name": "Tsumugiumバージョン", "value": "{version}", "inline": false},
+        {"name": "Tsumugium最終更新日", "value": "{last_updated}", "inline": false}
+      ]
+    }
+  },
   "leave": {
     "notice_text": "{display_name}さんが退室しました",
     "success": {
@@ -305,6 +318,11 @@
     "os_error": {
       "title": "システムエラー",
       "description": "設定の読み書きに失敗しました",
+      "color": "red"
+    },
+    "internal": {
+      "title": "内部エラーが発生しました",
+      "description": "{error_type}",
       "color": "red"
     }
   },

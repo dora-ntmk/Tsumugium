@@ -15,6 +15,9 @@
     "clear": {
       "description": "清除所有TTS队列。"
     },
+    "version": {
+      "description": "显示版本信息"
+    },
     "dict": {
       "_group": "管理TTS词典",
       "add": {
@@ -210,6 +213,16 @@
       "color": "yellow"
     }
   },
+  "version": {
+    "info": {
+      "title": "版本信息",
+      "color": "blue",
+      "fields": [
+        {"name": "Tsumugium版本", "value": "{version}", "inline": false},
+        {"name": "Tsumugium最后更新日期", "value": "{last_updated}", "inline": false}
+      ]
+    }
+  },
   "leave": {
     "notice_text": "{display_name} 离开了频道",
     "success": {
@@ -323,6 +336,11 @@
     "os_error": {
       "title": "系统错误",
       "description": "设置读写失败",
+      "color": "red"
+    },
+    "internal": {
+      "title": "发生了内部错误",
+      "description": "{error_type}",
       "color": "red"
     }
   },

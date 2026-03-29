@@ -15,6 +15,9 @@
     "clear": {
       "description": "清除所有TTS佇列。"
     },
+    "version": {
+      "description": "顯示版本資訊"
+    },
     "dict": {
       "_group": "管理TTS詞典",
       "add": {
@@ -210,6 +213,16 @@
       "color": "yellow"
     }
   },
+  "version": {
+    "info": {
+      "title": "版本資訊",
+      "color": "blue",
+      "fields": [
+        {"name": "Tsumugium版本", "value": "{version}", "inline": false},
+        {"name": "Tsumugium最後更新日期", "value": "{last_updated}", "inline": false}
+      ]
+    }
+  },
   "leave": {
     "notice_text": "{display_name} 離開了頻道",
     "success": {
@@ -323,6 +336,11 @@
     "os_error": {
       "title": "系統錯誤",
       "description": "設定讀寫失敗",
+      "color": "red"
+    },
+    "internal": {
+      "title": "發生了內部錯誤",
+      "description": "{error_type}",
       "color": "red"
     }
   },

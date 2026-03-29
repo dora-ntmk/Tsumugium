@@ -15,6 +15,9 @@
     "clear": {
       "description": "Clear all items in the TTS queue."
     },
+    "version": {
+      "description": "Show version information"
+    },
     "dict": {
       "_group": "Manage the TTS dictionary",
       "add": {
@@ -210,6 +213,16 @@
       "color": "yellow"
     }
   },
+  "version": {
+    "info": {
+      "title": "Version Info",
+      "color": "blue",
+      "fields": [
+        {"name": "Tsumugium Version", "value": "{version}", "inline": false},
+        {"name": "Tsumugium Last Updated", "value": "{last_updated}", "inline": false}
+      ]
+    }
+  },
   "leave": {
     "notice_text": "{display_name} has left",
     "success": {
@@ -305,6 +318,11 @@
     "os_error": {
       "title": "System Error",
       "description": "Failed to read/write settings",
+      "color": "red"
+    },
+    "internal": {
+      "title": "An internal error occurred",
+      "description": "{error_type}",
       "color": "red"
     }
   },

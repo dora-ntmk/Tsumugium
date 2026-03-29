@@ -9,7 +9,7 @@
 """
 import discord
 import json
-from messages import build_embed, get_desc, handle_os_error
+from messages import build_embed, get_desc, handle_os_error, handle_internal_error
 from config import SPEAKERS_JSON, DEFAULT_SPEAKER
 
 with open(SPEAKERS_JSON, encoding="utf-8") as _f:
@@ -92,7 +92,7 @@ class Setting:
       except OSError as e:
         await handle_os_error(ctx, e, "setting_view", lang=self.server_config.get(ctx.guild.id, "Language"))
       except Exception as e:
-        print(f"Exception in setting_view: {e}")
+        await handle_internal_error(ctx, e, "setting_view", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @setting_group.command(
       name="text-target",
@@ -128,7 +128,7 @@ class Setting:
       except OSError as e:
         await handle_os_error(ctx, e, "setting_text_target", lang=self.server_config.get(ctx.guild.id, "Language"))
       except Exception as e:
-        print(f"Exception in setting_text_target: {e}")
+        await handle_internal_error(ctx, e, "setting_text_target", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @setting_group.command(
       name="text-target-reset",
@@ -148,7 +148,7 @@ class Setting:
       except OSError as e:
         await handle_os_error(ctx, e, "setting_text_target_reset", lang=self.server_config.get(ctx.guild.id, "Language"))
       except Exception as e:
-        print(f"Exception in setting_text_target_reset: {e}")
+        await handle_internal_error(ctx, e, "setting_text_target_reset", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @setting_group.command(
       name="voice-target",
@@ -190,7 +190,7 @@ class Setting:
       except OSError as e:
         await handle_os_error(ctx, e, "setting_voice_target", lang=self.server_config.get(ctx.guild.id, "Language"))
       except Exception as e:
-        print(f"Exception in setting_voice_target: {e}")
+        await handle_internal_error(ctx, e, "setting_voice_target", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @setting_group.command(
       name="voice-target-reset",
@@ -210,7 +210,7 @@ class Setting:
       except OSError as e:
         await handle_os_error(ctx, e, "setting_voice_target_reset", lang=self.server_config.get(ctx.guild.id, "Language"))
       except Exception as e:
-        print(f"Exception in setting_voice_target_reset: {e}")
+        await handle_internal_error(ctx, e, "setting_voice_target_reset", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @setting_group.command(
       name="speaker",
@@ -254,7 +254,7 @@ class Setting:
       except OSError as e:
         await handle_os_error(ctx, e, "setting_speaker", lang=self.server_config.get(ctx.guild.id, "Language"))
       except Exception as e:
-        print(f"Exception in setting_speaker: {e}")
+        await handle_internal_error(ctx, e, "setting_speaker", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     # noinspection PyUnusedLocal
     @setting_speaker.autocomplete("speaker")
@@ -305,7 +305,7 @@ class Setting:
       except OSError as e:
         await handle_os_error(ctx, e, "setting_volume", lang=self.server_config.get(ctx.guild.id, "Language"))
       except Exception as e:
-        print(f"Exception in setting_volume: {e}")
+        await handle_internal_error(ctx, e, "setting_volume", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @setting_group.command(
       name="speed",
@@ -340,7 +340,7 @@ class Setting:
       except OSError as e:
         await handle_os_error(ctx, e, "setting_speed", lang=self.server_config.get(ctx.guild.id, "Language"))
       except Exception as e:
-        print(f"Exception in setting_speed: {e}")
+        await handle_internal_error(ctx, e, "setting_speed", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @setting_group.command(
       name="max-char",
@@ -379,7 +379,7 @@ class Setting:
       except OSError as e:
         await handle_os_error(ctx, e, "setting_max_char", lang=self.server_config.get(ctx.guild.id, "Language"))
       except Exception as e:
-        print(f"Exception in setting_max_char: {e}")
+        await handle_internal_error(ctx, e, "setting_max_char", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @setting_group.command(
       name="auto-join",
@@ -409,7 +409,7 @@ class Setting:
       except OSError as e:
         await handle_os_error(ctx, e, "setting_auto_join", lang=self.server_config.get(ctx.guild.id, "Language"))
       except Exception as e:
-        print(f"Exception in setting_auto_join: {e}")
+        await handle_internal_error(ctx, e, "setting_auto_join", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @setting_group.command(
       name="access-notice",
@@ -439,7 +439,7 @@ class Setting:
       except OSError as e:
         await handle_os_error(ctx, e, "setting_access_notice", lang=self.server_config.get(ctx.guild.id, "Language"))
       except Exception as e:
-        print(f"Exception in setting_access_notice: {e}")
+        await handle_internal_error(ctx, e, "setting_access_notice", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @setting_group.command(
       name="language",
@@ -471,7 +471,7 @@ class Setting:
       except OSError as e:
         await handle_os_error(ctx, e, "setting_language", lang=language)
       except Exception as e:
-        print(f"Exception in setting_language: {e}")
+        await handle_internal_error(ctx, e, "setting_language", lang=language)
 
     @setting_group.error
     async def setting_error(ctx, error):

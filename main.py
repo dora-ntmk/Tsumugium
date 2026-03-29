@@ -12,12 +12,12 @@ import asyncio
 import io
 import json
 import discord
-from config import STATUS_MESSAGE, DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, DICT_DB, SOUND_BOARDS_DB, VOICEVOX_URL
+from config import STATUS_MESSAGE, DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, DICT_DB, SOUND_BOARDS_DB, VOICEVOX_URL, VERSION, LAST_UPDATED
 from backup import start as start_backup
 from vvtts import VvTTS
 from play import Play
 from server_config import ServerConfig
-from messages import build_embed, get_desc, handle_os_error, BotTranslator
+from messages import build_embed, get_desc, handle_os_error, handle_internal_error, BotTranslator
 from setting import Setting
 from word_dict import DictManager, WordDict
 from sound_dict import SoundDict, SoundDictView, UpdateSoundBoards
@@ -178,10 +178,12 @@ async def on_voice_state_update(member, before, after):
     if before.channel == bot_channel:
       human_members = [m for m in bot_channel.members if not m.bot]
       if len(human_members) == 0:
-        temp_ch_id = play.temp_text_targets.get(guild.id)
-        ch = guild.get_channel(temp_ch_id) if temp_ch_id else None
-        if ch is None:
-          ch = bot_channel
+        voice_target = server_config.get(guild.id, "VoiceTarget")
+        if voice_target is not None and bot_channel.id == voice_target:
+          ch = get_notify_channel(guild, bot_channel)
+        else:
+          temp_ch_id = play.temp_text_targets.get(guild.id)
+          ch = guild.get_channel(temp_ch_id) if temp_ch_id else bot_channel
         leaving_guilds.add(guild.id)
         await asyncio.sleep(0.5)
         await guild.voice_client.disconnect()
@@ -297,7 +299,7 @@ async def join(ctx, change_channel: bool = False):
   except OSError as e:
     await handle_os_error(ctx, e, "join", lang=server_config.get(ctx.guild.id, "Language"))
   except Exception as e:
-    print(f"Exception in join: {e}")
+    await handle_internal_error(ctx, e, "join", lang=server_config.get(ctx.guild.id, "Language"))
 
 
 # 退室
@@ -322,7 +324,26 @@ async def leave(ctx):
   except OSError as e:
     await handle_os_error(ctx, e, "leave", lang=server_config.get(ctx.guild.id, "Language"))
   except Exception as e:
-    print(f"Exception in leave: {e}")
+    await handle_internal_error(ctx, e, "leave", lang=server_config.get(ctx.guild.id, "Language"))
+
+
+@tree.command(
+  name="version",
+  description=discord.app_commands.locale_str(get_desc("commands.version.description"), key="commands.version.description")
+)
+async def version_cmd(ctx):
+  try:
+    await ctx.response.defer()
+    lang = server_config.get(ctx.guild.id, "Language")
+    await ctx.edit_original_response(
+      embed=build_embed("version.info", lang=lang, version=VERSION, last_updated=LAST_UPDATED)
+    )
+  except discord.errors.InteractionResponded:
+    return
+  except discord.errors.HTTPException as e:
+    print(f"HTTPException in version: {e}")
+  except Exception as e:
+    await handle_internal_error(ctx, e, "version", lang=server_config.get(ctx.guild.id, "Language"))
 
 
 # 起動
