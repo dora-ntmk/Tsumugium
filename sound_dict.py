@@ -221,6 +221,18 @@ class SoundDictView:
       except Exception as e:
         await handle_internal_error(ctx, e, "sounddict_del", lang=self.server_config.get(ctx.guild.id, 'Language'))
 
+    # noinspection PyUnusedLocal
+    @sounddict_del.autocomplete("word")
+    async def sounddict_del_word_autocomplete(ctx, current: str):
+      normal, priority = self.sound_dict.get_entries(ctx.guild.id)
+      all_words = [word for word, _ in priority + normal]
+      filtered = [
+        discord.app_commands.Choice(name=word, value=word)
+        for word in all_words
+        if current in word
+      ]
+      return filtered[:25]
+
     @sounddict_group.command(name='view', description=_lstr('commands.sounddict.view.description'))
     @discord.app_commands.describe(
       ephemeral=_lstr('commands.sounddict.view.args.ephemeral'),

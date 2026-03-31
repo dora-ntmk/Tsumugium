@@ -184,8 +184,10 @@ async def on_voice_state_update(member, before, after):
         else:
           temp_ch_id = play.temp_text_targets.get(guild.id)
           ch = guild.get_channel(temp_ch_id) if temp_ch_id else bot_channel
-        leaving_guilds.add(guild.id)
         await asyncio.sleep(0.5)
+        if guild.voice_client is None:
+          return
+        leaving_guilds.add(guild.id)
         await guild.voice_client.disconnect()
         if ch:
           await ch.send(embed=build_embed("leave.auto", lang=lang))
