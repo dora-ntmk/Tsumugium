@@ -52,6 +52,7 @@ def get_notify_channel(guild, vc_channel=None):
 
 async def enqueue_notice(guild, member, msg_key, lang: str = "ja"):
   notice_text = get_desc(msg_key, lang=lang).format(display_name=member.display_name)
+  notice_text, _, _ = dict_manager.preprocess_text(notice_text, guild.id, guild, [])
   speaker = server_config.get(guild.id, "Speaker")
   volume = server_config.volume_to_vvtts(guild.id)
   speed = server_config.speed_to_vvtts(guild.id)
