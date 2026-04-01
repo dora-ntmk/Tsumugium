@@ -160,14 +160,25 @@ async def on_voice_state_update(member, before, after):
 
   # Bot自身の切断検知（強制切断 vs 自発的退出の区別）
   if member == guild.me:
-    if before.channel is not None and after.channel is None:
-      play.temp_text_targets.pop(guild.id, None)
+    if before.channel is None and after.channel is not None:
+      # VC参加（auto-reconnect含む）: pending_temp_targetsを復元してキープアライブ開始
+      saved = play.pending_temp_targets.pop(guild.id, None)
+      if saved is not None:
+        play.temp_text_targets[guild.id] = saved
+      play.start_keepalive(guild)
+    elif before.channel is not None and after.channel is None:
+      # VC退出
+      ch = get_notify_channel(guild, before.channel)
       if guild.id in leaving_guilds:
         leaving_guilds.discard(guild.id)
+        play.temp_text_targets.pop(guild.id, None)
       else:
-        ch = get_notify_channel(guild, before.channel)
+        saved = play.temp_text_targets.pop(guild.id, None)
+        if saved is not None:
+          play.pending_temp_targets[guild.id] = saved
         if ch:
           await ch.send(embed=build_embed("leave.forced", lang=lang))
+      play.stop_keepalive(guild.id)
     return
 
   user_joined = before.channel is None and after.channel is not None

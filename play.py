@@ -29,6 +29,8 @@ class Play:
     self.skip_flags = defaultdict(bool)
     self.clearing_flags = defaultdict(bool)
     self.temp_text_targets = {}
+    self.pending_temp_targets: dict = {}
+    self.keepalive_tasks: dict = {}
     self._register()
 
   def _register(self):
@@ -188,6 +190,7 @@ class Play:
   async def play_loop(self, guild):
     guild_id = guild.id
     while True:
+      src = None
       try:
         _, src = await asyncio.wait_for(
           self.voice_queues[guild_id].get(),
@@ -195,14 +198,44 @@ class Play:
         )
         if guild.voice_client is None:
           self.voice_queues[guild_id].task_done()
+          src = None
           continue
         await self.play(guild, src)
+        src = None
         self.voice_queues[guild_id].task_done()
       except asyncio.TimeoutError:
         break
+      except asyncio.CancelledError:
+        if src is not None:
+          asyncio.create_task(self.safe_remove(src))
+        raise
       except Exception as e:
         print(f"再生エラー: {e}")
-        self.voice_queues[guild_id].task_done()
+        if src is not None:
+          self.voice_queues[guild_id].task_done()
+
+  # キープアライブ
+  async def _keepalive_loop(self, guild):
+    SILENCE = b'\xF8\xFF\xFE'
+    while True:
+      await asyncio.sleep(270)
+      vc = guild.voice_client
+      if vc is None or not vc.is_connected():
+        break
+      if not vc.is_playing():
+        try:
+          vc.send_audio_packet(SILENCE, encode=False)
+        except Exception as e:
+          print(f"keepalive error: {e}")
+
+  def start_keepalive(self, guild):
+    self.stop_keepalive(guild.id)
+    self.keepalive_tasks[guild.id] = asyncio.create_task(self._keepalive_loop(guild))
+
+  def stop_keepalive(self, guild_id):
+    task = self.keepalive_tasks.pop(guild_id, None)
+    if task and not task.done():
+      task.cancel()
 
   async def safe_remove(self, src, retries=5, delay=0.3):
     for _ in range(retries):
