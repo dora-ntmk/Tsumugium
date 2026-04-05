@@ -168,7 +168,6 @@ async def on_voice_state_update(member, before, after):
       play.start_keepalive(guild)
     elif before.channel is not None and after.channel is None:
       # VC退出
-      ch = get_notify_channel(guild, before.channel)
       if guild.id in leaving_guilds:
         leaving_guilds.discard(guild.id)
         play.temp_text_targets.pop(guild.id, None)
@@ -176,8 +175,6 @@ async def on_voice_state_update(member, before, after):
         saved = play.temp_text_targets.pop(guild.id, None)
         if saved is not None:
           play.pending_temp_targets[guild.id] = saved
-        if ch:
-          await ch.send(embed=build_embed("leave.forced", lang=lang))
       play.stop_keepalive(guild.id)
     return
 
@@ -214,7 +211,8 @@ async def on_voice_state_update(member, before, after):
 
   # AutoJoin: VoiceTarget が設定されている場合のみ動作
   voice_target = server_config.get(guild.id, "VoiceTarget")
-  if server_config.get(guild.id, "AutoJoin") and guild.voice_client is None and voice_target is not None and after.channel.id == voice_target:
+  human_count = len([m for m in after.channel.members if not m.bot])
+  if server_config.get(guild.id, "AutoJoin") and guild.voice_client is None and voice_target is not None and after.channel.id == voice_target and human_count == 1:
     target_channel = guild.get_channel(voice_target)
     if target_channel is not None:
       ch = get_notify_channel(guild, target_channel)
@@ -278,6 +276,10 @@ async def join(ctx, change_channel: bool = False):
           embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues))
         )
         return
+      if ctx.guild.voice_client is not None:
+        leaving_guilds.add(ctx.guild.id)
+        await ctx.guild.voice_client.disconnect()
+        await asyncio.sleep(0.5)
       await voice_channel.connect(timeout=60)
       if change_channel:
         if not ctx.user.guild_permissions.manage_guild:
