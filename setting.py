@@ -32,7 +32,8 @@ class Setting:
   def _register(self):
     setting_group = discord.app_commands.Group(
       name="setting",
-      description=_lstr("commands.setting._group")
+      description=_lstr("commands.setting._group"),
+      default_permissions=discord.Permissions(manage_guild=True)
     )
 
     @setting_group.command(
