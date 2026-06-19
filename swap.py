@@ -130,7 +130,10 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
   for url_re, url_read in _URL_PATTERNS:
     segments = _apply_regex(segments, url_re, url_read + ',')
 
-  # 3b. www pattern → N × わら（URL内の www は protected=True でスキップ済み）
+  # 3b. Custom Emojis（www より先にフィルタして ww 等の置換から保護する）
+  segments = _apply_regex(segments, _CUSTOM_EMOJI_RE, ',')
+
+  # 3c. www pattern → N × わら（URL内の www は protected=True でスキップ済み）
   def _www_replace(m):
     return 'わら' * len(m.group(0)) + ','
   segments = _apply_regex(segments, _WWW_RE, _www_replace)
@@ -185,8 +188,6 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
   segments = _apply_regex(segments, re.compile(r'\n'), ',')
   # 4j. Spaces (half-width and full-width)
   segments = _apply_regex(segments, re.compile(r'[ \u3000]+'), ',')
-  # 4k. Custom Emojis
-  segments = _apply_regex(segments, re.compile(_CUSTOM_EMOJI_RE), ',')
 
   # 5. 優先辞書 → 通常辞書 → 共通辞書
   cur = conn.execute(

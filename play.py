@@ -122,7 +122,7 @@ class Play:
       if text_target is None:
         text_target = self.server_config.get(message.guild.id, "TextTarget")
       if text_target is not None:
-        if message.channel.id != text_target:
+        if message.channel.id != text_target and message.guild.voice_client.channel.id != message.channel.id:
           return
       else:
         if message.guild.voice_client.channel.id != message.channel.id:
