@@ -5,6 +5,7 @@ python-dotenv>=1.2.2
 aiohttp>=3.9.0
 PyNaCl>=1.6.0
 davey>=0.1.0
+ffmpeg-python
 
 # 標準ライブラリ（インストール不要）
 # asyncio, io, json, os, re, sqlite3, unicodedata, typing,
