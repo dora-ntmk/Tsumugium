@@ -115,7 +115,9 @@
         "args": {
           "word": "追加する単語",
           "sound": "サウンドボードのID",
-          "read": "読み方（省略可・50文字以内）"
+          "read": "読み方（省略可・50文字以内）",
+          "full_match": "Falseにすると単語が含まれているだけで再生されます（デフォルト: True=完全一致）",
+          "trigger_user": "このユーザー/Botが発言したときのみ再生します（省略可）"
         }
       },
       "del": {
@@ -473,29 +475,46 @@
   },
   "sounddict": {
     "add": {
+      "match_mode": {
+        "full": "完全一致",
+        "partial": "部分一致"
+      },
+      "trigger_none": "なし",
       "success": {
         "title": "音声辞書への追加が成功しました",
         "description": "音声辞書に単語が追加されました",
         "color": "green",
-        "fields": [{"name": "登録内容", "value": "`{word}` → `{sound}`", "inline": false}]
+        "fields": [
+          {"name": "登録内容", "value": "`{word}` → `{sound}`", "inline": false},
+          {"name": "オプション", "value": "一致モード: `{match_mode}`　発話ユーザー: `{trigger}`", "inline": false}
+        ]
       },
       "success_both": {
         "title": "辞書への追加が成功しました",
         "description": "音声辞書と読み上げ辞書に単語が追加されました",
         "color": "green",
-        "fields": [{"name": "登録内容", "value": "`{word}` → 音声: `{sound}`　読み: `{read}`", "inline": false}]
+        "fields": [
+          {"name": "登録内容", "value": "`{word}` → 音声: `{sound}`　読み: `{read}`", "inline": false},
+          {"name": "オプション", "value": "一致モード: `{match_mode}`　発話ユーザー: `{trigger}`", "inline": false}
+        ]
       },
       "overwrite": {
         "title": "音声辞書への上書きが成功しました",
         "description": "音声辞書の単語が上書きされました",
         "color": "green",
-        "fields": [{"name": "登録内容", "value": "`{word}` → `{sound}`", "inline": false}]
+        "fields": [
+          {"name": "登録内容", "value": "`{word}` → `{sound}`", "inline": false},
+          {"name": "オプション", "value": "一致モード: `{match_mode}`　発話ユーザー: `{trigger}`", "inline": false}
+        ]
       },
       "overwrite_both": {
         "title": "辞書への上書きが成功しました",
         "description": "音声辞書と読み上げ辞書の単語が上書きされました",
         "color": "green",
-        "fields": [{"name": "登録内容", "value": "`{word}` → 音声: `{sound}`　読み: `{read}`", "inline": false}]
+        "fields": [
+          {"name": "登録内容", "value": "`{word}` → 音声: `{sound}`　読み: `{read}`", "inline": false},
+          {"name": "オプション", "value": "一致モード: `{match_mode}`　発話ユーザー: `{trigger}`", "inline": false}
+        ]
       },
       "failure": {
         "title": "音声辞書への追加が失敗しました",
@@ -531,6 +550,7 @@
       "header": "単語  →  音声名",
       "section_normal": "通常辞書",
       "section_priority": "優先辞書",
+      "label_partial": "部分一致",
       "not_found": {
         "title": "見つかりませんでした",
         "description": "「{word}」に一致する単語は音声辞書にありません",

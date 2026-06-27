@@ -100,6 +100,14 @@ class DictManager:
     self._conn.execute(
       "CREATE INDEX IF NOT EXISTS idx_dict_guild ON dict (guild_id)"
     )
+    for _ddl in [
+      "ALTER TABLE dict ADD COLUMN full_match INTEGER NOT NULL DEFAULT 1",
+      "ALTER TABLE dict ADD COLUMN trigger_user_id TEXT DEFAULT NULL",
+    ]:
+      try:
+        self._conn.execute(_ddl)
+      except sqlite3.OperationalError:
+        pass
     self._conn.commit()
     emoji_ja_data = _load_json(EMOJI_JA_JSON)
     self._emoji_ja: dict = {
@@ -177,7 +185,9 @@ class DictManager:
         normal.append((word, reading))
     return normal, priority
 
-  def add_sound(self, guild_id: int, word: str, sound_id: str) -> bool:
+  def add_sound(self, guild_id: int, word: str, sound_id: str,
+               full_match: bool = True,
+               trigger_user_id: Optional[str] = None) -> bool:
     """Returns True if overwriting an existing sound entry."""
     is_priority = 1 if _is_priority_word(word) else 0
     gid = str(guild_id)
@@ -186,14 +196,17 @@ class DictManager:
     )
     row = cur.fetchone()
     overwrite = row is not None and row[0] is not None
+    fm = 1 if full_match else 0
     self._conn.execute(
-      """INSERT INTO dict (guild_id, word, sound_id, reading, is_priority, added_at)
-         VALUES (?, ?, ?, NULL, ?, strftime('%s', 'now'))
+      """INSERT INTO dict (guild_id, word, sound_id, reading, is_priority, full_match, trigger_user_id, added_at)
+         VALUES (?, ?, ?, NULL, ?, ?, ?, strftime('%s', 'now'))
          ON CONFLICT(guild_id, word) DO UPDATE SET
-           sound_id    = excluded.sound_id,
-           is_priority = excluded.is_priority,
-           added_at    = excluded.added_at""",
-      (gid, word, sound_id, is_priority)
+           sound_id        = excluded.sound_id,
+           is_priority     = excluded.is_priority,
+           full_match      = excluded.full_match,
+           trigger_user_id = excluded.trigger_user_id,
+           added_at        = excluded.added_at""",
+      (gid, word, sound_id, is_priority, fm, trigger_user_id)
     )
     self._conn.commit()
     return overwrite
@@ -219,20 +232,23 @@ class DictManager:
     self._conn.commit()
     return sound_id
 
-  def get_sound_entries(self, guild_id: int) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
-    """Returns (normal_items, priority_items), each as list of (word, sound_id) in added_at DESC order."""
+  def get_sound_entries(self, guild_id: int) -> tuple[
+    list[tuple[str, str, int, Optional[str]]],
+    list[tuple[str, str, int, Optional[str]]]
+  ]:
+    """Returns (normal_items, priority_items), each as list of (word, sound_id, full_match, trigger_user_id) in added_at DESC order."""
     gid = str(guild_id)
     cur = self._conn.execute(
-      "SELECT word, sound_id, is_priority FROM dict WHERE guild_id = ? AND sound_id IS NOT NULL ORDER BY added_at DESC",
+      "SELECT word, sound_id, is_priority, full_match, trigger_user_id FROM dict WHERE guild_id = ? AND sound_id IS NOT NULL ORDER BY added_at DESC",
       (gid,)
     )
     normal = []
     priority = []
-    for word, sound_id, is_pri in cur.fetchall():
+    for word, sound_id, is_pri, fm, uid in cur.fetchall():
       if is_pri:
-        priority.append((word, sound_id))
+        priority.append((word, sound_id, fm, uid))
       else:
-        normal.append((word, sound_id))
+        normal.append((word, sound_id, fm, uid))
     return normal, priority
 
   def invalidate_sound(self, guild_id, sound_id: str):
@@ -258,8 +274,8 @@ class DictManager:
     )
     self._conn.commit()
 
-  def preprocess_text(self, text: str, guild_id: int, guild, attachments, mentions=None) -> tuple[str, list[tuple[int, int]], str | None]:
-    return swap.preprocess_text(text, guild_id, self._conn, self._emoji_ja, guild, attachments, mentions)
+  def preprocess_text(self, text: str, guild_id: int, guild, attachments, mentions=None, author_id: Optional[int] = None) -> tuple[str, list[tuple[int, int]], str | None]:
+    return swap.preprocess_text(text, guild_id, self._conn, self._emoji_ja, guild, attachments, mentions, author_id=author_id)
 
 
 class WordDict:

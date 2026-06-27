@@ -50,7 +50,8 @@ class Play:
         while not queue.empty():
           try:
             _, src = queue.get_nowait()
-            pending_files.append(src)
+            if isinstance(src, str):
+              pending_files.append(src)
             queue.task_done()
           except asyncio.QueueEmpty:
             break
@@ -75,6 +76,19 @@ class Play:
     @self.client.event
     async def on_message(message):
       if message.author.bot:
+        # Botメッセージ: sounddict一致時のみ再生。TTS・メンション処理は行わない
+        if message.guild is None or message.guild.voice_client is None:
+          return
+        text_target = self.temp_text_targets.get(message.guild.id)
+        if text_target is None:
+          text_target = self.server_config.get(message.guild.id, "TextTarget")
+        if text_target is not None:
+          if message.channel.id != text_target and message.guild.voice_client.channel.id != message.channel.id:
+            return
+        else:
+          if message.guild.voice_client.channel.id != message.channel.id:
+            return
+        asyncio.create_task(self.add_to_queue(message, sounddict_only=True))
         return
 
       # ボットへのメンション（単体）で入退室トグル
@@ -136,7 +150,7 @@ class Play:
       asyncio.create_task(self.add_to_queue(message))
 
 
-  async def add_to_queue(self, content, msg: bool = True):
+  async def add_to_queue(self, content, msg: bool = True, sounddict_only: bool = False):
     if msg:
       message = content
       guild_id = message.guild.id
@@ -148,25 +162,14 @@ class Play:
       text = message.content
       replaced_ranges = []
       if self.dict_manager is not None:
-        text, replaced_ranges, sound_id = self.dict_manager.preprocess_text(text, guild_id, message.guild, message.attachments, message.mentions)
+        text, replaced_ranges, sound_id = self.dict_manager.preprocess_text(text, guild_id, message.guild, message.attachments, message.mentions, author_id=message.author.id)
         if sound_id is not None:
-          try:
-            async with aiohttp.ClientSession() as session:
-              # noinspection PyUnusedLocal
-              async with session.post(
-                f'https://discord.com/api/v10/channels/{message.guild.voice_client.channel.id}/send-soundboard-sound',
-                headers={
-                  'Authorization': f'Bot {DISCORD_BOT_TOKEN}',
-                  'Content-Type': 'application/json',
-                },
-                json={
-                  'sound_id': f'{sound_id}',
-                }
-              ) as res:
-                return
-          except Exception as e:
-            print(f'サウンドボード再生エラー：{e}')
+          await self.voice_queues[guild_id].put((guild_id, ("soundboard", sound_id)))
+          if guild_id not in self.playing_tasks or self.playing_tasks[guild_id].done():
+            self.playing_tasks[guild_id] = asyncio.create_task(self.play_loop(message.guild))
           return
+      if sounddict_only:
+        return
       max_char = self.server_config.get(guild_id, "MaxChar")
       if 0 < max_char < len(text):
         cut = max_char
@@ -200,19 +203,43 @@ class Play:
           self.voice_queues[guild_id].task_done()
           src = None
           continue
-        await self.play(guild, src)
-        src = None
-        self.voice_queues[guild_id].task_done()
+        if isinstance(src, tuple) and src[0] == "soundboard":
+          _, sound_id = src
+          while guild.voice_client is not None and guild.voice_client.is_playing():
+            await asyncio.sleep(0.1)
+          if guild.voice_client is not None:
+            await self._play_soundboard(guild, sound_id)
+          src = None
+          self.voice_queues[guild_id].task_done()
+        else:
+          await self.play(guild, src)
+          src = None
+          self.voice_queues[guild_id].task_done()
       except asyncio.TimeoutError:
         break
       except asyncio.CancelledError:
-        if src is not None:
+        if src is not None and isinstance(src, str):
           asyncio.create_task(self.safe_remove(src))
         raise
       except Exception as e:
         print(f"再生エラー: {e}")
         if src is not None:
           self.voice_queues[guild_id].task_done()
+
+  async def _play_soundboard(self, guild, sound_id: str):
+    try:
+      async with aiohttp.ClientSession() as session:
+        async with session.post(
+          f'https://discord.com/api/v10/channels/{guild.voice_client.channel.id}/send-soundboard-sound',
+          headers={
+            'Authorization': f'Bot {DISCORD_BOT_TOKEN}',
+            'Content-Type': 'application/json',
+          },
+          json={'sound_id': f'{sound_id}'},
+        ):
+          pass
+    except Exception as e:
+      print(f'サウンドボード再生エラー：{e}')
 
   # キープアライブ
   async def _keepalive_loop(self, guild):

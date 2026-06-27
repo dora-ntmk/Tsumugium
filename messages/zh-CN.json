@@ -115,7 +115,9 @@
         "args": {
           "word": "要添加的单词",
           "sound": "音效板 ID",
-          "read": "读法（可选，50个字符以内）"
+          "read": "读法（可选，50个字符以内）",
+          "full_match": "设为False时只需包含该词即可触发（默认: True=完全匹配）",
+          "trigger_user": "仅当此用户/Bot发言时才播放（可选）"
         }
       },
       "del": {
@@ -491,16 +493,18 @@
   },
   "sounddict": {
     "add": {
+      "match_mode": {
+        "full": "完全匹配",
+        "partial": "部分匹配"
+      },
+      "trigger_none": "无",
       "success": {
         "title": "成功添加到音效词典",
         "description": "单词已添加到音效词典",
         "color": "green",
         "fields": [
-          {
-            "name": "注册内容",
-            "value": "`{word}` → `{sound}`",
-            "inline": false
-          }
+          {"name": "注册内容", "value": "`{word}` → `{sound}`", "inline": false},
+          {"name": "选项", "value": "匹配模式: `{match_mode}`  触发用户: `{trigger}`", "inline": false}
         ]
       },
       "success_both": {
@@ -508,11 +512,8 @@
         "description": "单词已添加到音效词典和TTS词典",
         "color": "green",
         "fields": [
-          {
-            "name": "注册内容",
-            "value": "`{word}` → 音效: `{sound}`  读法: `{read}`",
-            "inline": false
-          }
+          {"name": "注册内容", "value": "`{word}` → 音效: `{sound}`  读法: `{read}`", "inline": false},
+          {"name": "选项", "value": "匹配模式: `{match_mode}`  触发用户: `{trigger}`", "inline": false}
         ]
       },
       "overwrite": {
@@ -520,11 +521,8 @@
         "description": "音效词典中的单词已被覆盖",
         "color": "green",
         "fields": [
-          {
-            "name": "注册内容",
-            "value": "`{word}` → `{sound}`",
-            "inline": false
-          }
+          {"name": "注册内容", "value": "`{word}` → `{sound}`", "inline": false},
+          {"name": "选项", "value": "匹配模式: `{match_mode}`  触发用户: `{trigger}`", "inline": false}
         ]
       },
       "overwrite_both": {
@@ -532,11 +530,8 @@
         "description": "音效词典和TTS词典中的单词已被覆盖",
         "color": "green",
         "fields": [
-          {
-            "name": "注册内容",
-            "value": "`{word}` → 音效: `{sound}`  读法: `{read}`",
-            "inline": false
-          }
+          {"name": "注册内容", "value": "`{word}` → 音效: `{sound}`  读法: `{read}`", "inline": false},
+          {"name": "选项", "value": "匹配模式: `{match_mode}`  触发用户: `{trigger}`", "inline": false}
         ]
       },
       "failure": {
@@ -579,6 +574,7 @@
       "header": "单词  →  音效名",
       "section_normal": "普通",
       "section_priority": "优先",
+      "label_partial": "部分匹配",
       "not_found": {
         "title": "未找到",
         "description": "音效词典中没有与「{word}」匹配的条目",

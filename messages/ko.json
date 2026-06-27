@@ -115,7 +115,9 @@
         "args": {
           "word": "추가할 단어",
           "sound": "사운드보드 ID",
-          "read": "읽기 방법（선택 사항, 50자 이내）"
+          "read": "읽기 방법（선택 사항, 50자 이내）",
+          "full_match": "False로 설정하면 단어가 포함된 것만으로 재생됩니다（기본값: True=완전 일치）",
+          "trigger_user": "이 사용자/Bot이 발언했을 때만 재생합니다（선택 사항）"
         }
       },
       "del": {
@@ -491,16 +493,18 @@
   },
   "sounddict": {
     "add": {
+      "match_mode": {
+        "full": "완전 일치",
+        "partial": "부분 일치"
+      },
+      "trigger_none": "없음",
       "success": {
         "title": "음성 사전에 추가되었습니다",
         "description": "단어가 음성 사전에 추가되었습니다",
         "color": "green",
         "fields": [
-          {
-            "name": "등록 내용",
-            "value": "`{word}` → `{sound}`",
-            "inline": false
-          }
+          {"name": "등록 내용", "value": "`{word}` → `{sound}`", "inline": false},
+          {"name": "옵션", "value": "일치 모드: `{match_mode}`  트리거 사용자: `{trigger}`", "inline": false}
         ]
       },
       "success_both": {
@@ -508,11 +512,8 @@
         "description": "단어가 음성 사전과 TTS 사전에 추가되었습니다",
         "color": "green",
         "fields": [
-          {
-            "name": "등록 내용",
-            "value": "`{word}` → 음성: `{sound}`  읽기: `{read}`",
-            "inline": false
-          }
+          {"name": "등록 내용", "value": "`{word}` → 음성: `{sound}`  읽기: `{read}`", "inline": false},
+          {"name": "옵션", "value": "일치 모드: `{match_mode}`  트리거 사용자: `{trigger}`", "inline": false}
         ]
       },
       "overwrite": {
@@ -520,11 +521,8 @@
         "description": "음성 사전의 단어가 덮어쓰기되었습니다",
         "color": "green",
         "fields": [
-          {
-            "name": "등록 내용",
-            "value": "`{word}` → `{sound}`",
-            "inline": false
-          }
+          {"name": "등록 내용", "value": "`{word}` → `{sound}`", "inline": false},
+          {"name": "옵션", "value": "일치 모드: `{match_mode}`  트리거 사용자: `{trigger}`", "inline": false}
         ]
       },
       "overwrite_both": {
@@ -532,11 +530,8 @@
         "description": "음성 사전과 TTS 사전의 단어가 덮어쓰기되었습니다",
         "color": "green",
         "fields": [
-          {
-            "name": "등록 내용",
-            "value": "`{word}` → 음성: `{sound}`  읽기: `{read}`",
-            "inline": false
-          }
+          {"name": "등록 내용", "value": "`{word}` → 음성: `{sound}`  읽기: `{read}`", "inline": false},
+          {"name": "옵션", "value": "일치 모드: `{match_mode}`  트리거 사용자: `{trigger}`", "inline": false}
         ]
       },
       "failure": {
@@ -579,6 +574,7 @@
       "header": "단어  →  음성명",
       "section_normal": "일반",
       "section_priority": "우선순위",
+      "label_partial": "부분 일치",
       "not_found": {
         "title": "찾을 수 없습니다",
         "description": "음성 사전에서 \"{word}\"에 일치하는 항목이 없습니다",

@@ -115,7 +115,9 @@
         "args": {
           "word": "Word to add",
           "sound": "Soundboard ID",
-          "read": "Reading (optional, up to 50 characters)"
+          "read": "Reading (optional, up to 50 characters)",
+          "full_match": "Set to False to trigger on partial match (default: True = exact match)",
+          "trigger_user": "Only play when this user/bot sends the message (optional)"
         }
       },
       "del": {
@@ -473,29 +475,46 @@
   },
   "sounddict": {
     "add": {
+      "match_mode": {
+        "full": "Exact match",
+        "partial": "Partial match"
+      },
+      "trigger_none": "None",
       "success": {
         "title": "Word Added to Sound Dictionary",
         "description": "The word has been added to the sound dictionary",
         "color": "green",
-        "fields": [{"name": "Entry", "value": "`{word}` → `{sound}`", "inline": false}]
+        "fields": [
+          {"name": "Entry", "value": "`{word}` → `{sound}`", "inline": false},
+          {"name": "Options", "value": "Match mode: `{match_mode}`  Trigger user: `{trigger}`", "inline": false}
+        ]
       },
       "success_both": {
         "title": "Word Added to Dictionaries",
         "description": "The word has been added to the sound dictionary and TTS dictionary",
         "color": "green",
-        "fields": [{"name": "Entry", "value": "`{word}` → Sound: `{sound}`  Reading: `{read}`", "inline": false}]
+        "fields": [
+          {"name": "Entry", "value": "`{word}` → Sound: `{sound}`  Reading: `{read}`", "inline": false},
+          {"name": "Options", "value": "Match mode: `{match_mode}`  Trigger user: `{trigger}`", "inline": false}
+        ]
       },
       "overwrite": {
         "title": "Sound Dictionary Entry Overwritten",
         "description": "The word in the sound dictionary has been overwritten",
         "color": "green",
-        "fields": [{"name": "Entry", "value": "`{word}` → `{sound}`", "inline": false}]
+        "fields": [
+          {"name": "Entry", "value": "`{word}` → `{sound}`", "inline": false},
+          {"name": "Options", "value": "Match mode: `{match_mode}`  Trigger user: `{trigger}`", "inline": false}
+        ]
       },
       "overwrite_both": {
         "title": "Dictionary Entries Overwritten",
         "description": "The word in the sound dictionary and TTS dictionary has been overwritten",
         "color": "green",
-        "fields": [{"name": "Entry", "value": "`{word}` → Sound: `{sound}`  Reading: `{read}`", "inline": false}]
+        "fields": [
+          {"name": "Entry", "value": "`{word}` → Sound: `{sound}`  Reading: `{read}`", "inline": false},
+          {"name": "Options", "value": "Match mode: `{match_mode}`  Trigger user: `{trigger}`", "inline": false}
+        ]
       },
       "failure": {
         "title": "Failed to Add Word",
@@ -531,6 +550,7 @@
       "header": "Word  →  Sound Name",
       "section_normal": "Normal",
       "section_priority": "Priority",
+      "label_partial": "Partial match",
       "not_found": {
         "title": "Not Found",
         "description": "No entries found for \"{word}\" in the sound dictionary",

@@ -115,7 +115,9 @@
         "args": {
           "word": "要新增的單詞",
           "sound": "音效板 ID",
-          "read": "讀法（可選，50個字符以內）"
+          "read": "讀法（可選，50個字符以內）",
+          "full_match": "設為False時只需包含該詞即可觸發（預設: True=完全匹配）",
+          "trigger_user": "僅當此用戶/Bot發言時才播放（可選）"
         }
       },
       "del": {
@@ -491,16 +493,18 @@
   },
   "sounddict": {
     "add": {
+      "match_mode": {
+        "full": "完全匹配",
+        "partial": "部分匹配"
+      },
+      "trigger_none": "無",
       "success": {
         "title": "成功新增到音效詞典",
         "description": "單詞已新增到音效詞典",
         "color": "green",
         "fields": [
-          {
-            "name": "登錄內容",
-            "value": "`{word}` → `{sound}`",
-            "inline": false
-          }
+          {"name": "登錄內容", "value": "`{word}` → `{sound}`", "inline": false},
+          {"name": "選項", "value": "匹配模式: `{match_mode}`  觸發用戶: `{trigger}`", "inline": false}
         ]
       },
       "success_both": {
@@ -508,11 +512,8 @@
         "description": "單詞已新增到音效詞典和TTS詞典",
         "color": "green",
         "fields": [
-          {
-            "name": "登錄內容",
-            "value": "`{word}` → 音效: `{sound}`  讀法: `{read}`",
-            "inline": false
-          }
+          {"name": "登錄內容", "value": "`{word}` → 音效: `{sound}`  讀法: `{read}`", "inline": false},
+          {"name": "選項", "value": "匹配模式: `{match_mode}`  觸發用戶: `{trigger}`", "inline": false}
         ]
       },
       "overwrite": {
@@ -520,11 +521,8 @@
         "description": "音效詞典中的單詞已被覆蓋",
         "color": "green",
         "fields": [
-          {
-            "name": "登錄內容",
-            "value": "`{word}` → `{sound}`",
-            "inline": false
-          }
+          {"name": "登錄內容", "value": "`{word}` → `{sound}`", "inline": false},
+          {"name": "選項", "value": "匹配模式: `{match_mode}`  觸發用戶: `{trigger}`", "inline": false}
         ]
       },
       "overwrite_both": {
@@ -532,11 +530,8 @@
         "description": "音效詞典和TTS詞典中的單詞已被覆蓋",
         "color": "green",
         "fields": [
-          {
-            "name": "登錄內容",
-            "value": "`{word}` → 音效: `{sound}`  讀法: `{read}`",
-            "inline": false
-          }
+          {"name": "登錄內容", "value": "`{word}` → 音效: `{sound}`  讀法: `{read}`", "inline": false},
+          {"name": "選項", "value": "匹配模式: `{match_mode}`  觸發用戶: `{trigger}`", "inline": false}
         ]
       },
       "failure": {
@@ -579,6 +574,7 @@
       "header": "單詞  →  音效名",
       "section_normal": "一般",
       "section_priority": "優先",
+      "label_partial": "部分匹配",
       "not_found": {
         "title": "未找到",
         "description": "音效詞典中沒有與「{word}」匹配的條目",

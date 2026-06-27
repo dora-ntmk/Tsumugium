@@ -25,13 +25,14 @@ class SoundDict:
   def __init__(self, dict_manager: DictManager):
     self._dm = dict_manager
 
-  def add(self, guild_id: int, word: str, sound_id: str) -> bool:
-    return self._dm.add_sound(guild_id, word, sound_id)
+  def add(self, guild_id: int, word: str, sound_id: str,
+          full_match: bool = True, trigger_user_id: Optional[str] = None) -> bool:
+    return self._dm.add_sound(guild_id, word, sound_id, full_match=full_match, trigger_user_id=trigger_user_id)
 
   def delete(self, guild_id: int, word: str) -> Optional[str]:
     return self._dm.delete_sound(guild_id, word)
 
-  def get_entries(self, guild_id: int) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+  def get_entries(self, guild_id: int):
     return self._dm.get_sound_entries(guild_id)
 
 
@@ -145,10 +146,13 @@ class SoundDictView:
     @discord.app_commands.describe(
       word=_lstr('commands.sounddict.add.args.word'),
       sound=_lstr('commands.sounddict.add.args.sound'),
-      read=_lstr('commands.sounddict.add.args.read')
+      read=_lstr('commands.sounddict.add.args.read'),
+      full_match=_lstr('commands.sounddict.add.args.full_match'),
+      trigger_user=_lstr('commands.sounddict.add.args.trigger_user')
     )
     @discord.app_commands.checks.has_permissions()
-    async def sounddict_add(ctx, word: str, sound: str, read: Optional[str] = None):
+    async def sounddict_add(ctx, word: str, sound: str, read: Optional[str] = None,
+                            full_match: bool = True, trigger_user: Optional[discord.Member] = None):
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, 'Language')
@@ -159,7 +163,10 @@ class SoundDictView:
             embed=build_embed('sounddict.add.not_found', lang=lang, sound=sound)
           )
           return
-        sound_overwrite = self.sound_dict.add(ctx.guild.id, word, sound_id)
+        trigger_user_id = str(trigger_user.id) if trigger_user else None
+        match_mode = get_desc('sounddict.add.match_mode.partial', lang=lang) if not full_match else get_desc('sounddict.add.match_mode.full', lang=lang)
+        trigger_label = trigger_user.display_name if trigger_user else get_desc('sounddict.add.trigger_none', lang=lang)
+        sound_overwrite = self.sound_dict.add(ctx.guild.id, word, sound_id, full_match=full_match, trigger_user_id=trigger_user_id)
         if read is not None:
           try:
             dict_overwrite = self.dict_manager.add(ctx.guild.id, word, read)
@@ -168,12 +175,12 @@ class SoundDictView:
           overwrite = sound_overwrite or dict_overwrite
           key = 'sounddict.add.overwrite_both' if overwrite else 'sounddict.add.success_both'
           await ctx.edit_original_response(
-            embed=build_embed(key, lang=lang, word=word, sound=sound, read=read)
+            embed=build_embed(key, lang=lang, word=word, sound=sound, read=read, match_mode=match_mode, trigger=trigger_label)
           )
         else:
           key = 'sounddict.add.overwrite' if sound_overwrite else 'sounddict.add.success'
           await ctx.edit_original_response(
-            embed=build_embed(key, lang=lang, word=word, sound=sound)
+            embed=build_embed(key, lang=lang, word=word, sound=sound, match_mode=match_mode, trigger=trigger_label)
           )
       except discord.errors.InteractionResponded:
         return
@@ -225,7 +232,7 @@ class SoundDictView:
     @sounddict_del.autocomplete("word")
     async def sounddict_del_word_autocomplete(ctx, current: str):
       normal, priority = self.sound_dict.get_entries(ctx.guild.id)
-      all_words = [word for word, _ in priority + normal]
+      all_words = [word for word, _, _, _ in priority + normal]
       filtered = [
         discord.app_commands.Choice(name=word, value=word)
         for word in all_words
@@ -252,8 +259,17 @@ class SoundDictView:
 
         sounds_map = {sid: name for sid, name in self.sound_boards.get_sounds(ctx.guild.id)}
 
+        def make_label(fm, uid):
+          parts = []
+          if not fm:
+            parts.append(get_desc('sounddict.view.label_partial', lang=lang))
+          if uid:
+            m = ctx.guild.get_member(int(uid))
+            parts.append(f"@{m.display_name}" if m else f"uid:{uid}")
+          return f" [{', '.join(parts)}]" if parts else ""
+
         def resolve(entries):
-          return [(w, sounds_map.get(sid, sid)) for w, sid in entries]
+          return [(w, sounds_map.get(sid, sid) + make_label(fm, uid)) for w, sid, fm, uid in entries]
 
         if search:
           normal_items   = _filter_entries(dict(resolve(normal_entries)),   search)

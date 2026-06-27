@@ -115,7 +115,9 @@
         "args": {
           "word": "追加する単語",
           "sound": "サウンドボードのID",
-          "read": "読み方（省略可・50文字以内）"
+          "read": "読み方（省略可・50文字以内）",
+          "full_match": "Falseにすると単語が含まれているだけで再生されます（デフォルト: True=完全一致）",
+          "trigger_user": "このユーザー/Botが発言したときのみ再生します（省略可）"
         }
       },
       "del": {
@@ -491,6 +493,11 @@
   },
   "sounddict": {
     "add": {
+      "match_mode": {
+        "full": "完全一致",
+        "partial": "部分一致"
+      },
+      "trigger_none": "なし",
       "success": {
         "title": "\uD80C\uDF6F\uD80C\uDE16\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE54\uD80C\uDDCB\uD80C\uDE16\uD80C\uDF6F\uD80C\uDFCF\uD80C\uDD71\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDF6F\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
         "description": "\uD80C\uDF6F\uD80C\uDE16\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE16\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDFCF\uD80C\uDD71\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCB\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
@@ -500,7 +507,8 @@
             "name": "\uD80C\uDFCF\uD80C\uDF6F\uD80C\uDD71\uD80C\uDC8B\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE16\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
             "value": "`{word}` → `{sound}`",
             "inline": false
-          }
+          },
+          {"name": "オプション", "value": "一致モード: `{match_mode}`　発話ユーザー: `{trigger}`", "inline": false}
         ]
       },
       "success_both": {
@@ -512,7 +520,8 @@
             "name": "\uD80C\uDFCF\uD80C\uDF6F\uD80C\uDD71\uD80C\uDC8B\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE16\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
             "value": "`{word}` → \uD80C\uDF6F\uD80C\uDE16\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC: `{sound}`　\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC: `{read}`",
             "inline": false
-          }
+          },
+          {"name": "オプション", "value": "一致モード: `{match_mode}`　発話ユーザー: `{trigger}`", "inline": false}
         ]
       },
       "overwrite": {
@@ -524,7 +533,8 @@
             "name": "\uD80C\uDFCF\uD80C\uDF6F\uD80C\uDD71\uD80C\uDC8B\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE16\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
             "value": "`{word}` → `{sound}`",
             "inline": false
-          }
+          },
+          {"name": "オプション", "value": "一致モード: `{match_mode}`　発話ユーザー: `{trigger}`", "inline": false}
         ]
       },
       "overwrite_both": {
@@ -536,7 +546,8 @@
             "name": "\uD80C\uDFCF\uD80C\uDF6F\uD80C\uDD71\uD80C\uDC8B\uD80C\uDF6F\uD80C\uDFA1\uD80C\uDD71\uD80C\uDE16\uD80C\uDD3F\uD80C\uDDCC\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71",
             "value": "`{word}` → \uD80C\uDF6F\uD80C\uDE16\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC: `{sound}`　\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD53\uD80C\uDDCC: `{read}`",
             "inline": false
-          }
+          },
+          {"name": "オプション", "value": "一致モード: `{match_mode}`　発話ユーザー: `{trigger}`", "inline": false}
         ]
       },
       "failure": {
@@ -579,6 +590,7 @@
       "header": "\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F  →  \uD80C\uDF6F\uD80C\uDE16\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDD53\uD80C\uDDCB\uD80C\uDDCC",
       "section_normal": "\uD80C\uDFCF\uD80C\uDD71\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F",
       "section_priority": "\uD80C\uDDCC\uD80C\uDD71\uD80C\uDD71\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F",
+      "label_partial": "部分一致",
       "not_found": {
         "title": "\uD80C\uDD53\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD71\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD3F",
         "description": "「{word}」\uD80C\uDE16\uD80C\uDDCC\uD80C\uDDCC\uD80C\uDCED\uD80C\uDFCF\uD80C\uDF62\uD80C\uDFCF\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDD71\uD80C\uDC8B\uD80C\uDD71\uD80C\uDFCF\uD80C\uDD3F\uD80C\uDE16\uD80C\uDFBC\uD80C\uDF6F\uD80C\uDE54\uD80C\uDD3F\uD80C\uDF6F\uD80C\uDE16\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDDCC\uD80C\uDE83\uD80C\uDDCC\uD80C\uDEF4\uD80C\uDDCC\uD80C\uDCED\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDE16\uD80C\uDDCC\uD80C\uDD3F\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDD53\uD80C\uDD3F\uD80C\uDEF4\uD80C\uDDCB\uD80C\uDE16",

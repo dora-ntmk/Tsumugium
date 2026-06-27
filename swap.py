@@ -104,18 +104,42 @@ def _apply_regex(segments: list, pattern, repl_fn) -> list:
   return new_segments
 
 
-def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attachments, mentions=None) -> tuple[str, list[tuple[int, int]], str | None]:
+def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attachments, mentions=None, author_id=None) -> tuple[str, list[tuple[int, int]], str | None]:
   segments = [(text, False)]
   gid = str(guild_id)
+  author_str = str(author_id) if author_id is not None else None
 
-  # 1. テキスト全体がsound_id付き辞書エントリと完全一致する場合は以降をスキップ
-  cur = conn.execute(
-    "SELECT sound_id FROM dict WHERE guild_id = ? AND word = ? AND sound_id IS NOT NULL LIMIT 1",
-    (gid, text)
-  )
+  # 1a. 全文一致 (full_match=1)
+  if author_str is not None:
+    cur = conn.execute(
+      "SELECT sound_id FROM dict WHERE guild_id = ? AND word = ? AND sound_id IS NOT NULL AND full_match = 1"
+      " AND (trigger_user_id IS NULL OR trigger_user_id = ?) LIMIT 1",
+      (gid, text, author_str)
+    )
+  else:
+    cur = conn.execute(
+      "SELECT sound_id FROM dict WHERE guild_id = ? AND word = ? AND sound_id IS NOT NULL AND full_match = 1 LIMIT 1",
+      (gid, text)
+    )
   row = cur.fetchone()
   if row:
     return text, [], row[0]
+
+  # 1b. 部分一致 (full_match=0)
+  if author_str is not None:
+    cur = conn.execute(
+      "SELECT word, sound_id FROM dict WHERE guild_id = ? AND sound_id IS NOT NULL AND full_match = 0"
+      " AND (trigger_user_id IS NULL OR trigger_user_id = ?)",
+      (gid, author_str)
+    )
+  else:
+    cur = conn.execute(
+      "SELECT word, sound_id FROM dict WHERE guild_id = ? AND sound_id IS NOT NULL AND full_match = 0",
+      (gid,)
+    )
+  for word, sound_id in cur.fetchall():
+    if word in text:
+      return text, [], sound_id
 
   # 2. 優先辞書（URL処理より前に適用）
   cur = conn.execute(
