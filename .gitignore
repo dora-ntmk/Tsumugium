@@ -210,7 +210,6 @@ __marimo__/
 tmp/
 
 # Claude関係
-.claude/
 plan/
 
 # DBのbackup
@@ -221,25 +220,7 @@ migration.py
 .gitignore
 migration2v3.py
 v2tov3.md
-.idea/dataSources.local.xml
-.idea/dataSources.xml
-.idea/db-forest-config.xml
-.idea/jsonSchemas.xml
-.idea/misc.xml
-.idea/modules.xml
-.idea/sqldialects.xml
-.idea/Tsumugium.iml
-.idea/vcs.xml
-.idea/codeStyles/codeStyleConfig.xml
-.idea/dataSources/2a61c133-b94d-423e-9297-9e0f22b88bc8.xml
-.idea/dataSources/2050e9ca-7509-4e32-b818-90f14963112b.xml
-.idea/dataSources/data_sources_history.xml
-.idea/dataSources/ea55438d-48ee-410e-89a9-b1a30ab383ac.xml
-.idea/dataSources/2050e9ca-7509-4e32-b818-90f14963112b/storage_v2/_src_/schema/main.uQUzAA.meta
-.idea/dataSources/2a61c133-b94d-423e-9297-9e0f22b88bc8/storage_v2/_src_/schema/main.uQUzAA.meta
-.idea/dataSources/ea55438d-48ee-410e-89a9-b1a30ab383ac/storage_v2/_src_/schema/main.uQUzAA.meta
-.idea/dictionaries/project.xml
-.idea/inspectionProfiles/profiles_settings.xml
+.idea/
 conf/config.json.migrated
 db/config.db
 db/dict.db
