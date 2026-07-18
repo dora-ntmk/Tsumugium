@@ -102,7 +102,7 @@ sequenceDiagram
 stateDiagram-v2
     [*] --> Disconnected
     Disconnected --> Connected: /join・メンション・AutoJoin
-    Connected --> Disconnected: /leave・自動退出
+    Connected --> Disconnected: /leave・メンション・AutoLeave
     Connected --> ForcedDisconnected: Discord側から強制切断
     ForcedDisconnected --> Connected: Discord再接続
 
