@@ -1,14 +1,8 @@
-"""
-ファイル名：vvtts.py
-作者：どら
-説明：VOICEVOX TTS 連携モジュール。
-      VOICEVOX エンジン (HTTP API) に接続し、テキストから WAV 音声ファイルを生成する。
-      生成ファイルは TMP_DIR/{guild_id}-{msg_id}.wav に保存される。
-依存関係：requests
-"""
-import requests
+"""既存のVvTTS APIを保つVOICEVOXクライアント互換モジュール。"""
+
 import json
-import os
+
+from clients.voicevox_client import VoicevoxClient
 from config import TMP_DIR
 
 
@@ -17,8 +11,9 @@ def edit_query(
     speed: float,
     pitch: float,
     intonation: float,
-    volume: float
+    volume: float,
 ):
+  """v3.4以前から公開しているクエリ編集ヘルパー。"""
   try:
     if res_json is None:
       raise ValueError("res_json cannot be None")
@@ -37,44 +32,10 @@ def edit_query(
     return json.dumps(res_json)
   except ValueError as e:
     print(e)
+    return None
 
 
-class VvTTS:
-  def __init__(self, url: str = "http://127.0.0.1:50021"):
-    self.url = url
-
-  async def generate(
-      self,
-      msg: str,
-      guildid: int,
-      msgid: int,
-      speaker: int = 0,
-      speed: float = 1.0,
-      pitch: float = 0.0,
-      intonation: float = 1.0,
-      volume: float = 1.0
-  ):
-    try:
-      if msg is None:
-        raise ValueError("msg cannot be None")
-      elif guildid is None:
-        raise ValueError("guildid cannot be None")
-      elif msgid is None:
-        raise ValueError("msgid cannot be None")
-      res1 = requests.post(f"{self.url}/audio_query", params={"text": msg, "speaker": speaker})
-      res1.raise_for_status()
-      res2 = edit_query(res1.json(), speed, pitch, intonation, volume)
-      res3 = requests.post(
-        f"{self.url}/synthesis",
-        headers={"content-type": "application/json"},
-        params={"speaker": speaker},
-        data=res2
-      )
-      res3.raise_for_status()
-      os.makedirs(TMP_DIR, exist_ok=True)
-      path = f"{TMP_DIR}/{guildid}-{msgid}.wav"
-      with open(path, mode="wb") as f:
-        f.write(res3.content)
-      return path
-    except Exception as e:
-      print(e)
+class VvTTS(VoicevoxClient):
+  def __init__(self, url: str = "http://127.0.0.1:50021", **kwargs):
+    kwargs.setdefault("tmp_dir", TMP_DIR)
+    super().__init__(url, **kwargs)

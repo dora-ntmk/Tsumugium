@@ -6,10 +6,9 @@
       Discord サウンドボード一覧の DB 同期 (UpdateSoundBoards)、
       およびスラッシュコマンド /sounddict (add / del / view) の実装 (SoundDictView) を提供する。
       view サブコマンドでは DictViewPaginator によるページング表示に対応する。
-依存関係：discord.py, requests
+依存関係：discord.py
 """
 import discord
-import requests
 from typing import Optional
 from word_dict import DictManager, _filter_entries
 from dict_view import DictViewPaginator
@@ -34,9 +33,10 @@ class SoundDict:
 
 
 class UpdateSoundBoards:
-  def __init__(self, db_path, dict_manager=None):
+  def __init__(self, db_path, dict_manager=None, soundboard_client=None):
     self.repository = SoundboardCacheRepository(db_path)
     self._dict_manager = dict_manager
+    self._soundboard_client = soundboard_client
 
   def remove_guild(self, guild_id: int):
     self.repository.remove_guild(guild_id)
@@ -55,19 +55,10 @@ class UpdateSoundBoards:
     """Returns list of (sound_id, name) for the guild."""
     return self.repository.get_sounds(guild_id)
 
-  def refresh(self, gid: str, token: str):
-    res = requests.get(
-      f'https://discord.com/api/v10/guilds/{gid}/soundboard-sounds',
-      headers={
-        'Authorization': f'Bot {token}',
-        'Content-Type': 'application/json',
-      })
-    res.raise_for_status()
-    d = res.json()
-    current_sounds = [
-      (str(sound["sound_id"]), sound["name"])
-      for sound in d["items"]
-    ]
+  async def refresh(self, gid: str):
+    if self._soundboard_client is None:
+      raise RuntimeError("DiscordSoundboardClientが設定されていません")
+    current_sounds = await self._soundboard_client.list_sounds(gid)
     deleted_ids = self.repository.synchronize(gid, current_sounds)
     if self._dict_manager:
       for sound_id in deleted_ids:

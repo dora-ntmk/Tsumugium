@@ -12,6 +12,8 @@ import asyncio
 import io
 import json
 import discord
+from clients.discord_soundboard_client import DiscordSoundboardClient
+from clients.managed_discord_client import ManagedDiscordClient
 from config import STATUS_MESSAGE, DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, DICT_DB, SOUND_BOARDS_DB, VOICEVOX_URL, VERSION, LAST_UPDATED
 from backup import start as start_backup
 from vvtts import VvTTS
@@ -31,15 +33,22 @@ from sound_dict import SoundDict, SoundDictView, UpdateSoundBoards
 # 起動設定
 intents = discord.Intents.default()
 intents.message_content = True
-client = discord.Client(intents=intents, enable_debug_events=True)
+client = ManagedDiscordClient(intents=intents, enable_debug_events=True)
 tree = discord.app_commands.CommandTree(client)
 vvtts = VvTTS(VOICEVOX_URL)
+discord_soundboard_client = DiscordSoundboardClient(DISCORD_BOT_TOKEN)
+client.register_closeable(vvtts)
+client.register_closeable(discord_soundboard_client)
 server_config = ServerConfig(SERVER_CONFIG_DB)
 dict_manager = DictManager(DICT_DB)
 sound_dict = SoundDict(dict_manager)
-sound_boards = UpdateSoundBoards(SOUND_BOARDS_DB, dict_manager)
+sound_boards = UpdateSoundBoards(
+  SOUND_BOARDS_DB,
+  dict_manager,
+  discord_soundboard_client,
+)
 leaving_guilds: set = set()
-voice_service = VoiceService(client)
+voice_service = VoiceService(client, discord_soundboard_client)
 speech_service = SpeechService(vvtts, server_config, dict_manager, voice_service)
 message_service = MessageService(
   client,
@@ -103,7 +112,7 @@ async def on_ready():
     print(f'on_ready: remove_guild {gid_str}')
 
   for gid_str in current_guild_ids:
-    sound_boards.refresh(gid_str, DISCORD_BOT_TOKEN)
+    await sound_boards.refresh(gid_str)
     print(f'on_ready: refresh {gid_str}')
 
   global _backup_task

@@ -3,17 +3,16 @@
 import asyncio
 import os
 
-import aiohttp
 import discord
 
-from config import DISCORD_BOT_TOKEN
 from models.audio_item import AudioItem, SoundboardItem, TTSItem
 from models.guild_session import GuildSession
 
 
 class VoiceService:
-  def __init__(self, client):
+  def __init__(self, client, soundboard_client=None):
     self.client = client
+    self.soundboard_client = soundboard_client
     self.sessions: dict[int, GuildSession] = {}
 
   def get_session(self, guild_id: int) -> GuildSession:
@@ -100,16 +99,12 @@ class VoiceService:
 
   async def _play_soundboard(self, guild, sound_id: str):
     try:
-      async with aiohttp.ClientSession() as session:
-        async with session.post(
-          f'https://discord.com/api/v10/channels/{guild.voice_client.channel.id}/send-soundboard-sound',
-          headers={
-            'Authorization': f'Bot {DISCORD_BOT_TOKEN}',
-            'Content-Type': 'application/json',
-          },
-          json={'sound_id': f'{sound_id}'},
-        ):
-          pass
+      if self.soundboard_client is None:
+        raise RuntimeError("DiscordSoundboardClientが設定されていません")
+      await self.soundboard_client.play(
+        guild.voice_client.channel.id,
+        sound_id,
+      )
     except Exception as e:
       print(f'サウンドボード再生エラー：{e}')
 
@@ -170,4 +165,3 @@ class VoiceService:
       )
     except Exception as e:
       print(f"音声再生エラー: {e}")
-

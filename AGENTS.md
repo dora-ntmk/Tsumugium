@@ -13,10 +13,13 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `play.py` | `/clear` と `on_message` を登録し、各サービスへ委譲する薄いDiscord登録アダプター |
 | `services/message_service.py` | メッセージの対象チャンネル判定、Bot投稿、特殊トリガー、単体メンション接続を担当 |
 | `services/speech_service.py` | テキスト前処理、Soundboard/TTS選択、最大文字数処理、VOICEVOX生成依頼を担当 |
-| `services/voice_service.py` | ギルド別キュー、再生、スキップ、クリア、キープアライブ、サウンドボードAPI呼び出しを担当 |
+| `services/voice_service.py` | ギルド別キュー、再生、スキップ、クリア、キープアライブを担当。外部API通信はClientへ委譲 |
+| `clients/voicevox_client.py` | 再利用可能な非同期HTTPセッションでVOICEVOX生成とWAV保存を担当 |
+| `clients/discord_soundboard_client.py` | Discord Soundboard一覧取得・再生APIを担当する非同期HTTPクライアント |
+| `clients/managed_discord_client.py` | Bot終了時に外部HTTPクライアントを閉じるDiscord Client |
 | `swap.py` | SQLiteを知らない純粋なテキスト前処理エンジン。`DictionarySnapshot`を入力に辞書・URL・絵文字・メンション・Markdownを処理 |
 | `word_dict.py` | `DictionaryRepository`を利用する辞書サービス互換層（`DictManager`）と `/dict` コマンド群 |
-| `sound_dict.py` | サウンドボード辞書と `/sounddict` コマンド群。HTTP取得した一覧を`SoundboardCacheRepository`へ渡す |
+| `sound_dict.py` | サウンドボード辞書と `/sounddict` コマンド群。Clientから受け取った一覧を`SoundboardCacheRepository`へ渡す |
 | `server_config.py` | `GuildConfigRepository`を旧`ServerConfig`名で公開する互換モジュール |
 | `repositories/guild_config_repository.py` | `config.db`のSQLite操作、設定値バリデーション、VOICEVOX値変換 |
 | `repositories/dictionary_repository.py` | `dict.db`のSQLite操作と前処理用`DictionarySnapshot`の生成 |
@@ -27,7 +30,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `models/audio_item.py` | 再生キュー要素（`TTSItem` / `SoundboardItem`）の型定義 |
 | `models/guild_session.py` | ギルド単位のキュー・タスク・一時チャンネル・スキップ状態を保持する `GuildSession` |
 | `models/dictionary_snapshot.py` | Repositoryから純粋な前処理へ渡す読み辞書・Soundboard条件のスナップショット |
-| `vvtts.py` | VOICEVOX API連携。テキストからWAVファイルを生成（`VvTTS` クラス） |
+| `vvtts.py` | 旧`VvTTS`名を`VoicevoxClient`へ接続する互換モジュール |
 | `config.py` | `.env` から環境変数をロードし定数として公開 |
 | `backup.py` | SQLiteの定時バックアップとローテーション管理 |
 | `migration.py` | 旧worddict.db / sounddict.db → 統合 dict.db へのマイグレーションツール |
@@ -175,6 +178,15 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ---
 
+## 外部HTTP API
+
+- VOICEVOX通信は`VoicevoxClient`、Discord Soundboard通信は`DiscordSoundboardClient`だけが担当する。
+- 両Clientは`aiohttp.ClientSession`を初回通信時に生成して再利用する。通常実行経路で同期`requests`は使用しない。
+- `VoiceService`と`UpdateSoundBoards`はHTTPのURL・認証方法を知らず、Clientのメソッドだけを呼ぶ。
+- Bot終了時は`ManagedDiscordClient.close()`が両Clientのセッションを閉じる。
+
+---
+
 ## 音声再生アーキテクチャ（`services/voice_service.py`）
 
 `VoiceService.sessions: dict[int, GuildSession]` でギルドごとの実行状態を保持する。`GuildSession.queue` に音声アイテムを積み、`play_loop` が順次消費する。キュー投入は `VoiceService.enqueue()` に集約する。
@@ -203,6 +215,16 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 ### `/clear` の動作
 
 キュードレイン時に `TTSItem` のみ `safe_remove()` でファイル削除。`SoundboardItem` はスキップ。
+
+---
+
+## 開発用テストの運用
+
+- `tests/` はBotの本番実行には不要であり、公開OSSリポジトリには含めない。`.gitignore`で管理対象外とする。
+- テストコードは開発者へ別ルートで配布する。受け取った開発者はプロジェクト直下へ `tests/` を配置する。
+- 全テストはプロジェクトルートで `python -m unittest discover -s tests -v` を実行する。
+- 特定モジュールだけ実行する場合は、例として `python -m unittest tests.test_http_clients -v` を使用する。
+- `tests/` がGit管理対象外でもローカルファイルは削除されない。リリース・コミット前にも必要な回帰テストを実行する。
 
 ---
 
