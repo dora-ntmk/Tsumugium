@@ -81,6 +81,7 @@ sequenceDiagram
     M->>S: add_message
     S->>R: DictionarySnapshot取得
     S->>P: preprocess_text
+    P-->>S: 変換後msg
     alt Soundboard条件に一致
         S->>Q: SoundboardItem
         Q->>A: Soundboard API
