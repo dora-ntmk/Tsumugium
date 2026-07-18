@@ -1,44 +1,44 @@
-"""
-ファイル名：main.py
-作者：どら
-説明：Tsumugium - Discord 読み上げボット エントリーポイント。
-      ボットの初期化・起動、スラッシュコマンド (/join, /leave) の定義、
-      VC入退室イベントに基づく AutoJoin・AccessNotice（入退室通知）処理、
-      およびギルド退出時の辞書データ保全を担当する。
-      VvTTS / ServerConfig / DictManager / SoundDict などのモジュールを統括する。
-依存関係：discord.py
-"""
-import asyncio
-import io
-import json
+"""Tsumugiumの依存関係を組み立て、Discord Botを起動する。"""
+
 import discord
+
 from clients.discord_soundboard_client import DiscordSoundboardClient
 from clients.managed_discord_client import ManagedDiscordClient
-from config import STATUS_MESSAGE, DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, DICT_DB, SOUND_BOARDS_DB, VOICEVOX_URL, VERSION, LAST_UPDATED
-from backup import start as start_backup
-from vvtts import VvTTS
-from play import Play
-from models.audio_item import TTSItem
+from cogs.connection_cog import ConnectionCog
+from cogs.general_cog import GeneralCog
+from cogs.lifecycle_cog import LifecycleCog
+from cogs.playback_cog import PlaybackCog
+from config import (
+  DICT_DB,
+  DISCORD_BOT_TOKEN,
+  LAST_UPDATED,
+  SERVER_CONFIG_DB,
+  SOUND_BOARDS_DB,
+  STATUS_MESSAGE,
+  VERSION,
+  VOICEVOX_URL,
+)
 from server_config import ServerConfig
-from presentation.embeds import EmbedType, make_embed
-from presentation.error_handler import handle_os_error, handle_internal_error
+from services.connection_service import ConnectionService
 from services.message_service import MessageService
 from services.speech_service import SpeechService
 from services.voice_service import VoiceService
 from setting import Setting
-from word_dict import DictManager, WordDict
 from sound_dict import SoundDict, SoundDictView, UpdateSoundBoards
+from vvtts import VvTTS
+from word_dict import DictManager, WordDict
 
 
-# 起動設定
 intents = discord.Intents.default()
 intents.message_content = True
 client = ManagedDiscordClient(intents=intents, enable_debug_events=True)
 tree = discord.app_commands.CommandTree(client)
+
 vvtts = VvTTS(VOICEVOX_URL)
 discord_soundboard_client = DiscordSoundboardClient(DISCORD_BOT_TOKEN)
 client.register_closeable(vvtts)
 client.register_closeable(discord_soundboard_client)
+
 server_config = ServerConfig(SERVER_CONFIG_DB)
 dict_manager = DictManager(DICT_DB)
 sound_dict = SoundDict(dict_manager)
@@ -47,404 +47,55 @@ sound_boards = UpdateSoundBoards(
   dict_manager,
   discord_soundboard_client,
 )
-leaving_guilds: set = set()
+
 voice_service = VoiceService(client, discord_soundboard_client)
-speech_service = SpeechService(vvtts, server_config, dict_manager, voice_service)
+speech_service = SpeechService(
+  vvtts,
+  server_config,
+  dict_manager,
+  voice_service,
+)
+connection_service = ConnectionService(
+  server_config,
+  dict_manager,
+  speech_service,
+  voice_service,
+)
 message_service = MessageService(
   client,
   server_config,
   speech_service,
   voice_service,
-  leaving_guilds,
+  connection_service,
 )
-play = Play(client, tree, message_service, voice_service)
+
+playback_cog = PlaybackCog(
+  client,
+  tree,
+  message_service,
+  voice_service,
+)
+connection_cog = ConnectionCog(client, tree, connection_service)
+general_cog = GeneralCog(tree, VERSION, LAST_UPDATED)
+lifecycle_cog = LifecycleCog(
+  client,
+  tree,
+  server_config,
+  dict_manager,
+  sound_boards,
+  backup_databases=[SERVER_CONFIG_DB, DICT_DB],
+  status_message=STATUS_MESSAGE,
+)
+
 setting = Setting(client, tree, server_config)
 word_dict = WordDict(client, tree, dict_manager, server_config)
-sound_dict_view = SoundDictView(client, tree, sound_dict, dict_manager, server_config, sound_boards)
-_backup_task = None
-
-
-def get_notify_channel(guild, vc_channel=None):
-  text_target = voice_service.get_session(guild.id).temporary_text_channel_id
-  if text_target is None:
-    text_target = server_config.get(guild.id, "TextTarget")
-  if text_target:
-    return guild.get_channel(text_target)
-  return vc_channel
-
-
-async def enqueue_notice(guild, member, joined: bool):
-  action = "入室" if joined else "退室"
-  notice_text = f"{member.display_name}さんが{action}しました"
-  notice_text, _, _ = dict_manager.preprocess_text(notice_text, guild.id, guild, [])
-  speaker = server_config.get(guild.id, "Speaker")
-  volume = server_config.volume_to_vvtts(guild.id)
-  speed = server_config.speed_to_vvtts(guild.id)
-  src = await speech_service.generate(
-    notice_text,
-    guild.id,
-    member.id,
-    speaker,
-    speed=speed,
-    volume=volume,
-  )
-  if src is not None:
-    await voice_service.enqueue(guild, TTSItem(src))
-
-
-# 起動時動作
-@client.event
-async def on_ready():
-  await tree.sync()
-
-  # 起動時にサーバー設定・辞書データを同期（オフライン中の参加・追放に対応）
-  current_guild_ids = {str(g.id) for g in client.guilds}
-  db_guild_ids = server_config.get_all_guild_ids()
-
-  for gid_str in current_guild_ids - db_guild_ids:
-    server_config.init_guild(int(gid_str))
-    print(f'on_ready: init_guild {gid_str}')
-
-  for gid_str in db_guild_ids - current_guild_ids:
-    server_config.remove_guild(int(gid_str))
-    dict_manager.remove_guild(int(gid_str))
-    sound_boards.remove_guild(int(gid_str))
-    print(f'on_ready: remove_guild {gid_str}')
-
-  for gid_str in current_guild_ids:
-    await sound_boards.refresh(gid_str)
-    print(f'on_ready: refresh {gid_str}')
-
-  global _backup_task
-  _backup_task = start_backup([SERVER_CONFIG_DB, DICT_DB])
-
-  await client.change_presence(status=discord.Status.online, activity=discord.Game(name=STATUS_MESSAGE))
-  print(discord.__version__)
-
-
-# サーバー参加時にデフォルト設定を書き込む
-@client.event
-async def on_guild_join(guild):
-  server_config.init_guild(guild.id)
-
-
-# サーバー退出時に辞書データをオーナーへ送信して削除
-@client.event
-async def on_guild_remove(guild):
-  try:
-    normal_items, priority_items = dict_manager.get_entries(guild.id)
-    combined = dict(priority_items + normal_items)  # 優先辞書が上、通常辞書が下
-    if combined:
-      data = json.dumps(combined, ensure_ascii=False, indent=2).encode('utf-8')
-      file = discord.File(io.BytesIO(data), filename=f'{guild.id}_dict.json')
-      owner = guild.owner
-      if owner is None and guild.owner_id:
-        try:
-          owner = await client.fetch_user(guild.owner_id)
-        except (discord.NotFound, discord.HTTPException):
-          pass
-      if owner:
-        try:
-          dm = await owner.create_dm()
-          await dm.send(
-            content=f'サーバー「{guild.name}」の辞書データをお送りします。',
-            files=[file]
-          )
-        except (discord.Forbidden, discord.HTTPException):
-          pass
-  except Exception as e:
-    print(f'Exception in on_guild_remove (DM): {e}')
-  finally:
-    server_config.remove_guild(guild.id)
-    dict_manager.remove_guild(guild.id)
-    sound_boards.remove_guild(guild.id)
-
-
-# サウンドボード更新トリガー
-@client.event
-async def on_socket_raw_receive(msg):
-  data = json.loads(msg)
-  if data.get("op") != 0:
-    return
-  t = data.get("t")
-  d = data.get("d")
-  if d is None:
-    return
-  if t == "GUILD_SOUNDBOARD_SOUND_CREATE":
-    sound_boards.add(d["guild_id"], d["sound_id"], d["name"])
-  elif t == "GUILD_SOUNDBOARD_SOUND_UPDATE":
-    sound_boards.add(d["guild_id"], d["sound_id"], d["name"])
-  elif t == "GUILD_SOUNDBOARD_SOUND_DELETE":
-    sound_boards.delete(d["guild_id"], d["sound_id"])
-  else:
-    return
-
-
-# VC入退室検知（AutoJoin / AccessNotice）
-@client.event
-async def on_voice_state_update(member, before, after):
-  guild = member.guild
-  session = voice_service.get_session(guild.id)
-
-  # Bot自身の切断検知（強制切断 vs 自発的退出の区別）
-  if member == guild.me:
-    if before.channel is None and after.channel is not None:
-      # VC参加（auto-reconnect含む）: 保留中の一時チャンネルを復元してキープアライブ開始
-      saved = session.pending_text_channel_id
-      session.pending_text_channel_id = None
-      if saved is not None:
-        session.temporary_text_channel_id = saved
-      voice_service.start_keepalive(guild)
-    elif before.channel is not None and after.channel is None:
-      # VC退出
-      if guild.id in leaving_guilds:
-        leaving_guilds.discard(guild.id)
-        session.temporary_text_channel_id = None
-      else:
-        saved = session.temporary_text_channel_id
-        session.temporary_text_channel_id = None
-        if saved is not None:
-          session.pending_text_channel_id = saved
-      voice_service.stop_keepalive(guild.id)
-    return
-
-  user_joined = before.channel is None and after.channel is not None
-
-  # ユーザー退出時: Botがいるチャンネルが空になったら自動退出
-  user_left = before.channel is not None and after.channel != before.channel
-  if user_left and guild.voice_client is not None:
-    bot_channel = guild.voice_client.channel
-    if before.channel == bot_channel:
-      human_members = [m for m in bot_channel.members if not m.bot]
-      if len(human_members) == 0:
-        voice_target = server_config.get(guild.id, "VoiceTarget")
-        if voice_target is not None and bot_channel.id == voice_target:
-          ch = get_notify_channel(guild, bot_channel)
-        else:
-          temp_ch_id = session.temporary_text_channel_id
-          ch = guild.get_channel(temp_ch_id) if temp_ch_id else bot_channel
-        await asyncio.sleep(0.5)
-        if guild.voice_client is None:
-          return
-        leaving_guilds.add(guild.id)
-        await guild.voice_client.disconnect()
-        if ch:
-          await ch.send(
-            embed=make_embed(
-              "自動退出",
-              "ボイスチャンネルに誰もいなくなったため退出しました",
-            )
-          )
-        return
-      else:
-        # LeaveNotice
-        if server_config.get(guild.id, "AccessNotice"):
-          await enqueue_notice(guild, member, joined=False)
-
-  if not user_joined:
-    return
-
-  # AutoJoin: VoiceTarget が設定されている場合のみ動作
-  voice_target = server_config.get(guild.id, "VoiceTarget")
-  human_count = len([m for m in after.channel.members if not m.bot])
-  if server_config.get(guild.id, "AutoJoin") and guild.voice_client is None and voice_target is not None and after.channel.id == voice_target and human_count == 1:
-    target_channel = guild.get_channel(voice_target)
-    if target_channel is not None:
-      ch = get_notify_channel(guild, target_channel)
-      bot_member = guild.me
-      vc_perms = target_channel.permissions_for(bot_member)
-      vc_ok = vc_perms.connect and vc_perms.speak
-      text_ok = True
-      if ch is not None and ch != target_channel:
-        text_perms = ch.permissions_for(bot_member)
-        text_ok = text_perms.view_channel and text_perms.send_messages
-      issues = []
-      if not vc_ok:
-        issues.append(f"{target_channel.mention} への接続権限がありません")
-      if not text_ok:
-        issues.append(f"{ch.mention} の表示権限がありません")
-      if issues:
-        if not text_ok:
-          await member.send("あなたが接続したテキストチャンネルに権限がないため、自動接続が失敗しました")
-        elif ch:
-          await ch.send(
-            embed=make_embed(
-              "権限エラー",
-              "\n".join(issues),
-              embed_type=EmbedType.ERROR,
-            )
-          )
-        return
-      await asyncio.sleep(1)
-      await target_channel.connect(timeout=60)
-      if ch:
-        embed = make_embed("自動入室", "ボイスチャンネルに自動で接続しました")
-        embed.add_field(
-          name="接続情報",
-          value=f"接続チャンネル：{target_channel.mention}　読み上げチャンネル：{ch.mention}",
-          inline=False,
-        )
-        await ch.send(embed=embed)
-      return  # 最初の入室者の入室通知をスキップ
-
-  # AccessNotice
-  if server_config.get(guild.id, "AccessNotice") and guild.voice_client is not None and after.channel == guild.voice_client.channel:
-    await enqueue_notice(guild, member, joined=True)
-
-
-# 入室
-@tree.command(
-  name="join",
-  description="ボイスチャンネルに接続します。"
+sound_dict_view = SoundDictView(
+  client,
+  tree,
+  sound_dict,
+  dict_manager,
+  server_config,
+  sound_boards,
 )
-@discord.app_commands.describe(
-  change_channel="TrueにするとTextTarget・VoiceTargetをサーバー設定に適用します"
-)
-async def join(ctx, change_channel: bool = False):
-  try:
-    await ctx.response.defer()
-    if ctx.user.voice:
-      voice_channel = ctx.user.voice.channel
-      text_channel  = ctx.channel
-      bot_member    = ctx.guild.me
-      vc_perms      = voice_channel.permissions_for(bot_member)
-      text_perms    = text_channel.permissions_for(bot_member)
-      issues = []
-      if not (vc_perms.connect and vc_perms.speak):
-        issues.append(f"{voice_channel.mention} への接続権限がありません")
-      if not (text_perms.view_channel and text_perms.send_messages):
-        issues.append(f"{text_channel.mention} の表示権限がありません")
-      if issues:
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "権限エラー",
-            "\n".join(issues),
-            embed_type=EmbedType.ERROR,
-          )
-        )
-        return
-      if ctx.guild.voice_client is not None:
-        leaving_guilds.add(ctx.guild.id)
-        await ctx.guild.voice_client.disconnect()
-        await asyncio.sleep(0.5)
-      await voice_channel.connect(timeout=60)
-      if change_channel:
-        if not ctx.user.guild_permissions.manage_guild:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              "接続完了",
-              "ボイスチャンネルへの接続は完了しましたが、チャンネルの設定変更にはサーバーの管理権限が必要です。",
-              embed_type=EmbedType.WARNING,
-            )
-          )
-        else:
-          try:
-            server_config.set(ctx.guild.id, "TextTarget", ctx.channel.id)
-            server_config.set(ctx.guild.id, "VoiceTarget", ctx.user.voice.channel.id)
-            embed = make_embed(
-              "接続完了",
-              f"ボイスチャンネルに接続しました。\nTextTargetは {ctx.channel.mention}、VoiceTargetは {ctx.user.voice.channel.mention} に設定されました。",
-              embed_type=EmbedType.SUCCESS,
-            )
-            embed.add_field(
-              name="接続情報",
-              value=f"接続チャンネル：{ctx.user.voice.channel.mention}　読み上げチャンネル：{ctx.channel.mention}",
-              inline=False,
-            )
-            await ctx.edit_original_response(embed=embed)
-          except OSError:
-            await ctx.edit_original_response(
-              embed=make_embed(
-                "設定失敗",
-                "チャンネルの設定に失敗しました",
-                embed_type=EmbedType.ERROR,
-              )
-            )
-      else:
-        voice_service.get_session(ctx.guild.id).temporary_text_channel_id = ctx.channel.id
-        embed = make_embed(
-          "接続完了",
-          f"ボイスチャンネルに接続しました。\n今回の通話に限り {ctx.channel.mention} のメッセージも読み上げます。",
-          embed_type=EmbedType.SUCCESS,
-        )
-        embed.add_field(
-          name="接続情報",
-          value=f"接続チャンネル：{ctx.user.voice.channel.mention}　読み上げチャンネル：{ctx.channel.mention}",
-          inline=False,
-        )
-        await ctx.edit_original_response(embed=embed)
-    else:
-      await ctx.edit_original_response(
-        embed=make_embed(
-          "接続失敗",
-          "ボイスチャンネルに接続できませんでした",
-          embed_type=EmbedType.ERROR,
-        )
-      )
-  except discord.errors.InteractionResponded:
-    return
-  except discord.errors.HTTPException as e:
-    print(f"HTTPException in join: {e}")
-  except OSError as e:
-    await handle_os_error(ctx, e, "join")
-  except Exception as e:
-    await handle_internal_error(ctx, e, "join")
 
-
-# 退室
-@tree.command(
-  name="leave",
-  description="ボイスチャンネルから切断します。"
-)
-async def leave(ctx):
-  try:
-    await ctx.response.defer()
-    if ctx.user.voice:
-      leaving_guilds.add(ctx.guild.id)
-      await ctx.guild.voice_client.disconnect()
-      await ctx.edit_original_response(
-        embed=make_embed(
-          "切断完了",
-          "ボイスチャンネルから切断しました",
-          embed_type=EmbedType.SUCCESS,
-        )
-      )
-    else:
-      await ctx.edit_original_response(
-        embed=make_embed(
-          "切断失敗",
-          "ボイスチャンネルから切断できませんでした",
-          embed_type=EmbedType.ERROR,
-        )
-      )
-  except discord.errors.InteractionResponded:
-    return
-  except discord.errors.HTTPException as e:
-    print(f"HTTPException in leave: {e}")
-  except OSError as e:
-    await handle_os_error(ctx, e, "leave")
-  except Exception as e:
-    await handle_internal_error(ctx, e, "leave")
-
-
-@tree.command(
-  name="version",
-  description="バージョン情報を表示します"
-)
-async def version_cmd(ctx):
-  try:
-    await ctx.response.defer()
-    embed = make_embed("バージョン情報")
-    embed.add_field(name="Tsumugiumバージョン", value=VERSION, inline=False)
-    embed.add_field(name="Tsumugium最終更新日", value=LAST_UPDATED, inline=False)
-    await ctx.edit_original_response(embed=embed)
-  except discord.errors.InteractionResponded:
-    return
-  except discord.errors.HTTPException as e:
-    print(f"HTTPException in version: {e}")
-  except Exception as e:
-    await handle_internal_error(ctx, e, "version")
-
-
-# 起動
 client.run(DISCORD_BOT_TOKEN)

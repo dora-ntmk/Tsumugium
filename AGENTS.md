@@ -9,11 +9,16 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 
 | ファイル | 役割 |
 |---|---|
-| `main.py` | エントリーポイント。`/join`, `/leave`, `/version`、VC入退室イベント（AutoJoin / AccessNotice）、サーバー参加・退出処理 |
-| `play.py` | `/clear` と `on_message` を登録し、各サービスへ委譲する薄いDiscord登録アダプター |
-| `services/message_service.py` | メッセージの対象チャンネル判定、Bot投稿、特殊トリガー、単体メンション接続を担当 |
+| `main.py` | エントリーポイント。Client・Repository・Service・Cogの生成と依存注入、Bot起動のみを担当 |
+| `play.py` | 旧`Play`名を`PlaybackCog`へ接続する互換モジュール |
+| `services/message_service.py` | メッセージの対象チャンネル判定、Bot投稿、特殊トリガーを担当。接続操作は`ConnectionService`へ委譲 |
+| `services/connection_service.py` | `/join`・`/leave`・単体メンション接続、AutoJoin、AccessNotice、強制切断後の状態復元を担当 |
 | `services/speech_service.py` | テキスト前処理、Soundboard/TTS選択、最大文字数処理、VOICEVOX生成依頼を担当 |
 | `services/voice_service.py` | ギルド別キュー、再生、スキップ、クリア、キープアライブを担当。外部API通信はClientへ委譲 |
+| `cogs/connection_cog.py` | `/join`・`/leave`とVC状態イベントを`ConnectionService`へ接続する登録層 |
+| `cogs/playback_cog.py` | `/clear`と`on_message`を読み上げサービスへ接続する登録層 |
+| `cogs/general_cog.py` | `/version`を登録する一般コマンド層 |
+| `cogs/lifecycle_cog.py` | 起動・サーバー参加退出・Soundboard更新イベントを登録するライフサイクル層 |
 | `clients/voicevox_client.py` | 再利用可能な非同期HTTPセッションでVOICEVOX生成とWAV保存を担当 |
 | `clients/discord_soundboard_client.py` | Discord Soundboard一覧取得・再生APIを担当する非同期HTTPクライアント |
 | `clients/managed_discord_client.py` | Bot終了時に外部HTTPクライアントを閉じるDiscord Client |
@@ -138,7 +143,7 @@ temp_text_targets（一時設定）→ TextTarget（永続設定）の順で参�
 どちらかが設定されている場合: 設定チャンネル OR VCのテキストチャット のどちらかに一致すれば読む。
 ```
 
-`temp_text_targets` は `/join` 実行時にコマンドチャンネルへ設定。Botが強制切断された場合は `pending_temp_targets` に退避し、再接続時に復元する。
+`GuildSession.temporary_text_channel_id` は `/join` 実行時にコマンドチャンネルへ設定する。`ConnectionService`はBotが強制切断された場合に`pending_text_channel_id`へ退避し、再接続時に復元する。自発的な切断は`voluntary_disconnects`で識別し、一時設定を破棄する。
 
 **Botメッセージの扱い（2026-06-27 追加）:**  
 Bot からのメッセージは通常 TTS をスキップするが、sounddict に一致する場合のみサウンドボードを再生する。チャンネル判定は人間ユーザーと同じロジック（`TextTarget` / VC テキストチャット）を適用。`SpeechService.add_message(sounddict_only=True)` で呼び出される。
