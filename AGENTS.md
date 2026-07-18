@@ -10,7 +10,10 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | ファイル | 役割 |
 |---|---|
 | `main.py` | エントリーポイント。`/join`, `/leave`, `/version`、VC入退室イベント（AutoJoin / AccessNotice）、サーバー参加・退出処理 |
-| `play.py` | `Play` クラス。メッセージ→TTSキュー管理、音声生成・再生・スキップ、キープアライブ。`on_message` イベントも担当 |
+| `play.py` | `/clear` と `on_message` を登録し、各サービスへ委譲する薄いDiscord登録アダプター |
+| `services/message_service.py` | メッセージの対象チャンネル判定、Bot投稿、特殊トリガー、単体メンション接続を担当 |
+| `services/speech_service.py` | テキスト前処理、Soundboard/TTS選択、最大文字数処理、VOICEVOX生成依頼を担当 |
+| `services/voice_service.py` | ギルド別キュー、再生、スキップ、クリア、キープアライブ、サウンドボードAPI呼び出しを担当 |
 | `swap.py` | テキスト前処理エンジン（`preprocess_text`）。辞書置換・URL/絵文字/メンション/Markdown変換などのパイプライン |
 | `word_dict.py` | テキスト辞書（word→reading）のSQLite管理と `/dict` コマンド群 |
 | `sound_dict.py` | サウンドボード辞書（word→sound_id）の管理と `/sounddict` コマンド群。Discordサウンドボードキャッシュ更新も担当 |
@@ -118,7 +121,7 @@ CREATE TABLE soundboards (
 
 ---
 
-## チャンネル判定ロジック（`play.py` `on_message`）
+## チャンネル判定ロジック（`services/message_service.py`）
 
 ```
 temp_text_targets（一時設定）→ TextTarget（永続設定）の順で参照。
@@ -129,7 +132,7 @@ temp_text_targets（一時設定）→ TextTarget（永続設定）の順で参�
 `temp_text_targets` は `/join` 実行時にコマンドチャンネルへ設定。Botが強制切断された場合は `pending_temp_targets` に退避し、再接続時に復元する。
 
 **Botメッセージの扱い（2026-06-27 追加）:**  
-Bot からのメッセージは通常 TTS をスキップするが、sounddict に一致する場合のみサウンドボードを再生する。チャンネル判定は人間ユーザーと同じロジック（`TextTarget` / VC テキストチャット）を適用。`add_to_queue(sounddict_only=True)` で呼び出される。
+Bot からのメッセージは通常 TTS をスキップするが、sounddict に一致する場合のみサウンドボードを再生する。チャンネル判定は人間ユーザーと同じロジック（`TextTarget` / VC テキストチャット）を適用。`SpeechService.add_message(sounddict_only=True)` で呼び出される。
 
 ---
 
@@ -166,9 +169,9 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ---
 
-## 音声再生アーキテクチャ（`play.py`）
+## 音声再生アーキテクチャ（`services/voice_service.py`）
 
-`Play.sessions: dict[int, GuildSession]` でギルドごとの実行状態を保持する。`GuildSession.queue` に音声アイテムを積み、`play_loop` が順次消費する。キュー投入は `Play.enqueue()` に集約する。
+`VoiceService.sessions: dict[int, GuildSession]` でギルドごとの実行状態を保持する。`GuildSession.queue` に音声アイテムを積み、`play_loop` が順次消費する。キュー投入は `VoiceService.enqueue()` に集約する。
 
 `GuildSession` はキューのほか、再生タスク、キープアライブタスク、一時テキストチャンネル、再接続時の復元待ちチャンネル、スキップ・クリア状態を保持する。
 

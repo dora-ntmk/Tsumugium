@@ -20,6 +20,9 @@ from models.audio_item import TTSItem
 from server_config import ServerConfig
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_os_error, handle_internal_error
+from services.message_service import MessageService
+from services.speech_service import SpeechService
+from services.voice_service import VoiceService
 from setting import Setting
 from word_dict import DictManager, WordDict
 from sound_dict import SoundDict, SoundDictView, UpdateSoundBoards
@@ -36,7 +39,16 @@ dict_manager = DictManager(DICT_DB)
 sound_dict = SoundDict(dict_manager)
 sound_boards = UpdateSoundBoards(SOUND_BOARDS_DB, dict_manager)
 leaving_guilds: set = set()
-play = Play(client, tree, vvtts, server_config, dict_manager, leaving_guilds)
+voice_service = VoiceService(client)
+speech_service = SpeechService(vvtts, server_config, dict_manager, voice_service)
+message_service = MessageService(
+  client,
+  server_config,
+  speech_service,
+  voice_service,
+  leaving_guilds,
+)
+play = Play(client, tree, message_service, voice_service)
 setting = Setting(client, tree, server_config)
 word_dict = WordDict(client, tree, dict_manager, server_config)
 sound_dict_view = SoundDictView(client, tree, sound_dict, dict_manager, server_config, sound_boards)
@@ -44,7 +56,7 @@ _backup_task = None
 
 
 def get_notify_channel(guild, vc_channel=None):
-  text_target = play.get_session(guild.id).temporary_text_channel_id
+  text_target = voice_service.get_session(guild.id).temporary_text_channel_id
   if text_target is None:
     text_target = server_config.get(guild.id, "TextTarget")
   if text_target:
@@ -59,9 +71,16 @@ async def enqueue_notice(guild, member, joined: bool):
   speaker = server_config.get(guild.id, "Speaker")
   volume = server_config.volume_to_vvtts(guild.id)
   speed = server_config.speed_to_vvtts(guild.id)
-  src = await play.generate(notice_text, guild.id, member.id, speaker, speed=speed, volume=volume)
+  src = await speech_service.generate(
+    notice_text,
+    guild.id,
+    member.id,
+    speaker,
+    speed=speed,
+    volume=volume,
+  )
   if src is not None:
-    await play.enqueue(guild, TTSItem(src))
+    await voice_service.enqueue(guild, TTSItem(src))
 
 
 # 起動時動作
@@ -156,7 +175,7 @@ async def on_socket_raw_receive(msg):
 @client.event
 async def on_voice_state_update(member, before, after):
   guild = member.guild
-  session = play.get_session(guild.id)
+  session = voice_service.get_session(guild.id)
 
   # Bot自身の切断検知（強制切断 vs 自発的退出の区別）
   if member == guild.me:
@@ -166,7 +185,7 @@ async def on_voice_state_update(member, before, after):
       session.pending_text_channel_id = None
       if saved is not None:
         session.temporary_text_channel_id = saved
-      play.start_keepalive(guild)
+      voice_service.start_keepalive(guild)
     elif before.channel is not None and after.channel is None:
       # VC退出
       if guild.id in leaving_guilds:
@@ -177,7 +196,7 @@ async def on_voice_state_update(member, before, after):
         session.temporary_text_channel_id = None
         if saved is not None:
           session.pending_text_channel_id = saved
-      play.stop_keepalive(guild.id)
+      voice_service.stop_keepalive(guild.id)
     return
 
   user_joined = before.channel is None and after.channel is not None
@@ -333,7 +352,7 @@ async def join(ctx, change_channel: bool = False):
               )
             )
       else:
-        play.get_session(ctx.guild.id).temporary_text_channel_id = ctx.channel.id
+        voice_service.get_session(ctx.guild.id).temporary_text_channel_id = ctx.channel.id
         embed = make_embed(
           "接続完了",
           f"ボイスチャンネルに接続しました。\n今回の通話に限り {ctx.channel.mention} のメッセージも読み上げます。",

@@ -2,7 +2,7 @@ import asyncio
 import sys
 import types
 import unittest
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, patch
 
 
 def _install_dependency_stubs():
@@ -64,8 +64,10 @@ def _install_dependency_stubs():
 
 _install_dependency_stubs()
 
-from models.audio_item import TTSItem  # noqa: E402
+from models.audio_item import SoundboardItem, TTSItem  # noqa: E402
 from play import Play  # noqa: E402
+from services.message_service import MessageService  # noqa: E402
+from services.voice_service import VoiceService  # noqa: E402
 
 
 class _Tree:
@@ -121,101 +123,135 @@ class _Message:
 
 
 class ChannelRoutingTests(unittest.IsolatedAsyncioTestCase):
-    def make_play(self, *, persistent_target=None, voice_channel=30):
+    def make_services(self, *, persistent_target=None, voice_channel=30):
         client = _Client()
-        play = Play(
+        voice_service = VoiceService(client)
+        speech_service = types.SimpleNamespace(add_message=AsyncMock())
+        message_service = MessageService(
             client,
-            _Tree(),
-            vvtts=object(),
-            server_config=_ServerConfig(persistent_target),
+            _ServerConfig(persistent_target),
+            speech_service,
+            voice_service,
         )
-        play.add_to_queue = AsyncMock()
+        Play(client, _Tree(), message_service, voice_service)
         guild = types.SimpleNamespace(
             id=1,
             voice_client=_VoiceClient(voice_channel),
         )
-        return play, client.events["on_message"], guild
+        return voice_service, speech_service, client.events["on_message"], guild
 
     async def dispatch(self, handler, message):
         await handler(message)
         await asyncio.sleep(0)
 
     async def test_sessions_are_reused_per_guild_and_isolated_between_guilds(self):
-        play, _, guild = self.make_play()
+        voice_service, _, _, guild = self.make_services()
 
-        first = play.get_session(guild.id)
-        same = play.get_session(guild.id)
-        other = play.get_session(2)
+        first = voice_service.get_session(guild.id)
+        same = voice_service.get_session(guild.id)
+        other = voice_service.get_session(2)
 
         self.assertIs(first, same)
         self.assertIsNot(first, other)
 
     async def test_enqueue_stores_typed_item_and_starts_player_task(self):
-        play, _, guild = self.make_play()
-        play.play_loop = AsyncMock()
+        voice_service, _, _, guild = self.make_services()
+        voice_service.play_loop = AsyncMock()
         item = TTSItem("tmp/message.wav")
 
-        await play.enqueue(guild, item)
+        await voice_service.enqueue(guild, item)
         await asyncio.sleep(0)
 
-        session = play.get_session(guild.id)
+        session = voice_service.get_session(guild.id)
         self.assertIs(session.queue.get_nowait(), item)
         session.queue.task_done()
-        play.play_loop.assert_awaited_once_with(guild)
+        voice_service.play_loop.assert_awaited_once_with(guild)
+
+    async def test_clear_removes_only_tts_files_and_resets_clearing_state(self):
+        voice_service, _, _, guild = self.make_services()
+        session = voice_service.get_session(guild.id)
+        await session.queue.put(TTSItem("tmp/message.wav"))
+        await session.queue.put(SoundboardItem("sound-1"))
+        voice_service.safe_remove = AsyncMock()
+
+        cleared, pending_files = voice_service.begin_clear(guild, instant=False)
+
+        self.assertEqual(cleared, 2)
+        self.assertEqual(pending_files, ["tmp/message.wav"])
+        self.assertEqual(session.queue.qsize(), 0)
+        self.assertTrue(session.skipping)
+        self.assertTrue(session.clearing)
+
+        with patch("services.voice_service.asyncio.sleep", new=AsyncMock()):
+            await voice_service.finish_clear(guild.id, pending_files)
+
+        voice_service.safe_remove.assert_awaited_once_with("tmp/message.wav")
+        self.assertFalse(session.clearing)
 
     async def test_temporary_target_takes_precedence_over_persistent_target(self):
-        play, handler, guild = self.make_play(persistent_target=20)
-        play.get_session(guild.id).temporary_text_channel_id = 10
+        voice_service, speech_service, handler, guild = self.make_services(
+            persistent_target=20
+        )
+        voice_service.get_session(guild.id).temporary_text_channel_id = 10
 
         await self.dispatch(handler, _Message(guild, 20))
-        play.add_to_queue.assert_not_awaited()
+        speech_service.add_message.assert_not_awaited()
 
         accepted = _Message(guild, 10)
         await self.dispatch(handler, accepted)
-        play.add_to_queue.assert_awaited_once_with(accepted)
+        speech_service.add_message.assert_awaited_once_with(accepted)
 
     async def test_configured_target_and_voice_channel_text_are_both_accepted(self):
-        play, handler, guild = self.make_play(persistent_target=20, voice_channel=30)
+        _, speech_service, handler, guild = self.make_services(
+            persistent_target=20,
+            voice_channel=30,
+        )
 
         configured = _Message(guild, 20)
         await self.dispatch(handler, configured)
-        play.add_to_queue.assert_awaited_once_with(configured)
+        speech_service.add_message.assert_awaited_once_with(configured)
 
-        play.add_to_queue.reset_mock()
+        speech_service.add_message.reset_mock()
         voice_text = _Message(guild, 30)
         await self.dispatch(handler, voice_text)
-        play.add_to_queue.assert_awaited_once_with(voice_text)
+        speech_service.add_message.assert_awaited_once_with(voice_text)
 
     async def test_without_target_only_voice_channel_text_is_accepted(self):
-        play, handler, guild = self.make_play(persistent_target=None, voice_channel=30)
+        _, speech_service, handler, guild = self.make_services(
+            persistent_target=None,
+            voice_channel=30,
+        )
 
         await self.dispatch(handler, _Message(guild, 20))
-        play.add_to_queue.assert_not_awaited()
+        speech_service.add_message.assert_not_awaited()
 
         accepted = _Message(guild, 30)
         await self.dispatch(handler, accepted)
-        play.add_to_queue.assert_awaited_once_with(accepted)
+        speech_service.add_message.assert_awaited_once_with(accepted)
 
     async def test_bot_message_uses_same_channel_policy_and_sounddict_only_mode(self):
-        play, handler, guild = self.make_play(persistent_target=20, voice_channel=30)
+        _, speech_service, handler, guild = self.make_services(
+            persistent_target=20,
+            voice_channel=30,
+        )
 
         await self.dispatch(handler, _Message(guild, 99, bot=True))
-        play.add_to_queue.assert_not_awaited()
+        speech_service.add_message.assert_not_awaited()
 
         accepted = _Message(guild, 20, bot=True)
         await self.dispatch(handler, accepted)
-        play.add_to_queue.assert_awaited_once_with(
+        speech_service.add_message.assert_awaited_once_with(
             accepted,
             sounddict_only=True,
         )
 
     async def test_disconnected_guild_does_not_queue_messages(self):
-        play, handler, guild = self.make_play(persistent_target=20)
+        _, speech_service, handler, guild = self.make_services(persistent_target=20)
         guild.voice_client = None
 
         await self.dispatch(handler, _Message(guild, 20))
 
-        play.add_to_queue.assert_not_awaited()
+        speech_service.add_message.assert_not_awaited()
 
 
 if __name__ == "__main__":
