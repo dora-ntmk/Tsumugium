@@ -1,7 +1,8 @@
 """config.dbへのすべてのSQLiteアクセスを担当する。"""
 
+from __future__ import annotations
+
 import sqlite3
-from typing import Set
 
 from config import DEFAULT_SPEAKER
 
@@ -199,7 +200,7 @@ class GuildConfigRepository:
     )
     self._conn.commit()
 
-  def get_all_guild_ids(self) -> Set[str]:
+  def get_all_guild_ids(self) -> set[str]:
     rows = self._conn.execute("SELECT guild_id FROM guild_config").fetchall()
     return {row[0] for row in rows}
 
@@ -209,3 +210,5 @@ class GuildConfigRepository:
   def speed_to_vvtts(self, guild_id: int) -> float:
     return self.get(guild_id, "Speed") / 100.0
 
+  def close(self) -> None:
+    self._conn.close()

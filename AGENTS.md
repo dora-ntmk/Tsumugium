@@ -10,7 +10,6 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | ファイル | 役割 |
 |---|---|
 | `main.py` | エントリーポイント。Client・Repository・Service・Cogの生成と依存注入、Bot起動のみを担当 |
-| `play.py` | 旧`Play`名を`PlaybackCog`へ接続する互換モジュール |
 | `services/message_service.py` | メッセージの対象チャンネル判定、Bot投稿、特殊トリガーを担当。接続操作は`ConnectionService`へ委譲 |
 | `services/connection_service.py` | `/join`・`/leave`・単体メンション接続、AutoJoin、AccessNotice、強制切断後の状態復元を担当 |
 | `services/speech_service.py` | テキスト前処理、Soundboard/TTS選択、最大文字数処理、VOICEVOX生成依頼を担当 |
@@ -21,11 +20,10 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `cogs/lifecycle_cog.py` | 起動・サーバー参加退出・Soundboard更新イベントを登録するライフサイクル層 |
 | `clients/voicevox_client.py` | 再利用可能な非同期HTTPセッションでVOICEVOX生成とWAV保存を担当 |
 | `clients/discord_soundboard_client.py` | Discord Soundboard一覧取得・再生APIを担当する非同期HTTPクライアント |
-| `clients/managed_discord_client.py` | Bot終了時に外部HTTPクライアントを閉じるDiscord Client |
+| `clients/managed_discord_client.py` | Bot終了時に外部HTTP・SQLiteリソースを閉じるDiscord Client |
 | `swap.py` | SQLiteを知らない純粋なテキスト前処理エンジン。`DictionarySnapshot`を入力に辞書・URL・絵文字・メンション・Markdownを処理 |
 | `word_dict.py` | `DictionaryRepository`を利用する辞書サービス互換層（`DictManager`）と `/dict` コマンド群 |
 | `sound_dict.py` | サウンドボード辞書と `/sounddict` コマンド群。Clientから受け取った一覧を`SoundboardCacheRepository`へ渡す |
-| `server_config.py` | `GuildConfigRepository`を旧`ServerConfig`名で公開する互換モジュール |
 | `repositories/guild_config_repository.py` | `config.db`のSQLite操作、設定値バリデーション、VOICEVOX値変換 |
 | `repositories/dictionary_repository.py` | `dict.db`のSQLite操作と前処理用`DictionarySnapshot`の生成 |
 | `repositories/soundboard_cache_repository.py` | `soundboards.db`のSQLite操作とサウンド一覧同期 |
@@ -35,7 +33,6 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `models/audio_item.py` | 再生キュー要素（`TTSItem` / `SoundboardItem`）の型定義 |
 | `models/guild_session.py` | ギルド単位のキュー・タスク・一時チャンネル・スキップ状態を保持する `GuildSession` |
 | `models/dictionary_snapshot.py` | Repositoryから純粋な前処理へ渡す読み辞書・Soundboard条件のスナップショット |
-| `vvtts.py` | 旧`VvTTS`名を`VoicevoxClient`へ接続する互換モジュール |
 | `config.py` | `.env` から環境変数をロードし定数として公開 |
 | `backup.py` | SQLiteの定時バックアップとローテーション管理 |
 | `migration.py` | 旧worddict.db / sounddict.db → 統合 dict.db へのマイグレーションツール |
@@ -188,7 +185,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - VOICEVOX通信は`VoicevoxClient`、Discord Soundboard通信は`DiscordSoundboardClient`だけが担当する。
 - 両Clientは`aiohttp.ClientSession`を初回通信時に生成して再利用する。通常実行経路で同期`requests`は使用しない。
 - `VoiceService`と`UpdateSoundBoards`はHTTPのURL・認証方法を知らず、Clientのメソッドだけを呼ぶ。
-- Bot終了時は`ManagedDiscordClient.close()`が両Clientのセッションを閉じる。
+- Bot終了時は`ManagedDiscordClient.close()`がHTTPセッションと3つのSQLite接続を閉じる。
 
 ---
 

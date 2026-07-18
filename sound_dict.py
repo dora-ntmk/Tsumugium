@@ -41,6 +41,9 @@ class UpdateSoundBoards:
   def remove_guild(self, guild_id: int):
     self.repository.remove_guild(guild_id)
 
+  def close(self) -> None:
+    self.repository.close()
+
   def add(self, guild_id: int, sound_id: int, name: str):
     self.repository.add(guild_id, sound_id, name)
 

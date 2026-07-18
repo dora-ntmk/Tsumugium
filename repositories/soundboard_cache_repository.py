@@ -91,3 +91,6 @@ class SoundboardCacheRepository:
     )
     self._conn.commit()
     return deleted_ids
+
+  def close(self) -> None:
+    self._conn.close()

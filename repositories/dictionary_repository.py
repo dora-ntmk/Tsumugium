@@ -30,14 +30,18 @@ class DictionaryRepository:
     self._conn.execute(
       "CREATE INDEX IF NOT EXISTS idx_dict_guild ON dict (guild_id)"
     )
-    for ddl in (
-      "ALTER TABLE dict ADD COLUMN full_match INTEGER NOT NULL DEFAULT 1",
-      "ALTER TABLE dict ADD COLUMN trigger_user_id TEXT DEFAULT NULL",
-    ):
-      try:
-        self._conn.execute(ddl)
-      except sqlite3.OperationalError:
-        pass
+    columns = {
+      row[1]
+      for row in self._conn.execute("PRAGMA table_info(dict)").fetchall()
+    }
+    if "full_match" not in columns:
+      self._conn.execute(
+        "ALTER TABLE dict ADD COLUMN full_match INTEGER NOT NULL DEFAULT 1"
+      )
+    if "trigger_user_id" not in columns:
+      self._conn.execute(
+        "ALTER TABLE dict ADD COLUMN trigger_user_id TEXT DEFAULT NULL"
+      )
     self._conn.commit()
 
   def remove_guild(self, guild_id: int) -> None:
@@ -272,3 +276,6 @@ class DictionaryRepository:
       normal_readings=normal_readings,
       common_readings=dict(common_rows),
     )
+
+  def close(self) -> None:
+    self._conn.close()

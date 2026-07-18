@@ -1,5 +1,7 @@
 """外部HTTPクライアントも終了時に閉じるDiscord Client。"""
 
+import inspect
+
 import discord
 
 
@@ -17,6 +19,8 @@ class ManagedDiscordClient(discord.Client):
     finally:
       for closeable in reversed(self._closeables):
         try:
-          await closeable.close()
+          result = closeable.close()
+          if inspect.isawaitable(result):
+            await result
         except Exception as e:
-          print(f"HTTPクライアント終了エラー: {e}")
+          print(f"リソース終了エラー: {e}")
