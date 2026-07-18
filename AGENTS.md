@@ -1,7 +1,9 @@
 # Tsumugium — Discord 読み上げBot 仕様書
 
-**バージョン**: 3.1.0 / **最終更新**: 2026-06-27  
+**バージョン**: 3.5.0 / **最終更新**: 2026-07-18
 VOICEVOXを使ったDiscordテキスト読み上げBot。
+
+全体の依存関係と処理フローは[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)を参照。
 
 ---
 
@@ -22,7 +24,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `clients/discord_soundboard_client.py` | Discord Soundboard一覧取得・再生APIを担当する非同期HTTPクライアント |
 | `clients/managed_discord_client.py` | Bot終了時に外部HTTP・SQLiteリソースを閉じるDiscord Client |
 | `swap.py` | SQLiteを知らない純粋なテキスト前処理エンジン。`DictionarySnapshot`を入力に辞書・URL・絵文字・メンション・Markdownを処理 |
-| `word_dict.py` | `DictionaryRepository`を利用する辞書サービス互換層（`DictManager`）と `/dict` コマンド群 |
+| `word_dict.py` | `DictionaryRepository`を利用する辞書サービス窓口（`DictManager`）と `/dict` コマンド群 |
 | `sound_dict.py` | サウンドボード辞書と `/sounddict` コマンド群。Clientから受け取った一覧を`SoundboardCacheRepository`へ渡す |
 | `repositories/guild_config_repository.py` | `config.db`のSQLite操作、設定値バリデーション、VOICEVOX値変換 |
 | `repositories/dictionary_repository.py` | `dict.db`のSQLite操作と前処理用`DictionarySnapshot`の生成 |
@@ -73,10 +75,10 @@ CREATE TABLE dict (
     word            TEXT    NOT NULL,
     reading         TEXT,              -- 読み仮名（NULL可）
     sound_id        TEXT,              -- Discordサウンドボード sound_id（NULL可）
-    is_priority     INTEGER DEFAULT 0, -- 0=通常、1=優先（URL処理より先に適用）
+    is_priority     INTEGER NOT NULL DEFAULT 0, -- 0=通常、1=優先（URL処理より先に適用）
     full_match      INTEGER NOT NULL DEFAULT 1, -- 1=完全一致、0=部分一致（sound_id専用）
     trigger_user_id TEXT    DEFAULT NULL,        -- このユーザーIDが発言時のみ再生（NULL=全員）
-    added_at        INTEGER DEFAULT (strftime('%s', 'now')),
+    added_at        INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
     PRIMARY KEY (guild_id, word)
 )
 CREATE INDEX idx_dict_guild ON dict (guild_id)
@@ -128,7 +130,7 @@ CREATE TABLE soundboards (
 
 `swap.preprocess_text(text, dictionary, emoji_ja, guild, attachments, mentions, author_id=None)` は `(text, replaced_ranges, sound_id)` を返す。`dictionary` は`DictionaryRepository`が生成した`DictionarySnapshot`。`swap.py`はSQLite接続を受け取らない。
 
-`DictManager.preprocess_text(text, guild_id, guild, attachments, mentions, author_id=None)` は互換APIとして残り、内部でRepositoryからスナップショットを取得して`swap.preprocess_text`を呼ぶ。最大文字数チェック・トリミングは前処理後に`SpeechService`が行う。
+`DictManager.preprocess_text(text, guild_id, guild, attachments, mentions, author_id=None)` は辞書サービスの窓口であり、内部でRepositoryからスナップショットを取得して`swap.preprocess_text`を呼ぶ。最大文字数チェック・トリミングは前処理後に`SpeechService`が行う。
 
 ---
 
@@ -155,11 +157,11 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/leave` | — | VCにいるユーザー |
 | `/version` | — | 全員 |
 | `/clear` | `instant: bool` | 全員 |
-| `/dict add` | `word`, `read` | manage_guild |
-| `/dict del` | `word`, `both: bool` | manage_guild |
+| `/dict add` | `word`, `read` | 全員 |
+| `/dict del` | `word`, `both: bool` | 全員 |
 | `/dict view` | `search: str`, `ephemeral: bool` | 全員 |
-| `/sounddict add` | `word`, `sound`, `read: str`, `full_match: bool`, `trigger_user: Member` | manage_guild |
-| `/sounddict del` | `word`, `both: bool` | manage_guild |
+| `/sounddict add` | `word`, `sound`, `read: str`, `full_match: bool`, `trigger_user: Member` | 全員 |
+| `/sounddict del` | `word`, `both: bool` | 全員 |
 | `/sounddict view` | `search: str`, `ephemeral: bool` | 全員 |
 | `/setting view` | — | manage_guild |
 | `/setting text-target` | `channel` | manage_guild |
@@ -248,5 +250,3 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `BACKUP_INTERVAL_DAYS` | `1` | バックアップ実行間隔（日） |
 | `BACKUP_KEEP` | `7` | バックアップ保持世代数 |
 | `STATUS_MESSAGE` | `""` | Botのステータスメッセージ |
-
-## Imported Claude Cowork project instructions
