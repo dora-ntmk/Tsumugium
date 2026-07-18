@@ -80,6 +80,7 @@ sequenceDiagram
     M->>M: Bot・チャンネル・スキップ判定
     M->>S: add_message
     S->>R: DictionarySnapshot取得
+    R->>P: Snapshotを渡す
     S->>P: preprocess_text
     P-->>S: 変換後msg
     alt Soundboard条件に一致
