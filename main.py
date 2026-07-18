@@ -16,6 +16,7 @@ from config import STATUS_MESSAGE, DISCORD_BOT_TOKEN, SERVER_CONFIG_DB, DICT_DB,
 from backup import start as start_backup
 from vvtts import VvTTS
 from play import Play
+from models.audio_item import TTSItem
 from server_config import ServerConfig
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_os_error, handle_internal_error
@@ -43,7 +44,7 @@ _backup_task = None
 
 
 def get_notify_channel(guild, vc_channel=None):
-  text_target = play.temp_text_targets.get(guild.id)
+  text_target = play.get_session(guild.id).temporary_text_channel_id
   if text_target is None:
     text_target = server_config.get(guild.id, "TextTarget")
   if text_target:
@@ -60,9 +61,7 @@ async def enqueue_notice(guild, member, joined: bool):
   speed = server_config.speed_to_vvtts(guild.id)
   src = await play.generate(notice_text, guild.id, member.id, speaker, speed=speed, volume=volume)
   if src is not None:
-    await play.voice_queues[guild.id].put((guild.id, src))
-    if guild.id not in play.playing_tasks or play.playing_tasks[guild.id].done():
-      play.playing_tasks[guild.id] = asyncio.create_task(play.play_loop(guild))
+    await play.enqueue(guild, TTSItem(src))
 
 
 # 起動時動作
@@ -157,24 +156,27 @@ async def on_socket_raw_receive(msg):
 @client.event
 async def on_voice_state_update(member, before, after):
   guild = member.guild
+  session = play.get_session(guild.id)
 
   # Bot自身の切断検知（強制切断 vs 自発的退出の区別）
   if member == guild.me:
     if before.channel is None and after.channel is not None:
-      # VC参加（auto-reconnect含む）: pending_temp_targetsを復元してキープアライブ開始
-      saved = play.pending_temp_targets.pop(guild.id, None)
+      # VC参加（auto-reconnect含む）: 保留中の一時チャンネルを復元してキープアライブ開始
+      saved = session.pending_text_channel_id
+      session.pending_text_channel_id = None
       if saved is not None:
-        play.temp_text_targets[guild.id] = saved
+        session.temporary_text_channel_id = saved
       play.start_keepalive(guild)
     elif before.channel is not None and after.channel is None:
       # VC退出
       if guild.id in leaving_guilds:
         leaving_guilds.discard(guild.id)
-        play.temp_text_targets.pop(guild.id, None)
+        session.temporary_text_channel_id = None
       else:
-        saved = play.temp_text_targets.pop(guild.id, None)
+        saved = session.temporary_text_channel_id
+        session.temporary_text_channel_id = None
         if saved is not None:
-          play.pending_temp_targets[guild.id] = saved
+          session.pending_text_channel_id = saved
       play.stop_keepalive(guild.id)
     return
 
@@ -191,7 +193,7 @@ async def on_voice_state_update(member, before, after):
         if voice_target is not None and bot_channel.id == voice_target:
           ch = get_notify_channel(guild, bot_channel)
         else:
-          temp_ch_id = play.temp_text_targets.get(guild.id)
+          temp_ch_id = session.temporary_text_channel_id
           ch = guild.get_channel(temp_ch_id) if temp_ch_id else bot_channel
         await asyncio.sleep(0.5)
         if guild.voice_client is None:
@@ -331,7 +333,7 @@ async def join(ctx, change_channel: bool = False):
               )
             )
       else:
-        play.temp_text_targets[ctx.guild.id] = ctx.channel.id
+        play.get_session(ctx.guild.id).temporary_text_channel_id = ctx.channel.id
         embed = make_embed(
           "接続完了",
           f"ボイスチャンネルに接続しました。\n今回の通話に限り {ctx.channel.mention} のメッセージも読み上げます。",

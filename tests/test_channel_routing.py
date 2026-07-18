@@ -64,6 +64,7 @@ def _install_dependency_stubs():
 
 _install_dependency_stubs()
 
+from models.audio_item import TTSItem  # noqa: E402
 from play import Play  # noqa: E402
 
 
@@ -139,9 +140,32 @@ class ChannelRoutingTests(unittest.IsolatedAsyncioTestCase):
         await handler(message)
         await asyncio.sleep(0)
 
+    async def test_sessions_are_reused_per_guild_and_isolated_between_guilds(self):
+        play, _, guild = self.make_play()
+
+        first = play.get_session(guild.id)
+        same = play.get_session(guild.id)
+        other = play.get_session(2)
+
+        self.assertIs(first, same)
+        self.assertIsNot(first, other)
+
+    async def test_enqueue_stores_typed_item_and_starts_player_task(self):
+        play, _, guild = self.make_play()
+        play.play_loop = AsyncMock()
+        item = TTSItem("tmp/message.wav")
+
+        await play.enqueue(guild, item)
+        await asyncio.sleep(0)
+
+        session = play.get_session(guild.id)
+        self.assertIs(session.queue.get_nowait(), item)
+        session.queue.task_done()
+        play.play_loop.assert_awaited_once_with(guild)
+
     async def test_temporary_target_takes_precedence_over_persistent_target(self):
         play, handler, guild = self.make_play(persistent_target=20)
-        play.temp_text_targets[guild.id] = 10
+        play.get_session(guild.id).temporary_text_channel_id = 10
 
         await self.dispatch(handler, _Message(guild, 20))
         play.add_to_queue.assert_not_awaited()

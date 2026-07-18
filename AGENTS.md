@@ -18,6 +18,8 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `setting.py` | `/setting` コマンド群（サーバー管理者向け設定変更） |
 | `presentation/embeds.py` | Discord Embedの共通ひな形（色・タイトル・本文） |
 | `presentation/error_handler.py` | コマンド実行時の共通エラー応答 |
+| `models/audio_item.py` | 再生キュー要素（`TTSItem` / `SoundboardItem`）の型定義 |
+| `models/guild_session.py` | ギルド単位のキュー・タスク・一時チャンネル・スキップ状態を保持する `GuildSession` |
 | `vvtts.py` | VOICEVOX API連携。テキストからWAVファイルを生成（`VvTTS` クラス） |
 | `config.py` | `.env` から環境変数をロードし定数として公開 |
 | `backup.py` | SQLiteの定時バックアップとローテーション管理 |
@@ -166,30 +168,32 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ## 音声再生アーキテクチャ（`play.py`）
 
-`voice_queues: defaultdict(asyncio.Queue)` にギルドごとの音声アイテムを積み、`play_loop` が順次消費する。
+`Play.sessions: dict[int, GuildSession]` でギルドごとの実行状態を保持する。`GuildSession.queue` に音声アイテムを積み、`play_loop` が順次消費する。キュー投入は `Play.enqueue()` に集約する。
+
+`GuildSession` はキューのほか、再生タスク、キープアライブタスク、一時テキストチャンネル、再接続時の復元待ちチャンネル、スキップ・クリア状態を保持する。
 
 ### キューアイテム形式
 
 | 型 | 形式 | 説明 |
 |---|---|---|
-| TTS | `(guild_id, src: str)` | VOICEVOX 生成 WAV ファイルパス |
-| Soundboard | `(guild_id, ("soundboard", sound_id: str))` | Discord サウンドボード |
+| TTS | `TTSItem(path: str)` | VOICEVOX 生成 WAV ファイルパス |
+| Soundboard | `SoundboardItem(sound_id: str)` | Discord サウンドボード |
 
-`isinstance(src, tuple)` で判別する。
+`isinstance(item, TTSItem)` / `isinstance(item, SoundboardItem)` で判別する。
 
 ### `play_loop` の処理フロー
 
 1. キューからアイテムを取り出す（300秒タイムアウト）
-2. `src` が tuple（`"soundboard"`）の場合:
+2. `item` が `SoundboardItem` の場合:
    - `voice_client.is_playing()` が False になるまで 0.1秒ポーリングで待機（TTS 完了待ち）
    - `_play_soundboard()` で Discord API を呼び出し、即 `task_done()`
-3. `src` が str（TTS）の場合: `play()` で FFmpeg 再生、完了後 `task_done()`
+3. `item` が `TTSItem` の場合: `play()` で FFmpeg 再生、完了後 `task_done()`
 
 **注意:** サウンドボード同士は互いに待機しない（Discord API は再生完了イベントを返さないため）。サウンドボード再生中でも次のアイテムは即時処理される。
 
 ### `/clear` の動作
 
-キュードレイン時に `isinstance(src, str)` のアイテムのみ `safe_remove()` でファイル削除。Soundboard アイテムはスキップ。
+キュードレイン時に `TTSItem` のみ `safe_remove()` でファイル削除。`SoundboardItem` はスキップ。
 
 ---
 
