@@ -48,6 +48,8 @@ flowchart LR
     SoundClient --> SoundAPI
 ```
 
+この図の矢印は、主要な呼び出し・利用の方向を示します。戻り値による逆向きの矢印は省略し、処理中の往復は後述のシーケンス図で示します。
+
 ## レイヤーごとの責務
 
 | レイヤー | 主な場所 | 責務 |
@@ -65,32 +67,42 @@ flowchart LR
 
 ## メッセージから再生まで
 
+読み上げの主要経路を示します。設定値の取得やエラー応答など、処理の理解に直接関係しない補助呼び出しは省略しています。
+
 ```mermaid
 sequenceDiagram
-    participant D as Discord
-    participant M as MessageService
-    participant S as SpeechService
-    participant R as DictionaryRepository
-    participant P as swap.py
-    participant V as VoicevoxClient
-    participant Q as VoiceService
-    participant A as Discord/FFmpeg
+    participant Discord
+    participant Cog as PlaybackCog
+    participant Message as MessageService
+    participant Speech as SpeechService
+    participant Dict as DictManager
+    participant Repo as DictionaryRepository
+    participant DB as dict.db
+    participant Swap as swap.py
+    participant VV as VoicevoxClient
+    participant Voice as VoiceService
 
-    D->>M: on_message
-    M->>M: Bot・チャンネル・スキップ判定
-    M->>S: add_message
-    S->>R: DictionarySnapshot取得
-    R->>P: Snapshotを渡す
-    S->>P: preprocess_text
-    P-->>S: 変換後msg
+    Discord->>Cog: on_message
+    Cog->>Message: handle(message)
+    Message->>Message: Bot・チャンネル・スキップ判定
+    Message->>Speech: add_message(message)
+    Speech->>Dict: preprocess_text(...)
+    Dict->>Repo: get_preprocessing_snapshot(guild_id)
+    Repo->>DB: 辞書をSELECT
+    DB-->>Repo: 辞書レコード
+    Repo-->>Dict: DictionarySnapshot
+    Dict->>Swap: preprocess_text(text, snapshot)
+    Swap-->>Dict: text, replaced_ranges, sound_id
+    Dict-->>Speech: text, replaced_ranges, sound_id
     alt Soundboard条件に一致
-        S->>Q: SoundboardItem
-        Q->>A: Soundboard API
+        Speech->>Voice: enqueue(SoundboardItem)
+        Voice->>Discord: Soundboard再生
     else TTS対象
-        S->>V: generate
-        V-->>S: WAVパス
-        S->>Q: TTSItem
-        Q->>A: FFmpeg再生
+        Speech->>Speech: 最大文字数処理
+        Speech->>VV: generate(text)
+        VV-->>Speech: WAVファイルパス
+        Speech->>Voice: enqueue(TTSItem)
+        Voice->>Discord: FFmpeg音声再生
     end
 ```
 
