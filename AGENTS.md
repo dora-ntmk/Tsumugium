@@ -14,15 +14,19 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `services/message_service.py` | メッセージの対象チャンネル判定、Bot投稿、特殊トリガー、単体メンション接続を担当 |
 | `services/speech_service.py` | テキスト前処理、Soundboard/TTS選択、最大文字数処理、VOICEVOX生成依頼を担当 |
 | `services/voice_service.py` | ギルド別キュー、再生、スキップ、クリア、キープアライブ、サウンドボードAPI呼び出しを担当 |
-| `swap.py` | テキスト前処理エンジン（`preprocess_text`）。辞書置換・URL/絵文字/メンション/Markdown変換などのパイプライン |
-| `word_dict.py` | テキスト辞書（word→reading）のSQLite管理と `/dict` コマンド群 |
-| `sound_dict.py` | サウンドボード辞書（word→sound_id）の管理と `/sounddict` コマンド群。Discordサウンドボードキャッシュ更新も担当 |
-| `server_config.py` | サーバー設定のSQLite管理（`ServerConfig` クラス）。バリデーション・デフォルト値・VOICEVOX変換 |
+| `swap.py` | SQLiteを知らない純粋なテキスト前処理エンジン。`DictionarySnapshot`を入力に辞書・URL・絵文字・メンション・Markdownを処理 |
+| `word_dict.py` | `DictionaryRepository`を利用する辞書サービス互換層（`DictManager`）と `/dict` コマンド群 |
+| `sound_dict.py` | サウンドボード辞書と `/sounddict` コマンド群。HTTP取得した一覧を`SoundboardCacheRepository`へ渡す |
+| `server_config.py` | `GuildConfigRepository`を旧`ServerConfig`名で公開する互換モジュール |
+| `repositories/guild_config_repository.py` | `config.db`のSQLite操作、設定値バリデーション、VOICEVOX値変換 |
+| `repositories/dictionary_repository.py` | `dict.db`のSQLite操作と前処理用`DictionarySnapshot`の生成 |
+| `repositories/soundboard_cache_repository.py` | `soundboards.db`のSQLite操作とサウンド一覧同期 |
 | `setting.py` | `/setting` コマンド群（サーバー管理者向け設定変更） |
 | `presentation/embeds.py` | Discord Embedの共通ひな形（色・タイトル・本文） |
 | `presentation/error_handler.py` | コマンド実行時の共通エラー応答 |
 | `models/audio_item.py` | 再生キュー要素（`TTSItem` / `SoundboardItem`）の型定義 |
 | `models/guild_session.py` | ギルド単位のキュー・タスク・一時チャンネル・スキップ状態を保持する `GuildSession` |
+| `models/dictionary_snapshot.py` | Repositoryから純粋な前処理へ渡す読み辞書・Soundboard条件のスナップショット |
 | `vvtts.py` | VOICEVOX API連携。テキストからWAVファイルを生成（`VvTTS` クラス） |
 | `config.py` | `.env` から環境変数をロードし定数として公開 |
 | `backup.py` | SQLiteの定時バックアップとローテーション管理 |
@@ -113,11 +117,13 @@ CREATE TABLE soundboards (
 10. 改行・スペースを区切りに変換
 11. 通常辞書（`is_priority=0`）→ 共通辞書（`__common__`）を適用
 12. 絵文字短縮名（`emoji_ja.json`）を適用
-13. 最大文字数チェック・トリミング（`MaxChar`）
+13. 添付ファイル種別の説明を追加
 
 `_apply_regex` / `_apply_dict` は `(text, protected: bool)` のセグメントリストで動作。`protected=True` のセグメントは以降の処理でスキップされる。
 
-`preprocess_text(text, guild_id, guild, attachments, mentions, author_id=None)` は `(text, replaced_ranges, sound_id)` を返す。`author_id` はサウンドボードの `trigger_user_id` フィルタに使用。
+`swap.preprocess_text(text, dictionary, emoji_ja, guild, attachments, mentions, author_id=None)` は `(text, replaced_ranges, sound_id)` を返す。`dictionary` は`DictionaryRepository`が生成した`DictionarySnapshot`。`swap.py`はSQLite接続を受け取らない。
+
+`DictManager.preprocess_text(text, guild_id, guild, attachments, mentions, author_id=None)` は互換APIとして残り、内部でRepositoryからスナップショットを取得して`swap.preprocess_text`を呼ぶ。最大文字数チェック・トリミングは前処理後に`SpeechService`が行う。
 
 ---
 

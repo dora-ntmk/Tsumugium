@@ -9,7 +9,6 @@
 """
 import os
 import json
-import sqlite3
 import unicodedata
 import discord
 from typing import Optional
@@ -17,6 +16,7 @@ from config import EMOJI_JA_JSON
 from dict_view import DictViewPaginator
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error
+from repositories.dictionary_repository import DictionaryRepository
 import swap
 from swap import (
   _CUSTOM_EMOJI_RE, _STANDARD_EMOJI_RE,
@@ -80,31 +80,7 @@ def _filter_entries(entries: dict, word: str) -> list[tuple[str, str]]:
 
 class DictManager:
   def __init__(self, db_path):
-    self._conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30)
-    self._conn.execute("PRAGMA journal_mode=WAL")
-    self._conn.execute("""
-                       CREATE TABLE IF NOT EXISTS dict (
-                                                           guild_id    TEXT    NOT NULL,
-                                                           word        TEXT    NOT NULL,
-                                                           reading     TEXT,
-                                                           sound_id    TEXT,
-                                                           is_priority INTEGER NOT NULL DEFAULT 0,
-                                                           added_at    INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
-                           PRIMARY KEY (guild_id, word)
-                           )
-                       """)
-    self._conn.execute(
-      "CREATE INDEX IF NOT EXISTS idx_dict_guild ON dict (guild_id)"
-    )
-    for _ddl in [
-      "ALTER TABLE dict ADD COLUMN full_match INTEGER NOT NULL DEFAULT 1",
-      "ALTER TABLE dict ADD COLUMN trigger_user_id TEXT DEFAULT NULL",
-    ]:
-      try:
-        self._conn.execute(_ddl)
-      except sqlite3.OperationalError:
-        pass
-    self._conn.commit()
+    self.repository = DictionaryRepository(db_path)
     emoji_ja_data = _load_json(EMOJI_JA_JSON)
     self._emoji_ja: dict = {
       k: v['short_name']
@@ -113,165 +89,71 @@ class DictManager:
     }
 
   def remove_guild(self, guild_id: int):
-    try:
-      self._conn.execute(
-        "DELETE FROM dict WHERE guild_id = ?", (str(guild_id),)
-      )
-      self._conn.commit()
-    except sqlite3.Error as e:
-      print(f'辞書削除失敗 guild_id={guild_id}: {e}')
+    self.repository.remove_guild(guild_id)
 
   def add(self, guild_id: int, word: str, read: str) -> bool:
     """Returns True if overwriting an existing entry."""
     if len(read) > 50:
       raise ValueError('too_long')
-    is_priority = 1 if _is_priority_word(word) else 0
-    gid = str(guild_id)
-    cur = self._conn.execute(
-      "SELECT reading FROM dict WHERE guild_id = ? AND word = ?", (gid, word)
+    return self.repository.add_reading(
+      guild_id,
+      word,
+      read,
+      is_priority=_is_priority_word(word),
     )
-    row = cur.fetchone()
-    overwrite = row is not None and row[0] is not None
-    self._conn.execute(
-      """INSERT INTO dict (guild_id, word, reading, sound_id, is_priority, added_at)
-         VALUES (?, ?, ?, NULL, ?, strftime('%s', 'now'))
-         ON CONFLICT(guild_id, word) DO UPDATE SET
-           reading     = excluded.reading,
-           is_priority = excluded.is_priority,
-           added_at    = excluded.added_at""",
-      (gid, word, read, is_priority)
-    )
-    self._conn.commit()
-    return overwrite
 
   def delete(self, guild_id: int, word: str) -> Optional[str]:
     """Returns the removed read string, or None if not found."""
-    gid = str(guild_id)
-    cur = self._conn.execute(
-      "SELECT reading, sound_id FROM dict WHERE guild_id = ? AND word = ?", (gid, word)
-    )
-    row = cur.fetchone()
-    if row is None or row[0] is None:
-      return None
-    reading, sound_id = row
-    if sound_id is not None:
-      self._conn.execute(
-        "UPDATE dict SET reading = NULL WHERE guild_id = ? AND word = ?", (gid, word)
-      )
-    else:
-      self._conn.execute(
-        "DELETE FROM dict WHERE guild_id = ? AND word = ?", (gid, word)
-      )
-    self._conn.commit()
-    return reading
+    return self.repository.delete_reading(guild_id, word)
 
   def get_entries(self, guild_id: int) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
     """Returns (normal_items, priority_items), each as list of (word, reading) in added_at DESC order."""
-    gid = str(guild_id)
-    cur = self._conn.execute(
-      "SELECT word, reading, is_priority FROM dict WHERE guild_id = ? AND reading IS NOT NULL ORDER BY added_at DESC",
-      (gid,)
-    )
-    normal = []
-    priority = []
-    for word, reading, is_pri in cur.fetchall():
-      if is_pri:
-        priority.append((word, reading))
-      else:
-        normal.append((word, reading))
-    return normal, priority
+    return self.repository.get_reading_entries(guild_id)
 
   def add_sound(self, guild_id: int, word: str, sound_id: str,
                full_match: bool = True,
                trigger_user_id: Optional[str] = None) -> bool:
     """Returns True if overwriting an existing sound entry."""
-    is_priority = 1 if _is_priority_word(word) else 0
-    gid = str(guild_id)
-    cur = self._conn.execute(
-      "SELECT sound_id FROM dict WHERE guild_id = ? AND word = ?", (gid, word)
+    return self.repository.add_sound(
+      guild_id,
+      word,
+      sound_id,
+      is_priority=_is_priority_word(word),
+      full_match=full_match,
+      trigger_user_id=trigger_user_id,
     )
-    row = cur.fetchone()
-    overwrite = row is not None and row[0] is not None
-    fm = 1 if full_match else 0
-    self._conn.execute(
-      """INSERT INTO dict (guild_id, word, sound_id, reading, is_priority, full_match, trigger_user_id, added_at)
-         VALUES (?, ?, ?, NULL, ?, ?, ?, strftime('%s', 'now'))
-         ON CONFLICT(guild_id, word) DO UPDATE SET
-           sound_id        = excluded.sound_id,
-           is_priority     = excluded.is_priority,
-           full_match      = excluded.full_match,
-           trigger_user_id = excluded.trigger_user_id,
-           added_at        = excluded.added_at""",
-      (gid, word, sound_id, is_priority, fm, trigger_user_id)
-    )
-    self._conn.commit()
-    return overwrite
 
   def delete_sound(self, guild_id: int, word: str) -> Optional[str]:
     """Returns the removed sound_id, or None if not found."""
-    gid = str(guild_id)
-    cur = self._conn.execute(
-      "SELECT sound_id, reading FROM dict WHERE guild_id = ? AND word = ?", (gid, word)
-    )
-    row = cur.fetchone()
-    if row is None or row[0] is None:
-      return None
-    sound_id, reading = row
-    if reading is not None:
-      self._conn.execute(
-        "UPDATE dict SET sound_id = NULL WHERE guild_id = ? AND word = ?", (gid, word)
-      )
-    else:
-      self._conn.execute(
-        "DELETE FROM dict WHERE guild_id = ? AND word = ?", (gid, word)
-      )
-    self._conn.commit()
-    return sound_id
+    return self.repository.delete_sound(guild_id, word)
 
   def get_sound_entries(self, guild_id: int) -> tuple[
     list[tuple[str, str, int, Optional[str]]],
     list[tuple[str, str, int, Optional[str]]]
   ]:
     """Returns (normal_items, priority_items), each as list of (word, sound_id, full_match, trigger_user_id) in added_at DESC order."""
-    gid = str(guild_id)
-    cur = self._conn.execute(
-      "SELECT word, sound_id, is_priority, full_match, trigger_user_id FROM dict WHERE guild_id = ? AND sound_id IS NOT NULL ORDER BY added_at DESC",
-      (gid,)
-    )
-    normal = []
-    priority = []
-    for word, sound_id, is_pri, fm, uid in cur.fetchall():
-      if is_pri:
-        priority.append((word, sound_id, fm, uid))
-      else:
-        normal.append((word, sound_id, fm, uid))
-    return normal, priority
+    return self.repository.get_sound_entries(guild_id)
 
   def invalidate_sound(self, guild_id, sound_id: str):
     """指定 sound_id を参照する dict レコードを更新する。
     reading が NULL なら行削除、reading が存在すれば sound_id を NULL 化。"""
-    gid = str(guild_id)
-    sid = str(sound_id)
-    self._conn.execute(
-      "DELETE FROM dict WHERE guild_id = ? AND sound_id = ? AND reading IS NULL",
-      (gid, sid)
-    )
-    self._conn.execute(
-      "UPDATE dict SET sound_id = NULL WHERE guild_id = ? AND sound_id = ? AND reading IS NOT NULL",
-      (gid, sid)
-    )
-    self._conn.commit()
+    self.repository.invalidate_sound(guild_id, sound_id)
 
   def delete_entry(self, guild_id: int, word: str):
     """reading と sound_id 両方を削除する（行ごと削除）。"""
-    gid = str(guild_id)
-    self._conn.execute(
-      "DELETE FROM dict WHERE guild_id = ? AND word = ?", (gid, word)
-    )
-    self._conn.commit()
+    self.repository.delete_entry(guild_id, word)
 
   def preprocess_text(self, text: str, guild_id: int, guild, attachments, mentions=None, author_id: Optional[int] = None) -> tuple[str, list[tuple[int, int]], str | None]:
-    return swap.preprocess_text(text, guild_id, self._conn, self._emoji_ja, guild, attachments, mentions, author_id=author_id)
+    dictionary = self.repository.get_preprocessing_snapshot(guild_id)
+    return swap.preprocess_text(
+      text,
+      dictionary,
+      self._emoji_ja,
+      guild,
+      attachments,
+      mentions,
+      author_id=author_id,
+    )
 
 
 class WordDict:

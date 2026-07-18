@@ -1,7 +1,7 @@
-import sqlite3
 import unittest
 
 import swap
+from models.dictionary_snapshot import DictionarySnapshot, SoundEntry
 
 
 class _NamedObject:
@@ -29,26 +29,11 @@ class _Guild:
 
 class TextPreprocessorTests(unittest.TestCase):
     def setUp(self):
-        self.conn = sqlite3.connect(":memory:")
-        self.conn.execute(
-            """
-            CREATE TABLE dict (
-                guild_id        TEXT NOT NULL,
-                word            TEXT NOT NULL,
-                reading         TEXT,
-                sound_id        TEXT,
-                is_priority     INTEGER NOT NULL DEFAULT 0,
-                full_match      INTEGER NOT NULL DEFAULT 1,
-                trigger_user_id TEXT DEFAULT NULL,
-                added_at        INTEGER NOT NULL DEFAULT 0,
-                PRIMARY KEY (guild_id, word)
-            )
-            """
-        )
+        self.sounds = []
+        self.priority_readings = {}
+        self.normal_readings = {}
+        self.common_readings = {}
         self.guild = _Guild()
-
-    def tearDown(self):
-        self.conn.close()
 
     def add_entry(
         self,
@@ -62,31 +47,37 @@ class TextPreprocessorTests(unittest.TestCase):
         trigger_user_id: str | None = None,
         added_at: int = 0,
     ):
-        self.conn.execute(
-            """
-            INSERT INTO dict (
-                guild_id, word, reading, sound_id, is_priority,
-                full_match, trigger_user_id, added_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            (
-                guild_id,
-                word,
-                reading,
-                sound_id,
-                int(priority),
-                int(full_match),
-                trigger_user_id,
-                added_at,
-            ),
+        del added_at
+        if sound_id is not None and guild_id == "1":
+            self.sounds.append(
+                SoundEntry(
+                    word=word,
+                    sound_id=sound_id,
+                    full_match=full_match,
+                    trigger_user_id=trigger_user_id,
+                )
+            )
+        if reading is None:
+            return
+        if guild_id == "__common__":
+            self.common_readings[word] = reading
+        elif priority:
+            self.priority_readings[word] = reading
+        else:
+            self.normal_readings[word] = reading
+
+    def snapshot(self):
+        return DictionarySnapshot(
+            sounds=tuple(self.sounds),
+            priority_readings=dict(self.priority_readings),
+            normal_readings=dict(self.normal_readings),
+            common_readings=dict(self.common_readings),
         )
-        self.conn.commit()
 
     def preprocess(self, text: str, *, author_id: int | None = 42):
         return swap.preprocess_text(
             text,
-            1,
-            self.conn,
+            self.snapshot(),
             {},
             self.guild,
             [],

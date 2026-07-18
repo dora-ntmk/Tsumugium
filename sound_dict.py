@@ -8,7 +8,6 @@
       view サブコマンドでは DictViewPaginator によるページング表示に対応する。
 依存関係：discord.py, requests
 """
-import sqlite3
 import discord
 import requests
 from typing import Optional
@@ -16,6 +15,7 @@ from word_dict import DictManager, _filter_entries
 from dict_view import DictViewPaginator
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error
+from repositories.soundboard_cache_repository import SoundboardCacheRepository
 
 
 class SoundDict:
@@ -35,57 +35,25 @@ class SoundDict:
 
 class UpdateSoundBoards:
   def __init__(self, db_path, dict_manager=None):
-    self._conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30)
-    self._conn.execute("PRAGMA journal_mode=WAL")
-    self._conn.execute("""
-      CREATE TABLE IF NOT EXISTS soundboards (
-        guild_id  TEXT NOT NULL,
-        sound_id  TEXT NOT NULL,
-        name      TEXT NOT NULL,
-        PRIMARY KEY (guild_id, sound_id)
-      )
-    """)
-    self._conn.execute(
-      "CREATE INDEX IF NOT EXISTS idx_soundboards_guild ON soundboards (guild_id)"
-    )
-    self._conn.commit()
+    self.repository = SoundboardCacheRepository(db_path)
     self._dict_manager = dict_manager
 
   def remove_guild(self, guild_id: int):
-    try:
-      self._conn.execute(
-        "DELETE FROM soundboards WHERE guild_id = ?", (str(guild_id),)
-      )
-      self._conn.commit()
-    except sqlite3.Error as e:
-      print(f'サウンドボード一覧削除失敗 guild_id={guild_id}: {e}')
+    self.repository.remove_guild(guild_id)
 
   def add(self, guild_id: int, sound_id: int, name: str):
-    gid = str(guild_id)
-    sid = str(sound_id)
-    self._conn.execute(
-      """INSERT OR REPLACE INTO soundboards (guild_id, sound_id, name)
-         VALUES (?, ?, ?)""",
-      (gid, sid, name)
-    )
-    self._conn.commit()
+    self.repository.add(guild_id, sound_id, name)
 
   def delete(self, guild_id: int, sound_id: int):
     gid = str(guild_id)
     sid = str(sound_id)
-    self._conn.execute(
-      "DELETE FROM soundboards WHERE guild_id = ? AND sound_id = ?", (gid, sid)
-    )
-    self._conn.commit()
+    self.repository.delete(gid, sid)
     if self._dict_manager:
       self._dict_manager.invalidate_sound(gid, sid)
 
   def get_sounds(self, guild_id: int) -> list[tuple[str, str]]:
     """Returns list of (sound_id, name) for the guild."""
-    gid = str(guild_id)
-    cur = self._conn.cursor()
-    cur.execute("SELECT sound_id, name FROM soundboards WHERE guild_id = ?", (gid,))
-    return cur.fetchall()
+    return self.repository.get_sounds(guild_id)
 
   def refresh(self, gid: str, token: str):
     res = requests.get(
@@ -96,32 +64,14 @@ class UpdateSoundBoards:
       })
     res.raise_for_status()
     d = res.json()
-    current_sound_names = list(s["name"] for s in d["items"])
-    current_sound_ids = list(str(s["sound_id"]) for s in d["items"])
-    cur = self._conn.cursor()
-    cur.execute(
-      "SELECT sound_id FROM soundboards WHERE guild_id = ?", (gid,)
-    )
-    rows = cur.fetchall()
-    db_sound_ids = list(row[0] for row in rows)
-    db_insert = []
-    db_delete = []
-    for n in range(len(current_sound_ids)):
-      if current_sound_ids[n] not in db_sound_ids:
-        db_insert.append((gid, current_sound_ids[n], current_sound_names[n]))
-    for n in range(len(db_sound_ids)):
-      if db_sound_ids[n] not in current_sound_ids:
-        db_delete.append((gid, db_sound_ids[n]))
-    cur.executemany(
-      "INSERT INTO soundboards (guild_id, sound_id, name) VALUES (?, ?, ?)", db_insert
-    )
-    cur.executemany(
-      "DELETE FROM soundboards WHERE guild_id = ? AND sound_id = ?", db_delete
-    )
-    self._conn.commit()
+    current_sounds = [
+      (str(sound["sound_id"]), sound["name"])
+      for sound in d["items"]
+    ]
+    deleted_ids = self.repository.synchronize(gid, current_sounds)
     if self._dict_manager:
-      for gid_del, sid_del in db_delete:
-        self._dict_manager.invalidate_sound(gid_del, sid_del)
+      for sound_id in deleted_ids:
+        self._dict_manager.invalidate_sound(gid, sound_id)
 
 class SoundDictView:
   def __init__(self, client, tree, sound_dict: SoundDict, dict_manager: DictManager, server_config, sound_boards: UpdateSoundBoards):
