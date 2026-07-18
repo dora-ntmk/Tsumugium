@@ -13,7 +13,7 @@ import os
 from collections import defaultdict
 
 from config import DISCORD_BOT_TOKEN
-from messages import build_embed, get_desc
+from presentation.embeds import EmbedType, make_embed
 
 
 class Play:
@@ -38,12 +38,11 @@ class Play:
     # キュークリア
     @self.tree.command(
       name="clear",
-      description=get_desc("commands.clear.description")
+      description="読み上げキューをすべてクリアします。"
     )
     async def clear(ctx, instant: bool = True):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
         queue = self.voice_queues[ctx.guild.id]
         cleared = queue.qsize()
         pending_files = []
@@ -59,12 +58,20 @@ class Play:
         if instant and ctx.guild.voice_client and ctx.guild.voice_client.is_playing():
           ctx.guild.voice_client.stop()
         self.clearing_flags[ctx.guild.id] = True
-        await ctx.edit_original_response(embed=build_embed("clear.clearing", lang=lang))
+        await ctx.edit_original_response(
+          embed=make_embed("削除中", "キューを削除しています　しばらくお待ちください")
+        )
         await asyncio.sleep(1)
         for src in pending_files:
           await self.safe_remove(src)
         self.clearing_flags[ctx.guild.id] = False
-        await ctx.edit_original_response(embed=build_embed("clear.success", lang=lang, cleared=cleared))
+        await ctx.edit_original_response(
+          embed=make_embed(
+            "キュークリア完了",
+            "すべての読み上げをキャンセルしました",
+            embed_type=EmbedType.SUCCESS,
+          )
+        )
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -96,15 +103,26 @@ class Play:
       if message.guild is not None:
         bot_id = self.client.user.id
         if message.content.strip() in (f'<@{bot_id}>', f'<@!{bot_id}>'):
-          lang = self.server_config.get(message.guild.id, "Language")
           try:
             if message.guild.voice_client is not None:
               if message.author.voice:
                 self.leaving_guilds.add(message.guild.id)
                 await message.guild.voice_client.disconnect()
-                await message.channel.send(embed=build_embed("leave.success", lang=lang))
+                await message.channel.send(
+                  embed=make_embed(
+                    "切断完了",
+                    "ボイスチャンネルから切断しました",
+                    embed_type=EmbedType.SUCCESS,
+                  )
+                )
               else:
-                await message.channel.send(embed=build_embed("leave.failure", lang=lang))
+                await message.channel.send(
+                  embed=make_embed(
+                    "切断失敗",
+                    "ボイスチャンネルから切断できませんでした",
+                    embed_type=EmbedType.ERROR,
+                  )
+                )
             else:
               if message.author.voice:
                 voice_channel = message.author.voice.channel
@@ -113,19 +131,39 @@ class Play:
                 text_perms = message.channel.permissions_for(bot_member)
                 issues = []
                 if not (vc_perms.connect and vc_perms.speak):
-                  issues.append(get_desc("join.no_permission_vc", lang=lang).format(channel=voice_channel.mention))
+                  issues.append(f"{voice_channel.mention} への接続権限がありません")
                 if not (text_perms.view_channel and text_perms.send_messages):
-                  issues.append(get_desc("join.no_permission_text", lang=lang).format(channel=message.channel.mention))
+                  issues.append(f"{message.channel.mention} の表示権限がありません")
                 if issues:
-                  await message.channel.send(embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues)))
+                  await message.channel.send(
+                    embed=make_embed(
+                      "権限エラー",
+                      "\n".join(issues),
+                      embed_type=EmbedType.ERROR,
+                    )
+                  )
                   return
                 await voice_channel.connect(timeout=60)
                 self.temp_text_targets[message.guild.id] = message.channel.id
-                await message.channel.send(
-                  embed=build_embed("join.success_temp", lang=lang, vc=voice_channel.mention, text=message.channel.mention)
+                embed = make_embed(
+                  "接続完了",
+                  f"ボイスチャンネルに接続しました。\n今回の通話に限り {message.channel.mention} のメッセージも読み上げます。",
+                  embed_type=EmbedType.SUCCESS,
                 )
+                embed.add_field(
+                  name="接続情報",
+                  value=f"接続チャンネル：{voice_channel.mention}　読み上げチャンネル：{message.channel.mention}",
+                  inline=False,
+                )
+                await message.channel.send(embed=embed)
               else:
-                await message.channel.send(embed=build_embed("join.failure", lang=lang))
+                await message.channel.send(
+                  embed=make_embed(
+                    "接続失敗",
+                    "ボイスチャンネルに接続できませんでした",
+                    embed_type=EmbedType.ERROR,
+                  )
+                )
           except Exception as e:
             print(f"Exception in mention join/leave: {e}")
           return

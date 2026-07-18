@@ -13,20 +13,16 @@ import sqlite3
 import unicodedata
 import discord
 from typing import Optional
-from messages import build_embed, get_desc, handle_internal_error
 from config import EMOJI_JA_JSON
 from dict_view import DictViewPaginator
+from presentation.embeds import EmbedType, make_embed
+from presentation.error_handler import handle_internal_error
 import swap
 from swap import (
   _CUSTOM_EMOJI_RE, _STANDARD_EMOJI_RE,
   _MENTION_USER_RE, _MENTION_CH_RE, _MENTION_ROLE_RE,
   _URL_PATTERNS,
 )
-
-
-def _lstr(key: str) -> discord.app_commands.locale_str:
-  return discord.app_commands.locale_str(get_desc(key), key=key)
-
 
 def _is_emoji_word(word: str) -> bool:
   if _CUSTOM_EMOJI_RE.findall(word):
@@ -289,64 +285,77 @@ class WordDict:
   def _register(self):
     dict_group = discord.app_commands.Group(
       name='dict',
-      description=_lstr('commands.dict._group')
+      description='読み上げ辞書を管理します'
     )
 
-    @dict_group.command(name='add', description=_lstr('commands.dict.add.description'))
+    @dict_group.command(name='add', description='辞書に単語の読みを追加します')
     @discord.app_commands.describe(
-      word=_lstr('commands.dict.add.args.word'),
-      read=_lstr('commands.dict.add.args.read')
+      word='追加する単語',
+      read='読み方（50文字以内）'
     )
     @discord.app_commands.checks.has_permissions()
     async def dict_add(ctx, word: str, read: str):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, 'Language')
         try:
           overwrite = self.dict_manager.add(ctx.guild.id, word, read)
         except ValueError:
           await ctx.edit_original_response(
-            embed=build_embed('dict.add.too_long', lang=lang, read=read)
+            embed=make_embed(
+              '読みが長すぎるため追加できませんでした',
+              f'`{read}` は50文字を超えるため追加できません。\n追加する読みは50文字以内にしてください',
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
-        key = 'dict.add.overwrite' if overwrite else 'dict.add.success'
+        title = '辞書への上書きが成功しました' if overwrite else '辞書への追加が成功しました'
+        description = '辞書に単語の読みが上書きされました' if overwrite else '辞書に単語の読みが追加されました'
+        embed = make_embed(title, description, embed_type=EmbedType.SUCCESS)
+        embed.add_field(name='登録内容', value=f'`{word}` → `{read}`', inline=False)
         await ctx.edit_original_response(
-          embed=build_embed(key, lang=lang, word=word, read=read)
+          embed=embed
         )
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
         print(f'HTTPException in dict_add: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "dict_add", lang=self.server_config.get(ctx.guild.id, 'Language'))
+        await handle_internal_error(ctx, e, "dict_add")
 
-    @dict_group.command(name='del', description=_lstr('commands.dict.del.description'))
+    @dict_group.command(name='del', description='辞書から単語の読みを削除します')
     @discord.app_commands.describe(
-      word=_lstr('commands.dict.del.args.word'),
-      both=_lstr('commands.dict.del.args.both')
+      word='削除する単語',
+      both='Trueにすると音声辞書からも削除します'
     )
     @discord.app_commands.checks.has_permissions()
     async def dict_del(ctx, word: str, both: bool = False):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, 'Language')
         read = self.dict_manager.delete(ctx.guild.id, word)
         if read is None:
           await ctx.edit_original_response(
-            embed=build_embed('dict.del.not_found', lang=lang, word=word)
+            embed=make_embed(
+              '辞書にその単語は見つかりませんでした',
+              f'辞書に`{word}`はありません。確認して入れなおしてください。',
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
         if both:
           self.dict_manager.delete_sound(ctx.guild.id, word)
-        await ctx.edit_original_response(
-          embed=build_embed('dict.del.success', lang=lang, word=word, read=read)
+        embed = make_embed(
+          '辞書からの削除が成功しました',
+          '辞書から単語と読みが削除されました',
+          embed_type=EmbedType.SUCCESS,
         )
+        embed.add_field(name='削除内容', value=f'`{word}` → `{read}`', inline=False)
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
         print(f'HTTPException in dict_del: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "dict_del", lang=self.server_config.get(ctx.guild.id, 'Language'))
+        await handle_internal_error(ctx, e, "dict_del")
 
     # noinspection PyUnusedLocal
     @dict_del.autocomplete("word")
@@ -360,20 +369,18 @@ class WordDict:
       ]
       return filtered[:25]
 
-    @dict_group.command(name='view', description=_lstr('commands.dict.view.description'))
+    @dict_group.command(name='view', description='辞書の内容を確認します')
     @discord.app_commands.describe(
-      ephemeral=_lstr('commands.dict.view.args.ephemeral'),
-      search=_lstr('commands.dict.view.args.search')
+      ephemeral='Trueにすると自分にだけ見える形で表示します',
+      search='検索する文字列（部分一致）'
     )
     async def dict_view(ctx, search: Optional[str] = None, ephemeral: bool = False):
       try:
         await ctx.response.defer(ephemeral=ephemeral)
-        lang = self.server_config.get(ctx.guild.id, 'Language')
         normal_entries, priority_entries = self.dict_manager.get_entries(ctx.guild.id)
 
         if not normal_entries and not priority_entries:
-          embed = build_embed('dict.view', lang=lang)
-          embed.description = get_desc('dict.view.empty', lang=lang)
+          embed = make_embed('辞書一覧', '辞書に登録された単語はありません')
           await ctx.edit_original_response(embed=embed)
           return
 
@@ -386,11 +393,15 @@ class WordDict:
 
         if not normal_items and not priority_items:
           await ctx.edit_original_response(
-            embed=build_embed('dict.view.not_found', lang=lang, word=search)
+            embed=make_embed(
+              '見つかりませんでした',
+              f'「{search}」に一致する単語は辞書にありません',
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
 
-        paginator = DictViewPaginator(normal_items, priority_items, lang, 'dict')
+        paginator = DictViewPaginator(normal_items, priority_items, 'dict')
         embed = paginator.build_embed()
 
         if paginator.total_pages <= 1:
@@ -404,13 +415,17 @@ class WordDict:
       except discord.errors.HTTPException as e:
         print(f'HTTPException in dict_view: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "dict_view", lang=self.server_config.get(ctx.guild.id, 'Language'))
+        await handle_internal_error(ctx, e, "dict_view")
 
     @dict_group.error
     async def dict_error(ctx, error):
       if isinstance(error, discord.app_commands.MissingPermissions):
         await ctx.response.send_message(
-          embed=build_embed('dict.error.no_permission'),
+          embed=make_embed(
+            '権限エラー',
+            'サーバー管理権限が必要です',
+            embed_type=EmbedType.ERROR,
+          ),
           ephemeral=True
         )
 

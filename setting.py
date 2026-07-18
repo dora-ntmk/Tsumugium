@@ -3,23 +3,23 @@
 作者：どら
 説明：サーバー設定コマンドモジュール。
       スラッシュコマンドグループ /setting を実装する。
-      テキスト/ボイスチャンネルの設定、話者・音量・速度・最大文字数などの数値設定、
-      AutoJoin・AccessNotice・言語などの状態設定をサーバー管理者向けに提供する。
+      テキスト/ボイスチャンネルの設定、話者・音量・速度・最大文字数、
+      AutoJoin・AccessNoticeをサーバー管理者向けに提供する。
 依存関係：discord.py
 """
-import discord
 import json
-from messages import build_embed, get_desc, handle_os_error, handle_internal_error
-from config import SPEAKERS_JSON, DEFAULT_SPEAKER
+
+import discord
+
+from config import SPEAKERS_JSON
+from presentation.embeds import EmbedType, make_embed
+from presentation.error_handler import handle_internal_error, handle_os_error
+
 
 with open(SPEAKERS_JSON, encoding="utf-8") as _f:
-    VOICEVOX_SPEAKERS = [(s["id"], s["name"]) for s in json.load(_f)]
+  VOICEVOX_SPEAKERS = [(s["id"], s["name"]) for s in json.load(_f)]
 
 BOT_DEFAULT_LABEL = "Botのデフォルト"
-
-
-def _lstr(key: str) -> discord.app_commands.locale_str:
-    return discord.app_commands.locale_str(get_desc(key), key=key)
 
 
 class Setting:
@@ -32,94 +32,80 @@ class Setting:
   def _register(self):
     setting_group = discord.app_commands.Group(
       name="setting",
-      description=_lstr("commands.setting._group"),
-      default_permissions=discord.Permissions(manage_guild=True)
+      description="サーバー設定を管理します",
+      default_permissions=discord.Permissions(manage_guild=True),
     )
 
-    @setting_group.command(
-      name="view",
-      description=_lstr("commands.setting.view.description")
-    )
+    @setting_group.command(name="view", description="現在の設定を表示します")
     async def setting_view(ctx):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
         cfg = self.server_config.get_all(ctx.guild.id)
-        embed = build_embed("setting.view", lang=lang)
-        not_set = get_desc("setting.view.not_set", lang=lang)
-        lbl = lambda k: get_desc(f"setting.view.labels.{k}", lang=lang)
-        text_ch  = ctx.guild.get_channel(cfg["TextTarget"])
+        embed = make_embed("サーバー設定")
+        text_ch = ctx.guild.get_channel(cfg["TextTarget"])
         voice_ch = ctx.guild.get_channel(cfg["VoiceTarget"])
-        embed.add_field(name=lbl("TextTarget"),
-                        value=not_set if text_ch is None else text_ch.mention,
-                        inline=False)
-        embed.add_field(name=lbl("VoiceTarget"),
-                        value=not_set if voice_ch is None else voice_ch.mention,
-                        inline=False)
+        embed.add_field(
+          name="読み上げ対象チャンネル",
+          value="未設定" if text_ch is None else text_ch.mention,
+          inline=False,
+        )
+        embed.add_field(
+          name="接続チャンネル",
+          value="未設定" if voice_ch is None else voice_ch.mention,
+          inline=False,
+        )
         raw_speaker = self.server_config.get_raw_speaker(ctx.guild.id)
         if raw_speaker is None:
           speaker_display = BOT_DEFAULT_LABEL
         else:
           speaker_display = next(
             (name for sid, name in VOICEVOX_SPEAKERS if sid == raw_speaker),
-            str(raw_speaker)
+            str(raw_speaker),
           )
-        embed.add_field(name=lbl("Speaker"),
-                        value=speaker_display,
-                        inline=True)
-        embed.add_field(name=lbl("Volume"),
-                        value=str(cfg["Volume"]),
-                        inline=True)
-        embed.add_field(name=lbl("Speed"),
-                        value=str(cfg["Speed"]),
-                        inline=True)
-        embed.add_field(name=lbl("MaxChar"),
-                        value=str(cfg["MaxChar"]),
-                        inline=True)
-        embed.add_field(name=lbl("AutoJoin"),
-                        value=str(cfg["AutoJoin"]),
-                        inline=True)
-        embed.add_field(name=lbl("AccessNotice"),
-                        value=str(cfg["AccessNotice"]),
-                        inline=True)
-        embed.add_field(name=lbl("Language"),
-                        value=str(cfg["Language"]),
-                        inline=True)
+        embed.add_field(name="話者", value=speaker_display, inline=True)
+        embed.add_field(name="音量", value=str(cfg["Volume"]), inline=True)
+        embed.add_field(name="速さ", value=str(cfg["Speed"]), inline=True)
+        embed.add_field(name="最大読み上げ文字数", value=str(cfg["MaxChar"]), inline=True)
+        embed.add_field(name="自動入退室", value=str(cfg["AutoJoin"]), inline=True)
+        embed.add_field(name="入退室通知", value=str(cfg["AccessNotice"]), inline=True)
         await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
         print(f"HTTPException in setting_view: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_view", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_os_error(ctx, e, "setting_view")
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_view", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_internal_error(ctx, e, "setting_view")
 
     @setting_group.command(
       name="text-target",
-      description=_lstr("commands.setting.text_target.description")
+      description="読み上げ対象のテキストチャンネルを設定します（省略で現在のチャンネル）",
     )
     @discord.app_commands.describe(
-      channel=_lstr("commands.setting.text_target.args.channel")
+      channel="設定するテキストチャンネル（省略で現在のチャンネル）"
     )
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_text_target(ctx, channel: discord.TextChannel = None):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
         target = channel or ctx.channel
         perms = target.permissions_for(ctx.guild.me)
         if not (perms.view_channel and perms.send_messages):
           await ctx.edit_original_response(
-            embed=build_embed("setting.text_target.no_permission", lang=lang, channel=target.mention)
+            embed=make_embed(
+              "設定失敗",
+              f"{target.mention} の表示・送信権限がありません",
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
         self.server_config.set(ctx.guild.id, "TextTarget", target.id)
         await ctx.edit_original_response(
-          embed=build_embed(
-            "setting.text_target.success",
-            lang=lang,
-            target=target.mention
+          embed=make_embed(
+            "設定完了",
+            f"TextTarget を {target.mention} に設定しました",
+            embed_type=EmbedType.SUCCESS,
           )
         )
       except discord.errors.InteractionResponded:
@@ -127,61 +113,73 @@ class Setting:
       except discord.errors.HTTPException as e:
         print(f"HTTPException in setting_text_target: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_text_target", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_os_error(ctx, e, "setting_text_target")
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_text_target", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_internal_error(ctx, e, "setting_text_target")
 
     @setting_group.command(
       name="text-target-reset",
-      description=_lstr("commands.setting.text_target_reset.description")
+      description="TextTarget を未設定に戻します",
     )
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_text_target_reset(ctx):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
         self.server_config.reset(ctx.guild.id, "TextTarget")
-        await ctx.edit_original_response(embed=build_embed("setting.text_target.reset", lang=lang))
+        await ctx.edit_original_response(
+          embed=make_embed(
+            "設定リセット",
+            "TextTarget をリセットしました",
+            embed_type=EmbedType.SUCCESS,
+          )
+        )
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
         print(f"HTTPException in setting_text_target_reset: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_text_target_reset", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_os_error(ctx, e, "setting_text_target_reset")
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_text_target_reset", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_internal_error(ctx, e, "setting_text_target_reset")
 
     @setting_group.command(
       name="voice-target",
-      description=_lstr("commands.setting.voice_target.description")
+      description="自動接続先VCを設定します（省略で現在入室中のVC）",
     )
     @discord.app_commands.describe(
-      channel=_lstr("commands.setting.voice_target.args.channel")
+      channel="設定するボイスチャンネル（省略で現在入室中のVC）"
     )
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_voice_target(ctx, channel: discord.VoiceChannel = None):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
         if channel is None:
           if ctx.user.voice is None:
             await ctx.edit_original_response(
-              embed=build_embed("setting.voice_target.no_vc", lang=lang)
+              embed=make_embed(
+                "設定失敗",
+                "VCに入室していません。チャンネルを指定するか、VCに入室してから実行してください",
+                embed_type=EmbedType.ERROR,
+              )
             )
             return
           channel = ctx.user.voice.channel
         perms = channel.permissions_for(ctx.guild.me)
         if not (perms.connect and perms.speak):
           await ctx.edit_original_response(
-            embed=build_embed("setting.voice_target.no_permission", lang=lang, channel=channel.mention)
+            embed=make_embed(
+              "設定失敗",
+              f"{channel.mention} への接続権限がありません",
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
         self.server_config.set(ctx.guild.id, "VoiceTarget", channel.id)
         await ctx.edit_original_response(
-          embed=build_embed(
-            "setting.voice_target.success",
-            lang=lang,
-            channel=channel.mention
+          embed=make_embed(
+            "設定完了",
+            f"VoiceTarget を {channel.mention} に設定しました",
+            embed_type=EmbedType.SUCCESS,
           )
         )
       except discord.errors.InteractionResponded:
@@ -189,46 +187,49 @@ class Setting:
       except discord.errors.HTTPException as e:
         print(f"HTTPException in setting_voice_target: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_voice_target", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_os_error(ctx, e, "setting_voice_target")
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_voice_target", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_internal_error(ctx, e, "setting_voice_target")
 
     @setting_group.command(
       name="voice-target-reset",
-      description=_lstr("commands.setting.voice_target_reset.description")
+      description="VoiceTarget を未設定に戻します",
     )
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_voice_target_reset(ctx):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
         self.server_config.reset(ctx.guild.id, "VoiceTarget")
-        await ctx.edit_original_response(embed=build_embed("setting.voice_target.reset", lang=lang))
+        await ctx.edit_original_response(
+          embed=make_embed(
+            "設定リセット",
+            "VoiceTarget をリセットしました",
+            embed_type=EmbedType.SUCCESS,
+          )
+        )
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
         print(f"HTTPException in setting_voice_target_reset: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_voice_target_reset", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_os_error(ctx, e, "setting_voice_target_reset")
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_voice_target_reset", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_internal_error(ctx, e, "setting_voice_target_reset")
 
-    @setting_group.command(
-      name="speaker",
-      description=_lstr("commands.setting.speaker.description")
-    )
-    @discord.app_commands.describe(
-      speaker=_lstr("commands.setting.speaker.args.speaker")
-    )
+    @setting_group.command(name="speaker", description="VOICEVOXの話者を設定します")
+    @discord.app_commands.describe(speaker="使用するVOICEVOXの話者名")
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_speaker(ctx, speaker: str):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
         if speaker == BOT_DEFAULT_LABEL:
           self.server_config.set(ctx.guild.id, "Speaker", None)
           await ctx.edit_original_response(
-            embed=build_embed("setting.speaker.default", lang=lang)
+            embed=make_embed(
+              "設定完了",
+              "Speaker を Botのデフォルトに設定しました",
+              embed_type=EmbedType.SUCCESS,
+            )
           )
           return
         speaker_id = next(
@@ -236,16 +237,19 @@ class Setting:
         )
         if speaker_id is None:
           await ctx.edit_original_response(
-            embed=build_embed("setting.speaker.not_found", lang=lang)
+            embed=make_embed(
+              "設定失敗",
+              "話者が見つかりません。一覧から選択してください",
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
         self.server_config.set(ctx.guild.id, "Speaker", speaker_id)
         await ctx.edit_original_response(
-          embed=build_embed(
-            "setting.speaker.success",
-            lang=lang,
-            speaker=speaker,
-            speaker_id=speaker_id
+          embed=make_embed(
+            "設定完了",
+            f"Speaker を {speaker}（ID: {speaker_id}）に設定しました",
+            embed_type=EmbedType.SUCCESS,
           )
         )
       except discord.errors.InteractionResponded:
@@ -253,19 +257,17 @@ class Setting:
       except discord.errors.HTTPException as e:
         print(f"HTTPException in setting_speaker: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_speaker", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_os_error(ctx, e, "setting_speaker")
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_speaker", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_internal_error(ctx, e, "setting_speaker")
 
-    # noinspection PyUnusedLocal
     @setting_speaker.autocomplete("speaker")
     async def speaker_autocomplete(ctx, current: str):
       choices = []
       if not current or current in BOT_DEFAULT_LABEL:
-        choices.append(discord.app_commands.Choice(
-          name=BOT_DEFAULT_LABEL,
-          value=BOT_DEFAULT_LABEL
-        ))
+        choices.append(
+          discord.app_commands.Choice(name=BOT_DEFAULT_LABEL, value=BOT_DEFAULT_LABEL)
+        )
       filtered = [
         discord.app_commands.Choice(name=name, value=name)
         for _, name in VOICEVOX_SPEAKERS
@@ -273,30 +275,28 @@ class Setting:
       ]
       return (choices + filtered)[:25]
 
-    @setting_group.command(
-      name="volume",
-      description=_lstr("commands.setting.volume.description")
-    )
-    @discord.app_commands.describe(
-      volume=_lstr("commands.setting.volume.args.volume")
-    )
+    @setting_group.command(name="volume", description="音量を設定します（0〜100）")
+    @discord.app_commands.describe(volume="音量（0〜100）")
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_volume(ctx, volume: int):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
         try:
           self.server_config.set(ctx.guild.id, "Volume", volume)
         except ValueError:
           await ctx.edit_original_response(
-            embed=build_embed("setting.volume.invalid", lang=lang)
+            embed=make_embed(
+              "設定失敗",
+              "音量は 0〜100 の整数で指定してください",
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
         await ctx.edit_original_response(
-          embed=build_embed(
-            "setting.volume.success",
-            lang=lang,
-            volume=volume
+          embed=make_embed(
+            "設定完了",
+            f"Volume を {volume} に設定しました",
+            embed_type=EmbedType.SUCCESS,
           )
         )
       except discord.errors.InteractionResponded:
@@ -304,34 +304,35 @@ class Setting:
       except discord.errors.HTTPException as e:
         print(f"HTTPException in setting_volume: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_volume", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_os_error(ctx, e, "setting_volume")
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_volume", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_internal_error(ctx, e, "setting_volume")
 
     @setting_group.command(
       name="speed",
-      description=_lstr("commands.setting.speed.description")
+      description="読み上げ速度を設定します（50〜200）",
     )
-    @discord.app_commands.describe(
-      speed=_lstr("commands.setting.speed.args.speed")
-    )
+    @discord.app_commands.describe(speed="速度（50〜200、100が等速）")
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_speed(ctx, speed: int):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
         try:
           self.server_config.set(ctx.guild.id, "Speed", speed)
         except ValueError:
           await ctx.edit_original_response(
-            embed=build_embed("setting.speed.invalid", lang=lang)
+            embed=make_embed(
+              "設定失敗",
+              "速度は 50〜200 の整数で指定してください",
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
         await ctx.edit_original_response(
-          embed=build_embed(
-            "setting.speed.success",
-            lang=lang,
-            speed=speed
+          embed=make_embed(
+            "設定完了",
+            f"Speed を {speed} に設定しました",
+            embed_type=EmbedType.SUCCESS,
           )
         )
       except discord.errors.InteractionResponded:
@@ -339,38 +340,39 @@ class Setting:
       except discord.errors.HTTPException as e:
         print(f"HTTPException in setting_speed: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_speed", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_os_error(ctx, e, "setting_speed")
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_speed", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_internal_error(ctx, e, "setting_speed")
 
     @setting_group.command(
       name="max-char",
-      description=_lstr("commands.setting.max_char.description")
+      description="読み上げ最大文字数を設定します（30〜200、0でデフォルトの50に戻す）",
     )
     @discord.app_commands.describe(
-      chars=_lstr("commands.setting.max_char.args.chars")
+      chars="読み上げ最大文字数（30〜200、0でデフォルトの50に戻す）"
     )
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_max_char(ctx, chars: int):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
         if chars == 0:
           chars = 50
         try:
           self.server_config.set(ctx.guild.id, "MaxChar", chars)
         except ValueError:
           await ctx.edit_original_response(
-            embed=build_embed("setting.max_char.invalid", lang=lang)
+            embed=make_embed(
+              "設定失敗",
+              "最大文字数は 30〜200 の整数で指定してください（0でデフォルトの50に戻す）",
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
-        limit = get_desc("setting.max_char.limited", lang=lang).format(chars=chars)
         await ctx.edit_original_response(
-          embed=build_embed(
-            "setting.max_char.success",
-            lang=lang,
-            chars=chars,
-            limit=limit
+          embed=make_embed(
+            "設定完了",
+            f"MaxChar を {chars} に設定しました（{chars}文字）",
+            embed_type=EmbedType.SUCCESS,
           )
         )
       except discord.errors.InteractionResponded:
@@ -378,29 +380,26 @@ class Setting:
       except discord.errors.HTTPException as e:
         print(f"HTTPException in setting_max_char: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_max_char", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_os_error(ctx, e, "setting_max_char")
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_max_char", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_internal_error(ctx, e, "setting_max_char")
 
     @setting_group.command(
       name="auto-join",
-      description=_lstr("commands.setting.auto_join.description")
+      description="VCに人が入ったとき自動で参加するかを設定します",
     )
-    @discord.app_commands.describe(
-      enabled=_lstr("commands.setting.auto_join.args.enabled")
-    )
+    @discord.app_commands.describe(enabled="有効にするかどうか")
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_auto_join(ctx, enabled: bool):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
         self.server_config.set(ctx.guild.id, "AutoJoin", enabled)
-        state_key = "setting.states.enabled" if enabled else "setting.states.disabled"
+        state = "有効" if enabled else "無効"
         await ctx.edit_original_response(
-          embed=build_embed(
-            "setting.auto_join.success",
-            lang=lang,
-            state=get_desc(state_key, lang=lang)
+          embed=make_embed(
+            "設定完了",
+            f"AutoJoin を {state} にしました",
+            embed_type=EmbedType.SUCCESS,
           )
         )
       except discord.errors.InteractionResponded:
@@ -408,29 +407,26 @@ class Setting:
       except discord.errors.HTTPException as e:
         print(f"HTTPException in setting_auto_join: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_auto_join", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_os_error(ctx, e, "setting_auto_join")
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_auto_join", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_internal_error(ctx, e, "setting_auto_join")
 
     @setting_group.command(
       name="access-notice",
-      description=_lstr("commands.setting.access_notice.description")
+      description="VCへの入退室をTTSで通知するかを設定します",
     )
-    @discord.app_commands.describe(
-      enabled=_lstr("commands.setting.access_notice.args.enabled")
-    )
+    @discord.app_commands.describe(enabled="有効にするかどうか")
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_access_notice(ctx, enabled: bool):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
         self.server_config.set(ctx.guild.id, "AccessNotice", enabled)
-        state_key = "setting.states.enabled" if enabled else "setting.states.disabled"
+        state = "有効" if enabled else "無効"
         await ctx.edit_original_response(
-          embed=build_embed(
-            "setting.access_notice.success",
-            lang=lang,
-            state=get_desc(state_key, lang=lang)
+          embed=make_embed(
+            "設定完了",
+            f"AccessNotice を {state} にしました",
+            embed_type=EmbedType.SUCCESS,
           )
         )
       except discord.errors.InteractionResponded:
@@ -438,48 +434,20 @@ class Setting:
       except discord.errors.HTTPException as e:
         print(f"HTTPException in setting_access_notice: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_access_notice", lang=self.server_config.get(ctx.guild.id, "Language"))
+        await handle_os_error(ctx, e, "setting_access_notice")
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_access_notice", lang=self.server_config.get(ctx.guild.id, "Language"))
-
-    @setting_group.command(
-      name="language",
-      description=_lstr("commands.setting.language.description")
-    )
-    @discord.app_commands.describe(
-      language=_lstr("commands.setting.language.args.language")
-    )
-    @discord.app_commands.choices(language=[
-      discord.app_commands.Choice(name="日本語",   value="ja"),
-      discord.app_commands.Choice(name="English",  value="en"),
-      discord.app_commands.Choice(name="简体中文", value="zh-CN"),
-      discord.app_commands.Choice(name="繁體中文", value="zh-TW"),
-      discord.app_commands.Choice(name="한국어",   value="ko"),
-      discord.app_commands.Choice(name="𓂀 Hieroglyphs", value="hg"),
-    ])
-    @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_language(ctx, language: str):
-      try:
-        await ctx.response.defer()
-        self.server_config.set(ctx.guild.id, "Language", language)
-        await ctx.edit_original_response(
-          embed=build_embed("setting.language.success", lang=language, language=language)
-        )
-      except discord.errors.InteractionResponded:
-        return
-      except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_language: {e}")
-      except OSError as e:
-        await handle_os_error(ctx, e, "setting_language", lang=language)
-      except Exception as e:
-        await handle_internal_error(ctx, e, "setting_language", lang=language)
+        await handle_internal_error(ctx, e, "setting_access_notice")
 
     @setting_group.error
     async def setting_error(ctx, error):
       if isinstance(error, discord.app_commands.MissingPermissions):
         await ctx.response.send_message(
-          embed=build_embed("setting.error.no_permission"),
-          ephemeral=True
+          embed=make_embed(
+            "権限エラー",
+            "サーバー管理権限が必要です",
+            embed_type=EmbedType.ERROR,
+          ),
+          ephemeral=True,
         )
 
     self.tree.add_command(setting_group)

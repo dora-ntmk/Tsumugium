@@ -16,7 +16,8 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `sound_dict.py` | サウンドボード辞書（word→sound_id）の管理と `/sounddict` コマンド群。Discordサウンドボードキャッシュ更新も担当 |
 | `server_config.py` | サーバー設定のSQLite管理（`ServerConfig` クラス）。バリデーション・デフォルト値・VOICEVOX変換 |
 | `setting.py` | `/setting` コマンド群（サーバー管理者向け設定変更） |
-| `messages.py` | 多言語メッセージ管理。JSONファイルからロードしてEmbedを生成、コマンド翻訳（`BotTranslator`） |
+| `presentation/embeds.py` | Discord Embedの共通ひな形（色・タイトル・本文） |
+| `presentation/error_handler.py` | コマンド実行時の共通エラー応答 |
 | `vvtts.py` | VOICEVOX API連携。テキストからWAVファイルを生成（`VvTTS` クラス） |
 | `config.py` | `.env` から環境変数をロードし定数として公開 |
 | `backup.py` | SQLiteの定時バックアップとローテーション管理 |
@@ -41,13 +42,14 @@ CREATE TABLE guild_config (
     MaxChar       INTEGER NOT NULL DEFAULT 50,  -- 最大文字数 30〜200
     AutoJoin      INTEGER NOT NULL DEFAULT 0,   -- 自動入室 0/1
     AccessNotice  INTEGER NOT NULL DEFAULT 0,   -- 入退室通知 0/1
-    Language      TEXT    NOT NULL DEFAULT 'ja',-- ja / en / zh-CN / zh-TW / ko / hg
+    Language      TEXT    NOT NULL DEFAULT 'ja',-- v3.4以前とのDB互換性のため残置（v3.5では未使用）
     Greeting      INTEGER NOT NULL DEFAULT 1    -- 起動挨拶 0/1
 )
 ```
 
 `Speaker` が NULL のとき `_to_python()` は環境変数 `DEFAULT_SPEAKER`（デフォルト8）を返す。  
 `AutoJoin`/`AccessNotice`/`Greeting` はSQLite上は 0/1、Python上は bool で扱う（`_BOOL_KEYS` で変換）。
+`Language` は既存DBとの互換性のためカラムのみ維持し、v3.5の設定API・コマンドからは参照しない。Botの表示言語は日本語固定。
 
 ### dict.db — `dict`
 
@@ -154,7 +156,6 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/setting max-char` | `chars: int (30〜200)` | manage_guild |
 | `/setting auto-join` | `enabled: bool` | manage_guild |
 | `/setting access-notice` | `enabled: bool` | manage_guild |
-| `/setting language` | `language` | manage_guild |
 
 メッセージトリガー:
 - `@Bot` 単体メンション: VC接続トグル
@@ -205,7 +206,6 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `EMOJI_JA_JSON` | `db/emoji_ja.json` | 絵文字→日本語短縮名マッピング |
 | `SPEAKERS_JSON` | `db/speakers.json` | VOICEVOX話者リスト |
 | `TMP_DIR` | `tmp` | 音声ファイル一時保存先 |
-| `MESSAGES_DIR` | `messages` | メッセージJSONディレクトリ |
 | `BACKUP_DIR` | `backup` | バックアップ保存先 |
 | `BACKUP_TIMES` | `""` | バックアップ実行時刻（カンマ区切り、例: `03:00,15:00`） |
 | `BACKUP_INTERVAL_DAYS` | `1` | バックアップ実行間隔（日） |

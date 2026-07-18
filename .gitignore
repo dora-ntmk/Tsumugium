@@ -225,3 +225,9 @@ conf/config.json.migrated
 db/config.db
 db/dict.db
 db/soundboards.db
+
+# Codex関係
+tests/
+db/config*
+db/dict*
+db/soundboards*

@@ -19,7 +19,6 @@ DEFAULTS = {
   "MaxChar": 50,
   "AutoJoin": False,
   "AccessNotice": False,
-  "Language": "ja",
   "Greeting": True,
 }
 
@@ -32,7 +31,6 @@ _TYPE_VALIDATORS = {
   "MaxChar":      (lambda v: isinstance(v, int) and 30 <= v <= 200),
   "AutoJoin":     (lambda v: isinstance(v, bool)),
   "AccessNotice": (lambda v: isinstance(v, bool)),
-  "Language":     (lambda v: isinstance(v, str) and v in ("ja", "en", "zh-CN", "zh-TW", "ko", "hg")),
   "Greeting":     (lambda v: isinstance(v, bool)),
 }
 
@@ -145,14 +143,14 @@ class ServerConfig:
 
   def get_all(self, guild_id: int) -> dict:
     cur = self._conn.execute(
-      "SELECT TextTarget, VoiceTarget, Speaker, Volume, Speed, MaxChar, AutoJoin, AccessNotice, Language, Greeting"
+      "SELECT TextTarget, VoiceTarget, Speaker, Volume, Speed, MaxChar, AutoJoin, AccessNotice, Greeting"
       " FROM guild_config WHERE guild_id = ?",
       (str(guild_id),)
     )
     row = cur.fetchone()
     if row is None:
       return dict(DEFAULTS)
-    keys = ["TextTarget", "VoiceTarget", "Speaker", "Volume", "Speed", "MaxChar", "AutoJoin", "AccessNotice", "Language", "Greeting"]
+    keys = ["TextTarget", "VoiceTarget", "Speaker", "Volume", "Speed", "MaxChar", "AutoJoin", "AccessNotice", "Greeting"]
     result = {}
     for k, v in zip(keys, row):
       result[k] = self._to_python(k, v)

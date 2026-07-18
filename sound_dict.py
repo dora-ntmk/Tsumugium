@@ -12,13 +12,10 @@ import sqlite3
 import discord
 import requests
 from typing import Optional
-from messages import build_embed, get_desc, handle_internal_error
 from word_dict import DictManager, _filter_entries
 from dict_view import DictViewPaginator
-
-
-def _lstr(key: str) -> discord.app_commands.locale_str:
-  return discord.app_commands.locale_str(get_desc(key), key=key)
+from presentation.embeds import EmbedType, make_embed
+from presentation.error_handler import handle_internal_error
 
 
 class SoundDict:
@@ -139,33 +136,36 @@ class SoundDictView:
   def _register(self):
     sounddict_group = discord.app_commands.Group(
       name='sounddict',
-      description=_lstr('commands.sounddict._group')
+      description='音声辞書を管理します'
     )
 
-    @sounddict_group.command(name='add', description=_lstr('commands.sounddict.add.description'))
+    @sounddict_group.command(name='add', description='音声辞書に単語を追加します')
     @discord.app_commands.describe(
-      word=_lstr('commands.sounddict.add.args.word'),
-      sound=_lstr('commands.sounddict.add.args.sound'),
-      read=_lstr('commands.sounddict.add.args.read'),
-      full_match=_lstr('commands.sounddict.add.args.full_match'),
-      trigger_user=_lstr('commands.sounddict.add.args.trigger_user')
+      word='追加する単語',
+      sound='サウンドボードのID',
+      read='読み方（省略可・50文字以内）',
+      full_match='Falseにすると単語が含まれているだけで再生されます（デフォルト: True=完全一致）',
+      trigger_user='このユーザー/Botが発言したときのみ再生します（省略可）'
     )
     @discord.app_commands.checks.has_permissions()
     async def sounddict_add(ctx, word: str, sound: str, read: Optional[str] = None,
                             full_match: bool = True, trigger_user: Optional[discord.Member] = None):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, 'Language')
         sounds = self.sound_boards.get_sounds(ctx.guild.id)
         sound_id = next((sid for sid, name in sounds if name == sound), None)
         if sound_id is None:
           await ctx.edit_original_response(
-            embed=build_embed('sounddict.add.not_found', lang=lang, sound=sound)
+            embed=make_embed(
+              'サウンドが見つかりませんでした',
+              f'サウンドボードに「{sound}」はありません。候補から選択してください。',
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
         trigger_user_id = str(trigger_user.id) if trigger_user else None
-        match_mode = get_desc('sounddict.add.match_mode.partial', lang=lang) if not full_match else get_desc('sounddict.add.match_mode.full', lang=lang)
-        trigger_label = trigger_user.display_name if trigger_user else get_desc('sounddict.add.trigger_none', lang=lang)
+        match_mode = '完全一致' if full_match else '部分一致'
+        trigger_label = trigger_user.display_name if trigger_user else 'なし'
         sound_overwrite = self.sound_dict.add(ctx.guild.id, word, sound_id, full_match=full_match, trigger_user_id=trigger_user_id)
         if read is not None:
           try:
@@ -173,21 +173,35 @@ class SoundDictView:
           except ValueError:
             dict_overwrite = False
           overwrite = sound_overwrite or dict_overwrite
-          key = 'sounddict.add.overwrite_both' if overwrite else 'sounddict.add.success_both'
-          await ctx.edit_original_response(
-            embed=build_embed(key, lang=lang, word=word, sound=sound, read=read, match_mode=match_mode, trigger=trigger_label)
+          title = '辞書への上書きが成功しました' if overwrite else '辞書への追加が成功しました'
+          description = '音声辞書と読み上げ辞書の単語が上書きされました' if overwrite else '音声辞書と読み上げ辞書に単語が追加されました'
+          embed = make_embed(title, description, embed_type=EmbedType.SUCCESS)
+          embed.add_field(
+            name='登録内容',
+            value=f'`{word}` → 音声: `{sound}`　読み: `{read}`',
+            inline=False,
           )
         else:
-          key = 'sounddict.add.overwrite' if sound_overwrite else 'sounddict.add.success'
-          await ctx.edit_original_response(
-            embed=build_embed(key, lang=lang, word=word, sound=sound, match_mode=match_mode, trigger=trigger_label)
+          title = '音声辞書への上書きが成功しました' if sound_overwrite else '音声辞書への追加が成功しました'
+          description = '音声辞書の単語が上書きされました' if sound_overwrite else '音声辞書に単語が追加されました'
+          embed = make_embed(title, description, embed_type=EmbedType.SUCCESS)
+          embed.add_field(
+            name='登録内容',
+            value=f'`{word}` → `{sound}`',
+            inline=False,
           )
+        embed.add_field(
+          name='オプション',
+          value=f'一致モード: `{match_mode}`　発話ユーザー: `{trigger_label}`',
+          inline=False,
+        )
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
         print(f'HTTPException in sounddict_add: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "sounddict_add", lang=self.server_config.get(ctx.guild.id, 'Language'))
+        await handle_internal_error(ctx, e, "sounddict_add")
 
     # noinspection PyUnusedLocal
     @sounddict_add.autocomplete("sound")
@@ -200,33 +214,40 @@ class SoundDictView:
       ]
       return filtered[:25]
 
-    @sounddict_group.command(name='del', description=_lstr('commands.sounddict.del.description'))
+    @sounddict_group.command(name='del', description='音声辞書から単語を削除します')
     @discord.app_commands.describe(
-      word=_lstr('commands.sounddict.del.args.word'),
-      both=_lstr('commands.sounddict.del.args.both')
+      word='削除する単語',
+      both='Trueにすると読み上げ辞書からも削除します'
     )
     @discord.app_commands.checks.has_permissions()
     async def sounddict_del(ctx, word: str, both: bool = False):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, 'Language')
         sound_id = self.sound_dict.delete(ctx.guild.id, word)
         if sound_id is None:
           await ctx.edit_original_response(
-            embed=build_embed('sounddict.del.not_found', lang=lang, word=word)
+            embed=make_embed(
+              '音声辞書にその単語は見つかりませんでした',
+              f'音声辞書に`{word}`はありません。確認して入れなおしてください。',
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
         if both:
           self.dict_manager.delete(ctx.guild.id, word)
-        await ctx.edit_original_response(
-          embed=build_embed('sounddict.del.success', lang=lang, word=word)
+        embed = make_embed(
+          '音声辞書からの削除が成功しました',
+          '音声辞書から単語が削除されました',
+          embed_type=EmbedType.SUCCESS,
         )
+        embed.add_field(name='削除内容', value=f'`{word}`', inline=False)
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
         print(f'HTTPException in sounddict_del: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "sounddict_del", lang=self.server_config.get(ctx.guild.id, 'Language'))
+        await handle_internal_error(ctx, e, "sounddict_del")
 
     # noinspection PyUnusedLocal
     @sounddict_del.autocomplete("word")
@@ -240,20 +261,18 @@ class SoundDictView:
       ]
       return filtered[:25]
 
-    @sounddict_group.command(name='view', description=_lstr('commands.sounddict.view.description'))
+    @sounddict_group.command(name='view', description='音声辞書の内容を確認します')
     @discord.app_commands.describe(
-      ephemeral=_lstr('commands.sounddict.view.args.ephemeral'),
-      search=_lstr('commands.sounddict.view.args.search')
+      ephemeral='Trueにすると自分にだけ見える形で表示します',
+      search='検索する文字列（部分一致）'
     )
     async def sounddict_view(ctx, search: Optional[str] = None, ephemeral: bool = False):
       try:
         await ctx.response.defer(ephemeral=ephemeral)
-        lang = self.server_config.get(ctx.guild.id, 'Language')
         normal_entries, priority_entries = self.sound_dict.get_entries(ctx.guild.id)
 
         if not normal_entries and not priority_entries:
-          embed = build_embed('sounddict.view', lang=lang)
-          embed.description = get_desc('sounddict.view.empty', lang=lang)
+          embed = make_embed('音声辞書一覧', '音声辞書に登録された単語はありません')
           await ctx.edit_original_response(embed=embed)
           return
 
@@ -262,7 +281,7 @@ class SoundDictView:
         def make_label(fm, uid):
           parts = []
           if not fm:
-            parts.append(get_desc('sounddict.view.label_partial', lang=lang))
+            parts.append('部分一致')
           if uid:
             m = ctx.guild.get_member(int(uid))
             parts.append(f"@{m.display_name}" if m else f"uid:{uid}")
@@ -280,11 +299,15 @@ class SoundDictView:
 
         if not normal_items and not priority_items:
           await ctx.edit_original_response(
-            embed=build_embed('sounddict.view.not_found', lang=lang, word=search)
+            embed=make_embed(
+              '見つかりませんでした',
+              f'「{search}」に一致する単語は音声辞書にありません',
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
 
-        paginator = DictViewPaginator(normal_items, priority_items, lang, 'sounddict')
+        paginator = DictViewPaginator(normal_items, priority_items, 'sounddict')
         embed = paginator.build_embed()
 
         if paginator.total_pages <= 1:
@@ -298,13 +321,17 @@ class SoundDictView:
       except discord.errors.HTTPException as e:
         print(f'HTTPException in sounddict_view: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "sounddict_view", lang=self.server_config.get(ctx.guild.id, 'Language'))
+        await handle_internal_error(ctx, e, "sounddict_view")
 
     @sounddict_group.error
     async def sounddict_error(ctx, error):
       if isinstance(error, discord.app_commands.MissingPermissions):
         await ctx.response.send_message(
-          embed=build_embed('sounddict.error.no_permission'),
+          embed=make_embed(
+            '権限エラー',
+            'サーバー管理権限が必要です',
+            embed_type=EmbedType.ERROR,
+          ),
           ephemeral=True
         )
 

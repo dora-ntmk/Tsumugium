@@ -17,7 +17,8 @@ from backup import start as start_backup
 from vvtts import VvTTS
 from play import Play
 from server_config import ServerConfig
-from messages import build_embed, get_desc, handle_os_error, handle_internal_error, BotTranslator
+from presentation.embeds import EmbedType, make_embed
+from presentation.error_handler import handle_os_error, handle_internal_error
 from setting import Setting
 from word_dict import DictManager, WordDict
 from sound_dict import SoundDict, SoundDictView, UpdateSoundBoards
@@ -50,8 +51,9 @@ def get_notify_channel(guild, vc_channel=None):
   return vc_channel
 
 
-async def enqueue_notice(guild, member, msg_key, lang: str = "ja"):
-  notice_text = get_desc(msg_key, lang=lang).format(display_name=member.display_name)
+async def enqueue_notice(guild, member, joined: bool):
+  action = "入室" if joined else "退室"
+  notice_text = f"{member.display_name}さんが{action}しました"
   notice_text, _, _ = dict_manager.preprocess_text(notice_text, guild.id, guild, [])
   speaker = server_config.get(guild.id, "Speaker")
   volume = server_config.volume_to_vvtts(guild.id)
@@ -66,7 +68,6 @@ async def enqueue_notice(guild, member, msg_key, lang: str = "ja"):
 # 起動時動作
 @client.event
 async def on_ready():
-  await tree.set_translator(BotTranslator())
   await tree.sync()
 
   # 起動時にサーバー設定・辞書データを同期（オフライン中の参加・追放に対応）
@@ -156,7 +157,6 @@ async def on_socket_raw_receive(msg):
 @client.event
 async def on_voice_state_update(member, before, after):
   guild = member.guild
-  lang = server_config.get(guild.id, "Language")
 
   # Bot自身の切断検知（強制切断 vs 自発的退出の区別）
   if member == guild.me:
@@ -199,12 +199,17 @@ async def on_voice_state_update(member, before, after):
         leaving_guilds.add(guild.id)
         await guild.voice_client.disconnect()
         if ch:
-          await ch.send(embed=build_embed("leave.auto", lang=lang))
+          await ch.send(
+            embed=make_embed(
+              "自動退出",
+              "ボイスチャンネルに誰もいなくなったため退出しました",
+            )
+          )
         return
       else:
         # LeaveNotice
         if server_config.get(guild.id, "AccessNotice"):
-          await enqueue_notice(guild, member, "leave.notice_text", lang=lang)
+          await enqueue_notice(guild, member, joined=False)
 
   if not user_joined:
     return
@@ -225,41 +230,49 @@ async def on_voice_state_update(member, before, after):
         text_ok = text_perms.view_channel and text_perms.send_messages
       issues = []
       if not vc_ok:
-        issues.append(get_desc("join.no_permission_vc", lang=lang).format(channel=target_channel.mention))
+        issues.append(f"{target_channel.mention} への接続権限がありません")
       if not text_ok:
-        issues.append(get_desc("join.no_permission_text", lang=lang).format(channel=ch.mention))
+        issues.append(f"{ch.mention} の表示権限がありません")
       if issues:
         if not text_ok:
-          await member.send(get_desc("join.no_permission_text_dm", lang=lang))
+          await member.send("あなたが接続したテキストチャンネルに権限がないため、自動接続が失敗しました")
         elif ch:
-          await ch.send(embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues)))
+          await ch.send(
+            embed=make_embed(
+              "権限エラー",
+              "\n".join(issues),
+              embed_type=EmbedType.ERROR,
+            )
+          )
         return
       await asyncio.sleep(1)
       await target_channel.connect(timeout=60)
       if ch:
-        await ch.send(embed=build_embed("join.auto", lang=lang, vc=target_channel.mention, text=ch.mention))
+        embed = make_embed("自動入室", "ボイスチャンネルに自動で接続しました")
+        embed.add_field(
+          name="接続情報",
+          value=f"接続チャンネル：{target_channel.mention}　読み上げチャンネル：{ch.mention}",
+          inline=False,
+        )
+        await ch.send(embed=embed)
       return  # 最初の入室者の入室通知をスキップ
 
   # AccessNotice
   if server_config.get(guild.id, "AccessNotice") and guild.voice_client is not None and after.channel == guild.voice_client.channel:
-    await enqueue_notice(guild, member, "join.notice_text", lang=lang)
+    await enqueue_notice(guild, member, joined=True)
 
 
 # 入室
 @tree.command(
   name="join",
-  description=discord.app_commands.locale_str(get_desc("commands.join.description"), key="commands.join.description")
+  description="ボイスチャンネルに接続します。"
 )
 @discord.app_commands.describe(
-  change_channel=discord.app_commands.locale_str(
-    get_desc("commands.join.args.change_channel"),
-    key="commands.join.args.change_channel"
-  )
+  change_channel="TrueにするとTextTarget・VoiceTargetをサーバー設定に適用します"
 )
 async def join(ctx, change_channel: bool = False):
   try:
     await ctx.response.defer()
-    lang = server_config.get(ctx.guild.id, "Language")
     if ctx.user.voice:
       voice_channel = ctx.user.voice.channel
       text_channel  = ctx.channel
@@ -268,12 +281,16 @@ async def join(ctx, change_channel: bool = False):
       text_perms    = text_channel.permissions_for(bot_member)
       issues = []
       if not (vc_perms.connect and vc_perms.speak):
-        issues.append(get_desc("join.no_permission_vc", lang=lang).format(channel=voice_channel.mention))
+        issues.append(f"{voice_channel.mention} への接続権限がありません")
       if not (text_perms.view_channel and text_perms.send_messages):
-        issues.append(get_desc("join.no_permission_text", lang=lang).format(channel=text_channel.mention))
+        issues.append(f"{text_channel.mention} の表示権限がありません")
       if issues:
         await ctx.edit_original_response(
-          embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues))
+          embed=make_embed(
+            "権限エラー",
+            "\n".join(issues),
+            embed_type=EmbedType.ERROR,
+          )
         )
         return
       if ctx.guild.voice_client is not None:
@@ -284,82 +301,119 @@ async def join(ctx, change_channel: bool = False):
       if change_channel:
         if not ctx.user.guild_permissions.manage_guild:
           await ctx.edit_original_response(
-            embed=build_embed("join.no_permission_change_channel", lang=lang)
+            embed=make_embed(
+              "接続完了",
+              "ボイスチャンネルへの接続は完了しましたが、チャンネルの設定変更にはサーバーの管理権限が必要です。",
+              embed_type=EmbedType.WARNING,
+            )
           )
         else:
           try:
             server_config.set(ctx.guild.id, "TextTarget", ctx.channel.id)
             server_config.set(ctx.guild.id, "VoiceTarget", ctx.user.voice.channel.id)
+            embed = make_embed(
+              "接続完了",
+              f"ボイスチャンネルに接続しました。\nTextTargetは {ctx.channel.mention}、VoiceTargetは {ctx.user.voice.channel.mention} に設定されました。",
+              embed_type=EmbedType.SUCCESS,
+            )
+            embed.add_field(
+              name="接続情報",
+              value=f"接続チャンネル：{ctx.user.voice.channel.mention}　読み上げチャンネル：{ctx.channel.mention}",
+              inline=False,
+            )
+            await ctx.edit_original_response(embed=embed)
+          except OSError:
             await ctx.edit_original_response(
-              embed=build_embed(
-                "join.success_change_channel",
-                lang=lang,
-                vc=ctx.user.voice.channel.mention,
-                text=ctx.channel.mention,
-                voice=ctx.user.voice.channel.mention
+              embed=make_embed(
+                "設定失敗",
+                "チャンネルの設定に失敗しました",
+                embed_type=EmbedType.ERROR,
               )
             )
-          except OSError:
-            await ctx.edit_original_response(embed=build_embed("join.failure_change_channel", lang=lang))
       else:
         play.temp_text_targets[ctx.guild.id] = ctx.channel.id
-        await ctx.edit_original_response(
-          embed=build_embed("join.success_temp", lang=lang, vc=ctx.user.voice.channel.mention, text=ctx.channel.mention)
+        embed = make_embed(
+          "接続完了",
+          f"ボイスチャンネルに接続しました。\n今回の通話に限り {ctx.channel.mention} のメッセージも読み上げます。",
+          embed_type=EmbedType.SUCCESS,
         )
+        embed.add_field(
+          name="接続情報",
+          value=f"接続チャンネル：{ctx.user.voice.channel.mention}　読み上げチャンネル：{ctx.channel.mention}",
+          inline=False,
+        )
+        await ctx.edit_original_response(embed=embed)
     else:
-      await ctx.edit_original_response(embed=build_embed("join.failure", lang=lang))
+      await ctx.edit_original_response(
+        embed=make_embed(
+          "接続失敗",
+          "ボイスチャンネルに接続できませんでした",
+          embed_type=EmbedType.ERROR,
+        )
+      )
   except discord.errors.InteractionResponded:
     return
   except discord.errors.HTTPException as e:
     print(f"HTTPException in join: {e}")
   except OSError as e:
-    await handle_os_error(ctx, e, "join", lang=server_config.get(ctx.guild.id, "Language"))
+    await handle_os_error(ctx, e, "join")
   except Exception as e:
-    await handle_internal_error(ctx, e, "join", lang=server_config.get(ctx.guild.id, "Language"))
+    await handle_internal_error(ctx, e, "join")
 
 
 # 退室
 @tree.command(
   name="leave",
-  description=discord.app_commands.locale_str(get_desc("commands.leave.description"), key="commands.leave.description")
+  description="ボイスチャンネルから切断します。"
 )
 async def leave(ctx):
   try:
     await ctx.response.defer()
-    lang = server_config.get(ctx.guild.id, "Language")
     if ctx.user.voice:
       leaving_guilds.add(ctx.guild.id)
       await ctx.guild.voice_client.disconnect()
-      await ctx.edit_original_response(embed=build_embed("leave.success", lang=lang))
+      await ctx.edit_original_response(
+        embed=make_embed(
+          "切断完了",
+          "ボイスチャンネルから切断しました",
+          embed_type=EmbedType.SUCCESS,
+        )
+      )
     else:
-      await ctx.edit_original_response(embed=build_embed("leave.failure", lang=lang))
+      await ctx.edit_original_response(
+        embed=make_embed(
+          "切断失敗",
+          "ボイスチャンネルから切断できませんでした",
+          embed_type=EmbedType.ERROR,
+        )
+      )
   except discord.errors.InteractionResponded:
     return
   except discord.errors.HTTPException as e:
     print(f"HTTPException in leave: {e}")
   except OSError as e:
-    await handle_os_error(ctx, e, "leave", lang=server_config.get(ctx.guild.id, "Language"))
+    await handle_os_error(ctx, e, "leave")
   except Exception as e:
-    await handle_internal_error(ctx, e, "leave", lang=server_config.get(ctx.guild.id, "Language"))
+    await handle_internal_error(ctx, e, "leave")
 
 
 @tree.command(
   name="version",
-  description=discord.app_commands.locale_str(get_desc("commands.version.description"), key="commands.version.description")
+  description="バージョン情報を表示します"
 )
 async def version_cmd(ctx):
   try:
     await ctx.response.defer()
-    lang = server_config.get(ctx.guild.id, "Language")
-    await ctx.edit_original_response(
-      embed=build_embed("version.info", lang=lang, version=VERSION, last_updated=LAST_UPDATED)
-    )
+    embed = make_embed("バージョン情報")
+    embed.add_field(name="Tsumugiumバージョン", value=VERSION, inline=False)
+    embed.add_field(name="Tsumugium最終更新日", value=LAST_UPDATED, inline=False)
+    await ctx.edit_original_response(embed=embed)
   except discord.errors.InteractionResponded:
     return
   except discord.errors.HTTPException as e:
     print(f"HTTPException in version: {e}")
   except Exception as e:
-    await handle_internal_error(ctx, e, "version", lang=server_config.get(ctx.guild.id, "Language"))
+    await handle_internal_error(ctx, e, "version")
 
 
 # 起動
