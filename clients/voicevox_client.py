@@ -4,6 +4,8 @@ import json
 import os
 from typing import Any
 
+from services.error_notification_service import ensure_error_notifier
+
 
 class VoicevoxClient:
   def __init__(
@@ -12,11 +14,13 @@ class VoicevoxClient:
       *,
       tmp_dir: str = "tmp",
       session: Any = None,
+      error_notifier=None,
   ):
     self.url = url.rstrip("/")
     self.tmp_dir = tmp_dir
     self._session = session
     self._owns_session = session is None
+    self.error_notifier = ensure_error_notifier(error_notifier)
 
   async def _get_session(self):
     if self._session is None or getattr(self._session, "closed", False):
@@ -75,7 +79,7 @@ class VoicevoxClient:
         file.write(wav)
       return path
     except Exception as e:
-      print(e)
+      self.error_notifier.report(str(e))
       return None
 
   async def close(self) -> None:

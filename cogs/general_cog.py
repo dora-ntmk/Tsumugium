@@ -4,13 +4,15 @@ import discord
 
 from presentation.embeds import make_embed
 from presentation.error_handler import handle_internal_error
+from services.error_notification_service import ensure_error_notifier
 
 
 class GeneralCog:
-  def __init__(self, tree, version: str, last_updated: str):
+  def __init__(self, tree, version: str, last_updated: str, error_notifier=None):
     self.tree = tree
     self.version = version
     self.last_updated = last_updated
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self._register()
 
   def _register(self) -> None:
@@ -36,6 +38,6 @@ class GeneralCog:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in version: {e}")
+        self.error_notifier.report(f"HTTPException in version: {e}")
       except Exception as e:
-        await handle_internal_error(ctx, e, "version")
+        await handle_internal_error(ctx, e, "version", self.error_notifier)

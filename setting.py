@@ -14,6 +14,7 @@ import discord
 from config import SPEAKERS_JSON
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error, handle_os_error
+from services.error_notification_service import ensure_error_notifier
 
 
 with open(SPEAKERS_JSON, encoding="utf-8") as _f:
@@ -23,10 +24,11 @@ BOT_DEFAULT_LABEL = "Botのデフォルト"
 
 
 class Setting:
-  def __init__(self, client, tree, server_config):
+  def __init__(self, client, tree, server_config, error_notifier=None):
     self.client = client
     self.tree = tree
     self.server_config = server_config
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self._register()
 
   def _register(self):
@@ -72,11 +74,11 @@ class Setting:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_view: {e}")
+        self.error_notifier.report(f"HTTPException in setting_view: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_view")
+        await handle_os_error(ctx, e, "setting_view", self.error_notifier)
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_view")
+        await handle_internal_error(ctx, e, "setting_view", self.error_notifier)
 
     @setting_group.command(
       name="text-target",
@@ -111,11 +113,11 @@ class Setting:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_text_target: {e}")
+        self.error_notifier.report(f"HTTPException in setting_text_target: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_text_target")
+        await handle_os_error(ctx, e, "setting_text_target", self.error_notifier)
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_text_target")
+        await handle_internal_error(ctx, e, "setting_text_target", self.error_notifier)
 
     @setting_group.command(
       name="text-target-reset",
@@ -136,11 +138,11 @@ class Setting:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_text_target_reset: {e}")
+        self.error_notifier.report(f"HTTPException in setting_text_target_reset: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_text_target_reset")
+        await handle_os_error(ctx, e, "setting_text_target_reset", self.error_notifier)
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_text_target_reset")
+        await handle_internal_error(ctx, e, "setting_text_target_reset", self.error_notifier)
 
     @setting_group.command(
       name="voice-target",
@@ -185,11 +187,11 @@ class Setting:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_voice_target: {e}")
+        self.error_notifier.report(f"HTTPException in setting_voice_target: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_voice_target")
+        await handle_os_error(ctx, e, "setting_voice_target", self.error_notifier)
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_voice_target")
+        await handle_internal_error(ctx, e, "setting_voice_target", self.error_notifier)
 
     @setting_group.command(
       name="voice-target-reset",
@@ -210,11 +212,11 @@ class Setting:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_voice_target_reset: {e}")
+        self.error_notifier.report(f"HTTPException in setting_voice_target_reset: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_voice_target_reset")
+        await handle_os_error(ctx, e, "setting_voice_target_reset", self.error_notifier)
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_voice_target_reset")
+        await handle_internal_error(ctx, e, "setting_voice_target_reset", self.error_notifier)
 
     @setting_group.command(name="speaker", description="VOICEVOXの話者を設定します")
     @discord.app_commands.describe(speaker="使用するVOICEVOXの話者名")
@@ -255,11 +257,11 @@ class Setting:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_speaker: {e}")
+        self.error_notifier.report(f"HTTPException in setting_speaker: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_speaker")
+        await handle_os_error(ctx, e, "setting_speaker", self.error_notifier)
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_speaker")
+        await handle_internal_error(ctx, e, "setting_speaker", self.error_notifier)
 
     @setting_speaker.autocomplete("speaker")
     async def speaker_autocomplete(ctx, current: str):
@@ -302,11 +304,11 @@ class Setting:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_volume: {e}")
+        self.error_notifier.report(f"HTTPException in setting_volume: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_volume")
+        await handle_os_error(ctx, e, "setting_volume", self.error_notifier)
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_volume")
+        await handle_internal_error(ctx, e, "setting_volume", self.error_notifier)
 
     @setting_group.command(
       name="speed",
@@ -338,11 +340,11 @@ class Setting:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_speed: {e}")
+        self.error_notifier.report(f"HTTPException in setting_speed: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_speed")
+        await handle_os_error(ctx, e, "setting_speed", self.error_notifier)
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_speed")
+        await handle_internal_error(ctx, e, "setting_speed", self.error_notifier)
 
     @setting_group.command(
       name="max-char",
@@ -378,11 +380,11 @@ class Setting:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_max_char: {e}")
+        self.error_notifier.report(f"HTTPException in setting_max_char: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_max_char")
+        await handle_os_error(ctx, e, "setting_max_char", self.error_notifier)
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_max_char")
+        await handle_internal_error(ctx, e, "setting_max_char", self.error_notifier)
 
     @setting_group.command(
       name="auto-join",
@@ -405,11 +407,11 @@ class Setting:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_auto_join: {e}")
+        self.error_notifier.report(f"HTTPException in setting_auto_join: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_auto_join")
+        await handle_os_error(ctx, e, "setting_auto_join", self.error_notifier)
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_auto_join")
+        await handle_internal_error(ctx, e, "setting_auto_join", self.error_notifier)
 
     @setting_group.command(
       name="access-notice",
@@ -432,11 +434,11 @@ class Setting:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in setting_access_notice: {e}")
+        self.error_notifier.report(f"HTTPException in setting_access_notice: {e}")
       except OSError as e:
-        await handle_os_error(ctx, e, "setting_access_notice")
+        await handle_os_error(ctx, e, "setting_access_notice", self.error_notifier)
       except Exception as e:
-        await handle_internal_error(ctx, e, "setting_access_notice")
+        await handle_internal_error(ctx, e, "setting_access_notice", self.error_notifier)
 
     @setting_group.error
     async def setting_error(ctx, error):

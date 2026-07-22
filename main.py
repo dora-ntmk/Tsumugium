@@ -13,6 +13,7 @@ from config import (
   DICT_DB,
   DISCORD_BOT_TOKEN,
   LAST_UPDATED,
+  OPERATOR_USER_ID,
   SERVER_CONFIG_DB,
   SOUND_BOARDS_DB,
   STATUS_MESSAGE,
@@ -22,6 +23,7 @@ from config import (
 )
 from repositories.guild_config_repository import GuildConfigRepository
 from services.connection_service import ConnectionService
+from services.error_notification_service import ErrorNotificationService
 from services.message_service import MessageService
 from services.speech_service import SpeechService
 from services.voice_service import VoiceService
@@ -34,25 +36,36 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = ManagedDiscordClient(intents=intents, enable_debug_events=True)
 tree = discord.app_commands.CommandTree(client)
+error_notifier = ErrorNotificationService(client, OPERATOR_USER_ID)
+client.set_error_notifier(error_notifier)
 
-voicevox_client = VoicevoxClient(VOICEVOX_URL, tmp_dir=TMP_DIR)
+voicevox_client = VoicevoxClient(
+  VOICEVOX_URL,
+  tmp_dir=TMP_DIR,
+  error_notifier=error_notifier,
+)
 discord_soundboard_client = DiscordSoundboardClient(DISCORD_BOT_TOKEN)
 client.register_closeable(voicevox_client)
 client.register_closeable(discord_soundboard_client)
 
 server_config = GuildConfigRepository(SERVER_CONFIG_DB)
-dict_manager = DictManager(DICT_DB)
+dict_manager = DictManager(DICT_DB, error_notifier)
 sound_dict = SoundDict(dict_manager)
 sound_boards = UpdateSoundBoards(
   SOUND_BOARDS_DB,
   dict_manager,
   discord_soundboard_client,
+  error_notifier,
 )
 client.register_closeable(server_config)
 client.register_closeable(dict_manager)
 client.register_closeable(sound_boards)
 
-voice_service = VoiceService(client, discord_soundboard_client)
+voice_service = VoiceService(
+  client,
+  discord_soundboard_client,
+  error_notifier,
+)
 speech_service = SpeechService(
   voicevox_client,
   server_config,
@@ -64,6 +77,7 @@ connection_service = ConnectionService(
   dict_manager,
   speech_service,
   voice_service,
+  error_notifier,
 )
 message_service = MessageService(
   client,
@@ -71,6 +85,7 @@ message_service = MessageService(
   speech_service,
   voice_service,
   connection_service,
+  error_notifier,
 )
 
 playback_cog = PlaybackCog(
@@ -78,9 +93,10 @@ playback_cog = PlaybackCog(
   tree,
   message_service,
   voice_service,
+  error_notifier,
 )
 connection_cog = ConnectionCog(client, tree, connection_service)
-general_cog = GeneralCog(tree, VERSION, LAST_UPDATED)
+general_cog = GeneralCog(tree, VERSION, LAST_UPDATED, error_notifier)
 lifecycle_cog = LifecycleCog(
   client,
   tree,
@@ -89,10 +105,17 @@ lifecycle_cog = LifecycleCog(
   sound_boards,
   backup_databases=[SERVER_CONFIG_DB, DICT_DB],
   status_message=STATUS_MESSAGE,
+  error_notifier=error_notifier,
 )
 
-setting = Setting(client, tree, server_config)
-word_dict = WordDict(client, tree, dict_manager, server_config)
+setting = Setting(client, tree, server_config, error_notifier)
+word_dict = WordDict(
+  client,
+  tree,
+  dict_manager,
+  server_config,
+  error_notifier,
+)
 sound_dict_view = SoundDictView(
   client,
   tree,
@@ -100,6 +123,7 @@ sound_dict_view = SoundDictView(
   dict_manager,
   server_config,
   sound_boards,
+  error_notifier,
 )
 
 client.run(DISCORD_BOT_TOKEN)

@@ -15,6 +15,7 @@ from dict_view import DictViewPaginator
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error
 from repositories.soundboard_cache_repository import SoundboardCacheRepository
+from services.error_notification_service import ensure_error_notifier
 
 
 class SoundDict:
@@ -33,8 +34,15 @@ class SoundDict:
 
 
 class UpdateSoundBoards:
-  def __init__(self, db_path, dict_manager=None, soundboard_client=None):
-    self.repository = SoundboardCacheRepository(db_path)
+  def __init__(
+      self,
+      db_path,
+      dict_manager=None,
+      soundboard_client=None,
+      error_notifier=None,
+  ):
+    self.error_notifier = ensure_error_notifier(error_notifier)
+    self.repository = SoundboardCacheRepository(db_path, self.error_notifier)
     self._dict_manager = dict_manager
     self._soundboard_client = soundboard_client
 
@@ -68,13 +76,23 @@ class UpdateSoundBoards:
         self._dict_manager.invalidate_sound(gid, sound_id)
 
 class SoundDictView:
-  def __init__(self, client, tree, sound_dict: SoundDict, dict_manager: DictManager, server_config, sound_boards: UpdateSoundBoards):
+  def __init__(
+      self,
+      client,
+      tree,
+      sound_dict: SoundDict,
+      dict_manager: DictManager,
+      server_config,
+      sound_boards: UpdateSoundBoards,
+      error_notifier=None,
+  ):
     self.client = client
     self.tree = tree
     self.sound_dict = sound_dict
     self.dict_manager = dict_manager
     self.server_config = server_config
     self.sound_boards = sound_boards
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self._register()
 
   def _register(self):
@@ -143,9 +161,11 @@ class SoundDictView:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f'HTTPException in sounddict_add: {e}')
+        self.error_notifier.report(f'HTTPException in sounddict_add: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "sounddict_add")
+        await handle_internal_error(
+          ctx, e, "sounddict_add", self.error_notifier
+        )
 
     # noinspection PyUnusedLocal
     @sounddict_add.autocomplete("sound")
@@ -189,9 +209,11 @@ class SoundDictView:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f'HTTPException in sounddict_del: {e}')
+        self.error_notifier.report(f'HTTPException in sounddict_del: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "sounddict_del")
+        await handle_internal_error(
+          ctx, e, "sounddict_del", self.error_notifier
+        )
 
     # noinspection PyUnusedLocal
     @sounddict_del.autocomplete("word")
@@ -251,7 +273,12 @@ class SoundDictView:
           )
           return
 
-        paginator = DictViewPaginator(normal_items, priority_items, 'sounddict')
+        paginator = DictViewPaginator(
+          normal_items,
+          priority_items,
+          'sounddict',
+          self.error_notifier,
+        )
         embed = paginator.build_embed()
 
         if paginator.total_pages <= 1:
@@ -263,9 +290,11 @@ class SoundDictView:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f'HTTPException in sounddict_view: {e}')
+        self.error_notifier.report(f'HTTPException in sounddict_view: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "sounddict_view")
+        await handle_internal_error(
+          ctx, e, "sounddict_view", self.error_notifier
+        )
 
     @sounddict_group.error
     async def sounddict_error(ctx, error):

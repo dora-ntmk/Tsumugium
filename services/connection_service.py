@@ -7,6 +7,7 @@ import discord
 from models.audio_item import TTSItem
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error, handle_os_error
+from services.error_notification_service import ensure_error_notifier
 
 
 class ConnectionService:
@@ -16,11 +17,13 @@ class ConnectionService:
       dict_manager,
       speech_service,
       voice_service,
+      error_notifier=None,
   ):
     self.server_config = server_config
     self.dict_manager = dict_manager
     self.speech_service = speech_service
     self.voice_service = voice_service
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self.voluntary_disconnects: set[int] = set()
 
   def get_notify_channel(self, guild, voice_channel=None):
@@ -134,7 +137,7 @@ class ConnectionService:
       )
       await message.channel.send(embed=embed)
     except Exception as e:
-      print(f"Exception in mention join/leave: {e}")
+      self.error_notifier.report(f"Exception in mention join/leave: {e}")
 
   async def handle_voice_state_update(self, member, before, after) -> None:
     guild = member.guild
@@ -340,11 +343,11 @@ class ConnectionService:
     except discord.errors.InteractionResponded:
       return
     except discord.errors.HTTPException as e:
-      print(f"HTTPException in join: {e}")
+      self.error_notifier.report(f"HTTPException in join: {e}")
     except OSError as e:
-      await handle_os_error(ctx, e, "join")
+      await handle_os_error(ctx, e, "join", self.error_notifier)
     except Exception as e:
-      await handle_internal_error(ctx, e, "join")
+      await handle_internal_error(ctx, e, "join", self.error_notifier)
 
   async def leave(self, ctx) -> None:
     try:
@@ -369,8 +372,8 @@ class ConnectionService:
     except discord.errors.InteractionResponded:
       return
     except discord.errors.HTTPException as e:
-      print(f"HTTPException in leave: {e}")
+      self.error_notifier.report(f"HTTPException in leave: {e}")
     except OSError as e:
-      await handle_os_error(ctx, e, "leave")
+      await handle_os_error(ctx, e, "leave", self.error_notifier)
     except Exception as e:
-      await handle_internal_error(ctx, e, "leave")
+      await handle_internal_error(ctx, e, "leave", self.error_notifier)

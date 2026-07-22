@@ -1,6 +1,6 @@
 """Discordメッセージを読み上げ対象として扱うか判定する。"""
 
-import asyncio
+from services.error_notification_service import ensure_error_notifier
 
 
 class MessageService:
@@ -11,12 +11,14 @@ class MessageService:
       speech_service,
       voice_service,
       connection_service=None,
+      error_notifier=None,
   ):
     self.client = client
     self.server_config = server_config
     self.speech_service = speech_service
     self.voice_service = voice_service
     self.connection_service = connection_service
+    self.error_notifier = ensure_error_notifier(error_notifier)
 
   def is_target_channel(self, message) -> bool:
     session = self.voice_service.get_session(message.guild.id)
@@ -34,8 +36,9 @@ class MessageService:
         return
       if not self.is_target_channel(message):
         return
-      asyncio.create_task(
-        self.speech_service.add_message(message, sounddict_only=True)
+      self.error_notifier.create_task(
+        self.speech_service.add_message(message, sounddict_only=True),
+        "bot message speech",
       )
       return
 
@@ -55,4 +58,7 @@ class MessageService:
     if message.content.strip() == "s":
       self.voice_service.skip_current(message.guild)
       return
-    asyncio.create_task(self.speech_service.add_message(message))
+    self.error_notifier.create_task(
+      self.speech_service.add_message(message),
+      "message speech",
+    )

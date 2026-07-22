@@ -2,9 +2,12 @@
 
 import sqlite3
 
+from services.error_notification_service import ensure_error_notifier
+
 
 class SoundboardCacheRepository:
-  def __init__(self, db_path: str):
+  def __init__(self, db_path: str, error_notifier=None):
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self._conn = sqlite3.connect(
       db_path,
       check_same_thread=False,
@@ -34,7 +37,9 @@ class SoundboardCacheRepository:
       )
       self._conn.commit()
     except sqlite3.Error as e:
-      print(f'サウンドボード一覧削除失敗 guild_id={guild_id}: {e}')
+      self.error_notifier.report(
+        f'サウンドボード一覧削除失敗 guild_id={guild_id}: {e}'
+      )
 
   def add(self, guild_id: int | str, sound_id: int | str, name: str) -> None:
     self._conn.execute(

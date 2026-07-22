@@ -6,6 +6,7 @@ import json
 import discord
 
 from backup import start as start_backup
+from services.error_notification_service import ensure_error_notifier
 
 
 class LifecycleCog:
@@ -19,6 +20,7 @@ class LifecycleCog:
       *,
       backup_databases,
       status_message: str,
+      error_notifier=None,
   ):
     self.client = client
     self.tree = tree
@@ -27,6 +29,7 @@ class LifecycleCog:
     self.sound_boards = sound_boards
     self.backup_databases = backup_databases
     self.status_message = status_message
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self.backup_task = None
     self._register()
 
@@ -51,7 +54,10 @@ class LifecycleCog:
         await self.sound_boards.refresh(guild_id)
         print(f"on_ready: refresh {guild_id}")
 
-      self.backup_task = start_backup(self.backup_databases)
+      self.backup_task = start_backup(
+        self.backup_databases,
+        self.error_notifier,
+      )
       await self.client.change_presence(
         status=discord.Status.online,
         activity=discord.Game(name=self.status_message),
@@ -93,7 +99,7 @@ class LifecycleCog:
             except (discord.Forbidden, discord.HTTPException):
               pass
       except Exception as e:
-        print(f"Exception in on_guild_remove (DM): {e}")
+        self.error_notifier.report(f"Exception in on_guild_remove (DM): {e}")
       finally:
         self.server_config.remove_guild(guild.id)
         self.dict_manager.remove_guild(guild.id)

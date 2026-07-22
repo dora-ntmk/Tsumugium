@@ -6,9 +6,13 @@ import discord
 
 
 class ManagedDiscordClient(discord.Client):
-  def __init__(self, *args, **kwargs):
+  def __init__(self, *args, error_notifier=None, **kwargs):
     super().__init__(*args, **kwargs)
     self._closeables = []
+    self.error_notifier = error_notifier
+
+  def set_error_notifier(self, error_notifier) -> None:
+    self.error_notifier = error_notifier
 
   def register_closeable(self, closeable) -> None:
     self._closeables.append(closeable)
@@ -23,4 +27,21 @@ class ManagedDiscordClient(discord.Client):
           if inspect.isawaitable(result):
             await result
         except Exception as e:
-          print(f"リソース終了エラー: {e}")
+          message = f"リソース終了エラー: {e}"
+          if self.error_notifier is None:
+            print(message)
+          else:
+            self.error_notifier.report(message)
+
+  async def on_error(self, event_method: str, *args, **kwargs) -> None:
+    import sys
+
+    error = sys.exc_info()[1]
+    if error is None:
+      message = f"Exception in {event_method}: unknown error"
+    else:
+      message = f"Exception in {event_method}: {type(error).__name__}: {error}"
+    if self.error_notifier is None:
+      print(message)
+    else:
+      self.error_notifier.report(message)

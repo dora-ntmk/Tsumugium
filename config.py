@@ -10,8 +10,23 @@ load_dotenv()
 
 import os
 
+
+def _optional_user_id(value: str | None) -> int | None:
+  if value is None or not value.strip():
+    return None
+  try:
+    user_id = int(value)
+  except ValueError:
+    print("OPERATOR_USER_ID must be a Discord user ID; DM notifications are disabled")
+    return None
+  if user_id <= 0:
+    print("OPERATOR_USER_ID must be a Discord user ID; DM notifications are disabled")
+    return None
+  return user_id
+
 STATUS_MESSAGE = os.getenv("STATUS_MESSAGE", "")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
+OPERATOR_USER_ID = _optional_user_id(os.getenv("OPERATOR_USER_ID"))
 SERVER_CONFIG_DB  = os.getenv("SERVER_CONFIG_DB", "db/config.db")
 DICT_DB      = os.getenv("DICT_DB", "db/dict.db")
 SOUND_BOARDS_DB   = os.getenv("SOUND_BOARDS_DB", "db/soundboards.db")

@@ -17,6 +17,7 @@ from dict_view import DictViewPaginator
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error
 from repositories.dictionary_repository import DictionaryRepository
+from services.error_notification_service import ensure_error_notifier
 import swap
 from swap import (
   _CUSTOM_EMOJI_RE, _STANDARD_EMOJI_RE,
@@ -79,8 +80,9 @@ def _filter_entries(entries: dict, word: str) -> list[tuple[str, str]]:
 
 
 class DictManager:
-  def __init__(self, db_path):
-    self.repository = DictionaryRepository(db_path)
+  def __init__(self, db_path, error_notifier=None):
+    self.error_notifier = ensure_error_notifier(error_notifier)
+    self.repository = DictionaryRepository(db_path, self.error_notifier)
     emoji_ja_data = _load_json(EMOJI_JA_JSON)
     self._emoji_ja: dict = {
       k: v['short_name']
@@ -160,11 +162,19 @@ class DictManager:
 
 
 class WordDict:
-  def __init__(self, client, tree, dict_manager: DictManager, server_config):
+  def __init__(
+      self,
+      client,
+      tree,
+      dict_manager: DictManager,
+      server_config,
+      error_notifier=None,
+  ):
     self.client = client
     self.tree = tree
     self.dict_manager = dict_manager
     self.server_config = server_config
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self._register()
 
   def _register(self):
@@ -203,9 +213,9 @@ class WordDict:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f'HTTPException in dict_add: {e}')
+        self.error_notifier.report(f'HTTPException in dict_add: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "dict_add")
+        await handle_internal_error(ctx, e, "dict_add", self.error_notifier)
 
     @dict_group.command(name='del', description='辞書から単語の読みを削除します')
     @discord.app_commands.describe(
@@ -238,9 +248,9 @@ class WordDict:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f'HTTPException in dict_del: {e}')
+        self.error_notifier.report(f'HTTPException in dict_del: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "dict_del")
+        await handle_internal_error(ctx, e, "dict_del", self.error_notifier)
 
     # noinspection PyUnusedLocal
     @dict_del.autocomplete("word")
@@ -286,7 +296,12 @@ class WordDict:
           )
           return
 
-        paginator = DictViewPaginator(normal_items, priority_items, 'dict')
+        paginator = DictViewPaginator(
+          normal_items,
+          priority_items,
+          'dict',
+          self.error_notifier,
+        )
         embed = paginator.build_embed()
 
         if paginator.total_pages <= 1:
@@ -298,9 +313,9 @@ class WordDict:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f'HTTPException in dict_view: {e}')
+        self.error_notifier.report(f'HTTPException in dict_view: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "dict_view")
+        await handle_internal_error(ctx, e, "dict_view", self.error_notifier)
 
     @dict_group.error
     async def dict_error(ctx, error):

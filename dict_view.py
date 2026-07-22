@@ -8,16 +8,24 @@
 """
 import discord
 from presentation.embeds import make_embed
+from services.error_notification_service import ensure_error_notifier
 
 _PAGE_SIZE = 20
 
 
 class DictViewPaginator(discord.ui.View):
-  def __init__(self, normal_items: list[tuple[str, str]], priority_items: list[tuple[str, str]], key_prefix: str):
+  def __init__(
+      self,
+      normal_items: list[tuple[str, str]],
+      priority_items: list[tuple[str, str]],
+      key_prefix: str,
+      error_notifier=None,
+  ):
     super().__init__(timeout=120)
     self.normal_items   = normal_items
     self.priority_items = priority_items
     self.key_prefix = key_prefix
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self.page = 0
     self.normal_pages   = (len(normal_items)   + _PAGE_SIZE - 1) // _PAGE_SIZE if normal_items   else 0
     self.priority_pages = (len(priority_items) + _PAGE_SIZE - 1) // _PAGE_SIZE if priority_items else 0
@@ -105,4 +113,4 @@ class DictViewPaginator(discord.ui.View):
       try:
         await self.message.edit(view=self)
       except Exception as e:
-        print(f"on_timeout: {e}")
+        self.error_notifier.report(f"on_timeout: {e}")

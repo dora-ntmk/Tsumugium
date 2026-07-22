@@ -16,6 +16,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `services/connection_service.py` | `/join`・`/leave`・単体メンション接続、AutoJoin、AccessNotice、強制切断後の状態復元を担当 |
 | `services/speech_service.py` | テキスト前処理、Soundboard/TTS選択、最大文字数処理、VOICEVOX生成依頼を担当 |
 | `services/voice_service.py` | ギルド別キュー、再生、スキップ、クリア、キープアライブを担当。外部API通信はClientへ委譲 |
+| `services/error_notification_service.py` | エラーのCLI出力と、任意設定された運営者へのDiscord Embed形式DM通知を担当 |
 | `cogs/connection_cog.py` | `/join`・`/leave`とVC状態イベントを`ConnectionService`へ接続する登録層 |
 | `cogs/playback_cog.py` | `/clear`と`on_message`を読み上げサービスへ接続する登録層 |
 | `cogs/general_cog.py` | `/version`を登録する一般コマンド層 |
@@ -237,6 +238,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | 変数 | デフォルト | 説明 |
 |---|---|---|
 | `DISCORD_BOT_TOKEN` | 必須 | Discordボットトークン |
+| `OPERATOR_USER_ID` | `""` | エラー通知DMを受け取る運営者のDiscordユーザーID（未設定・空欄で無効） |
 | `VOICEVOX_URL` | `http://127.0.0.1:50021` | VOICEVOX エンドポイント |
 | `DEFAULT_SPEAKER` | `8` | デフォルト話者ID（Speaker=NULL時に使用） |
 | `SERVER_CONFIG_DB` | `db/config.db` | サーバー設定DB |

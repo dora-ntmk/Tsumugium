@@ -3,14 +3,23 @@
 import discord
 
 from presentation.embeds import EmbedType, make_embed
+from services.error_notification_service import ensure_error_notifier
 
 
 class PlaybackCog:
-  def __init__(self, client, tree, message_service, voice_service):
+  def __init__(
+      self,
+      client,
+      tree,
+      message_service,
+      voice_service,
+      error_notifier=None,
+  ):
     self.client = client
     self.tree = tree
     self.message_service = message_service
     self.voice_service = voice_service
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self._register()
 
   def _register(self) -> None:
@@ -39,9 +48,9 @@ class PlaybackCog:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f"HTTPException in clear: {e}")
+        self.error_notifier.report(f"HTTPException in clear: {e}")
       except Exception as e:
-        print(f"Exception in clear: {e}")
+        self.error_notifier.report(f"Exception in clear: {e}")
 
     @self.client.event
     async def on_message(message):

@@ -7,12 +7,14 @@ import discord
 
 from models.audio_item import AudioItem, SoundboardItem, TTSItem
 from models.guild_session import GuildSession
+from services.error_notification_service import ensure_error_notifier
 
 
 class VoiceService:
-  def __init__(self, client, soundboard_client=None):
+  def __init__(self, client, soundboard_client=None, error_notifier=None):
     self.client = client
     self.soundboard_client = soundboard_client
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self.sessions: dict[int, GuildSession] = {}
 
   def get_session(self, guild_id: int) -> GuildSession:
@@ -28,7 +30,10 @@ class VoiceService:
     session = self.get_session(guild.id)
     await session.queue.put(item)
     if session.player_task is None or session.player_task.done():
-      session.player_task = asyncio.create_task(self.play_loop(guild))
+      session.player_task = self.error_notifier.create_task(
+        self.play_loop(guild),
+        f"play loop guild_id={guild.id}",
+      )
 
   def begin_clear(self, guild, instant: bool) -> tuple[int, list[str]]:
     """キューをドレインし、削除対象のTTSファイルを返す。"""
@@ -90,10 +95,13 @@ class VoiceService:
         break
       except asyncio.CancelledError:
         if isinstance(item, TTSItem):
-          asyncio.create_task(self.safe_remove(item.path))
+          self.error_notifier.create_task(
+            self.safe_remove(item.path),
+            f"cancelled audio cleanup path={item.path}",
+          )
         raise
       except Exception as e:
-        print(f"再生エラー: {e}")
+        self.error_notifier.report(f"再生エラー: {e}")
         if item is not None:
           session.queue.task_done()
 
@@ -106,7 +114,7 @@ class VoiceService:
         sound_id,
       )
     except Exception as e:
-      print(f'サウンドボード再生エラー：{e}')
+      self.error_notifier.report(f'サウンドボード再生エラー：{e}')
 
   async def _keepalive_loop(self, guild):
     silence = b'\xF8\xFF\xFE'
@@ -119,12 +127,15 @@ class VoiceService:
         try:
           voice_client.send_audio_packet(silence, encode=False)
         except Exception as e:
-          print(f"keepalive error: {e}")
+          self.error_notifier.report(f"keepalive error: {e}")
 
   def start_keepalive(self, guild):
     self.stop_keepalive(guild.id)
     session = self.get_session(guild.id)
-    session.keepalive_task = asyncio.create_task(self._keepalive_loop(guild))
+    session.keepalive_task = self.error_notifier.create_task(
+      self._keepalive_loop(guild),
+      f"keepalive loop guild_id={guild.id}",
+    )
 
   def stop_keepalive(self, guild_id):
     session = self.get_session(guild_id)
@@ -141,7 +152,7 @@ class VoiceService:
         return
       except PermissionError:
         await asyncio.sleep(delay)
-    print(f"ファイル削除失敗（使用中）: {path}")
+    self.error_notifier.report(f"ファイル削除失敗（使用中）: {path}")
 
   async def play(self, guild, path: str):
     try:
@@ -149,13 +160,19 @@ class VoiceService:
       voice = await discord.FFmpegOpusAudio.from_probe(path)
       if session.skipping:
         session.skipping = False
-        asyncio.create_task(self.safe_remove(path))
+        self.error_notifier.create_task(
+          self.safe_remove(path),
+          f"skipped audio cleanup path={path}",
+        )
         return
       while guild.voice_client is not None and guild.voice_client.is_playing():
         await asyncio.sleep(0.1)
       if session.skipping:
         session.skipping = False
-        asyncio.create_task(self.safe_remove(path))
+        self.error_notifier.create_task(
+          self.safe_remove(path),
+          f"skipped audio cleanup path={path}",
+        )
         return
       guild.voice_client.play(
         voice,
@@ -164,4 +181,4 @@ class VoiceService:
         ),
       )
     except Exception as e:
-      print(f"音声再生エラー: {e}")
+      self.error_notifier.report(f"音声再生エラー: {e}")

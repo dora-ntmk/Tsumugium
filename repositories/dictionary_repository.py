@@ -4,10 +4,12 @@ import sqlite3
 from typing import Optional
 
 from models.dictionary_snapshot import DictionarySnapshot, SoundEntry
+from services.error_notification_service import ensure_error_notifier
 
 
 class DictionaryRepository:
-  def __init__(self, db_path: str):
+  def __init__(self, db_path: str, error_notifier=None):
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self._conn = sqlite3.connect(
       db_path,
       check_same_thread=False,
@@ -52,7 +54,7 @@ class DictionaryRepository:
       )
       self._conn.commit()
     except sqlite3.Error as e:
-      print(f'辞書削除失敗 guild_id={guild_id}: {e}')
+      self.error_notifier.report(f'辞書削除失敗 guild_id={guild_id}: {e}')
 
   def add_reading(
       self,
