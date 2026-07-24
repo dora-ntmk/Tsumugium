@@ -1,74 +1,83 @@
 # Tsumugium
 
-VOICEVOXを用いたDiscord読み上げBotです。
+VOICEVOXを利用してDiscordのテキストチャンネルを読み上げるBotです。
+
+現在のバージョンは **v3.5.0** です。Botが送信するメッセージとコマンド説明は日本語固定です。
+
+## 主な機能
+
+- ボイスチャンネルへの手動接続・自動接続
+- 指定テキストチャンネルとVC付属チャットの読み上げ
+- サーバー別の読み辞書・共通辞書
+- Discord Soundboardを利用した音声辞書
+- 話者・音量・速度・最大文字数のサーバー別設定
+- VCの入退室読み上げ通知
+- SQLiteデータベースの定時バックアップ
 
 ## 必要なもの
 
-* Python
-* ffmpeg（これがないと音声が再生されません）
+- Python 3.10以上
+- FFmpeg実行ファイル
+- VOICEVOX ENGINE、またはVOICEVOX互換HTTP API
+- Discord Botトークン
 
-## 必要ライブラリ
+FFmpegはPythonパッケージではなく、`ffmpeg`コマンドを実行できる状態である必要があります。
 
-#### 【外部パッケージ】
-* Discord.py >= 2.7.0
-* requests >= 2.32.5
-* python-dotenv >= 1.2.2
-* aiohttp >= 3.9.0
-* PyNaCl >= 1.6.0
-* davey >= 0.1.0
+## セットアップ
 
-#### 【標準ライブラリ】
+依存パッケージをインストールします。
 
-asyncio, io, json, os, re, sqlite3, unicodedata, typing,
-datetime, pathlib, collections, shutill
+```bash
+python -m pip install -r requirements.txt
+```
 
-## 必要権限
+`.env.template`を`.env`へコピーし、最低限`DISCORD_BOT_TOKEN`を設定します。
 
-Discord Developer PotalのBot管理画面にて、以下のスコープと権限の許可を設定してください。
+```dotenv
+DISCORD_BOT_TOKEN=YOUR_DISCORD_BOT_TOKEN
+VOICEVOX_URL=http://127.0.0.1:50021
+DEFAULT_SPEAKER=8
+```
 
-#### 【スコープ】
-* applications.commands
-* bot
+VOICEVOX ENGINEを起動してからBotを起動します。
 
-#### 【権限】
-* メッセージを送る
-* メッセージ履歴を読む
-* リアクションを付ける ※
-* 接続
-* 発言
-* スピーカー参加をリクエスト ※
-* サウンドボードを使用
-
-※将来の拡張性のため設定しています
-
-## 初回設定
-.envファイルを作成し、起動に必要な内容を記載してください。
-
-[例はこちら。](https://github.com/dora-ntmk/Tsumugium/blob/main/.env.template)
-
-そのほかの設定は、初回起動時に実行されます。
-
-> [!IMPORTANT]
-> つむぎちゃん v2以前の設定をコピーされる方は別の方法で初回設定を行う必要があります。
-> 移行方法は直接お問い合わせください。
-
-## 起動方法
-必要ライブラリをすべてインストールしたうえで、
 ```bash
 python main.py
 ```
-を使用すると起動できます。
 
-不足ファイル群は自動的に作成されます。
+DBファイルや音声一時ディレクトリは、設定されたパスへ必要に応じて自動作成されます。
 
-なお、これとは別に[VOICEVOX ENGINE](https://github.com/VOICEVOX/voicevox_engine)またはそれを内包したプログラムを動作させておく必要があります。
+## Discord側の設定
 
-## 使用方法
+Developer Portalで以下のスコープを有効にします。
 
-使用方法については、[ユーザーガイド](USERGUIDE.md)をご覧ください。
+- `applications.commands`
+- `bot`
+
+主に必要な権限は以下です。
+
+- チャンネルを見る
+- メッセージを送信
+- メッセージ履歴を読む
+- ボイスチャンネルへ接続
+- 発言
+- サウンドボードを使用
+
+Message Content Intentも有効にしてください。
+
+## ドキュメント
+
+- [ユーザーガイド](USERGUIDE.md)
+- [アーキテクチャと処理フロー](docs/ARCHITECTURE.md)
+- [リリース確認手順](docs/RELEASE_CHECKLIST.md)
+- [開発者向け仕様書](AGENTS.md)
+
+v3.5は内部構造を大きく整理していますが、v3系のSQLite DB構造を維持しています。`Language`カラムも旧DBとの互換性のため残りますが、表示言語は日本語固定です。
 
 ## ライセンス
-MIT Licenseにて公開しています。
+
+MIT License
 
 ## 使用OSS
+
 - [emoji-ja](https://github.com/yagays/emoji-ja) - MIT License, Copyright 2018 yag_ays

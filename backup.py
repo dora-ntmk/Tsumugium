@@ -13,12 +13,13 @@ from datetime import datetime, date, timedelta
 from pathlib import Path
 
 from config import BACKUP_DIR, BACKUP_TIMES, BACKUP_INTERVAL_DAYS, BACKUP_KEEP
+from services.error_notification_service import ensure_error_notifier
 
 # バックアップ判定の基準日（固定）
 _EPOCH = date(2000, 1, 1)
 
 
-def parse_backup_times(times_str: str) -> list[tuple[int, int]]:
+def parse_backup_times(times_str: str, error_notifier=None) -> list[tuple[int, int]]:
   """
   "03:00,15:00" -> [(3, 0), (15, 0)]
   空文字列 -> [] (バックアップ無効)
@@ -32,7 +33,9 @@ def parse_backup_times(times_str: str) -> list[tuple[int, int]]:
       h, m = part.split(":")
       result.append((int(h), int(m)))
     except ValueError:
-      print(f"[backup] 無効な時刻フォーマットをスキップ: '{part}' (HH:MM 形式で指定してください)")
+      ensure_error_notifier(error_notifier).report(
+        f"[backup] 無効な時刻フォーマットをスキップ: '{part}' (HH:MM 形式で指定してください)"
+      )
   return result
 
 
@@ -57,14 +60,16 @@ def is_backup_day(interval_days: int) -> bool:
   return elapsed % interval_days == 0
 
 
-def backup_db(db_path: str, backup_dir: str) -> str | None:
+def backup_db(db_path: str, backup_dir: str, error_notifier=None) -> str | None:
   """
   SQLite データベースをバックアップし、保存先パスを返す。
   失敗時は None を返す。
   """
   src = Path(db_path)
   if not src.exists():
-    print(f"[backup] バックアップ対象が見つかりません: {db_path}")
+    ensure_error_notifier(error_notifier).report(
+      f"[backup] バックアップ対象が見つかりません: {db_path}"
+    )
     return None
 
   dest_dir = Path(backup_dir)
@@ -82,14 +87,21 @@ def backup_db(db_path: str, backup_dir: str) -> str | None:
     dest_conn.close()
     return str(dest_path)
   except Exception as e:
-    print(f"[backup] バックアップ失敗 ({db_path}): {e}")
+    ensure_error_notifier(error_notifier).report(
+      f"[backup] バックアップ失敗 ({db_path}): {e}"
+    )
     # 不完全なファイルを削除
     if dest_path.exists():
       dest_path.unlink()
     return None
 
 
-def rotate_backups(db_name: str, backup_dir: str, keep: int) -> None:
+def rotate_backups(
+    db_name: str,
+    backup_dir: str,
+    keep: int,
+    error_notifier=None,
+) -> None:
   """古いバックアップファイルを削除して keep 件に維持する。"""
   dest_dir = Path(backup_dir)
   pattern = f"backup_{db_name}_*.db"
@@ -100,24 +112,32 @@ def rotate_backups(db_name: str, backup_dir: str, keep: int) -> None:
       f.unlink()
       print(f"[backup] 古いバックアップを削除: {f.name}")
     except Exception as e:
-      print(f"[backup] 削除失敗 ({f.name}): {e}")
+      ensure_error_notifier(error_notifier).report(
+        f"[backup] 削除失敗 ({f.name}): {e}"
+      )
 
 
-def run_backup(db_paths: list[str], backup_dir: str, keep: int) -> None:
+def run_backup(
+    db_paths: list[str],
+    backup_dir: str,
+    keep: int,
+    error_notifier=None,
+) -> None:
   """複数の DB をバックアップし、ローテーションを行う。"""
   print(f"[backup] バックアップ開始: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
   for db_path in db_paths:
-    result = backup_db(db_path, backup_dir)
+    result = backup_db(db_path, backup_dir, error_notifier)
     if result:
       print(f"[backup] 完了: {result}")
       db_name = Path(db_path).stem
-      rotate_backups(db_name, backup_dir, keep)
+      rotate_backups(db_name, backup_dir, keep, error_notifier)
   print("[backup] バックアップ終了")
 
 
-async def backup_scheduler(db_paths: list[str]) -> None:
+async def backup_scheduler(db_paths: list[str], error_notifier=None) -> None:
   """バックアップスケジューラー本体。on_ready から asyncio.create_task で起動する。"""
-  times = parse_backup_times(BACKUP_TIMES)
+  notifier = ensure_error_notifier(error_notifier)
+  times = parse_backup_times(BACKUP_TIMES, notifier)
   if not times:
     print("[backup] BACKUP_TIMES が未設定のためバックアップは無効です")
     return
@@ -125,13 +145,13 @@ async def backup_scheduler(db_paths: list[str]) -> None:
   try:
     interval_days = int(BACKUP_INTERVAL_DAYS)
   except ValueError:
-    print(f"[backup] BACKUP_INTERVAL_DAYS の値が不正です: '{BACKUP_INTERVAL_DAYS}' (整数で指定してください)")
+    notifier.report(f"[backup] BACKUP_INTERVAL_DAYS の値が不正です: '{BACKUP_INTERVAL_DAYS}' (整数で指定してください)")
     interval_days = 1
 
   try:
     keep = int(BACKUP_KEEP)
   except ValueError:
-    print(f"[backup] BACKUP_KEEP の値が不正です: '{BACKUP_KEEP}' (整数で指定してください)")
+    notifier.report(f"[backup] BACKUP_KEEP の値が不正です: '{BACKUP_KEEP}' (整数で指定してください)")
     keep = 7
 
   print(f"[backup] スケジューラー起動 (実行時刻: {BACKUP_TIMES}, {interval_days}日おき, {keep}世代保持)")
@@ -143,11 +163,15 @@ async def backup_scheduler(db_paths: list[str]) -> None:
     await asyncio.sleep(max(0, wait_sec))
 
     if is_backup_day(interval_days):
-      run_backup(db_paths, BACKUP_DIR, keep)
+      run_backup(db_paths, BACKUP_DIR, keep, notifier)
     else:
       print(f"[backup] 本日はバックアップ対象日ではありません (BACKUP_INTERVAL_DAYS={interval_days})")
 
 
-def start(db_paths: list[str]) -> asyncio.Task:
+def start(db_paths: list[str], error_notifier=None) -> asyncio.Task:
   """バックアップスケジューラーを非同期タスクとして起動する。"""
-  return asyncio.create_task(backup_scheduler(db_paths))
+  notifier = ensure_error_notifier(error_notifier)
+  return notifier.create_task(
+    backup_scheduler(db_paths, notifier),
+    "backup scheduler",
+  )

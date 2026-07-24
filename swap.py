@@ -9,6 +9,8 @@
 import os
 import re
 
+from models.dictionary_snapshot import DictionarySnapshot
+
 _CUSTOM_EMOJI_RE = re.compile(r'<a?:[\w/:%#$&?()~.=+\-]+:\d+>')
 _STANDARD_EMOJI_RE = re.compile(r'^:([\w/:%#$&?()~.=+\-]+):$')
 
@@ -104,51 +106,41 @@ def _apply_regex(segments: list, pattern, repl_fn) -> list:
   return new_segments
 
 
-def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attachments, mentions=None, author_id=None) -> tuple[str, list[tuple[int, int]], str | None]:
+def preprocess_text(
+    text: str,
+    dictionary: DictionarySnapshot,
+    emoji_ja: dict,
+    guild,
+    attachments,
+    mentions=None,
+    author_id=None,
+) -> tuple[str, list[tuple[int, int]], str | None]:
   segments = [(text, False)]
-  gid = str(guild_id)
   author_str = str(author_id) if author_id is not None else None
 
   # 1a. 全文一致 (full_match=1)
-  if author_str is not None:
-    cur = conn.execute(
-      "SELECT sound_id FROM dict WHERE guild_id = ? AND word = ? AND sound_id IS NOT NULL AND full_match = 1"
-      " AND (trigger_user_id IS NULL OR trigger_user_id = ?) LIMIT 1",
-      (gid, text, author_str)
+  for entry in dictionary.sounds:
+    user_matches = (
+      author_str is None
+      or entry.trigger_user_id is None
+      or entry.trigger_user_id == author_str
     )
-  else:
-    cur = conn.execute(
-      "SELECT sound_id FROM dict WHERE guild_id = ? AND word = ? AND sound_id IS NOT NULL AND full_match = 1 LIMIT 1",
-      (gid, text)
-    )
-  row = cur.fetchone()
-  if row:
-    return text, [], row[0]
+    if entry.full_match and entry.word == text and user_matches:
+      return text, [], entry.sound_id
 
   # 1b. 部分一致 (full_match=0)
-  if author_str is not None:
-    cur = conn.execute(
-      "SELECT word, sound_id FROM dict WHERE guild_id = ? AND sound_id IS NOT NULL AND full_match = 0"
-      " AND (trigger_user_id IS NULL OR trigger_user_id = ?)",
-      (gid, author_str)
+  for entry in dictionary.sounds:
+    user_matches = (
+      author_str is None
+      or entry.trigger_user_id is None
+      or entry.trigger_user_id == author_str
     )
-  else:
-    cur = conn.execute(
-      "SELECT word, sound_id FROM dict WHERE guild_id = ? AND sound_id IS NOT NULL AND full_match = 0",
-      (gid,)
-    )
-  for word, sound_id in cur.fetchall():
-    if word in text:
-      return text, [], sound_id
+    if not entry.full_match and entry.word in text and user_matches:
+      return text, [], entry.sound_id
 
   # 2. 優先辞書（URL処理より前に適用）
-  cur = conn.execute(
-    "SELECT word, reading FROM dict WHERE guild_id = ? AND is_priority = 1 AND reading IS NOT NULL ORDER BY added_at DESC",
-    (gid,)
-  )
-  d = dict(cur.fetchall())
-  if d:
-    segments = _apply_dict(segments, d)
+  if dictionary.priority_readings:
+    segments = _apply_dict(segments, dictionary.priority_readings)
 
   # 3. URL処理（辞書より前に実行してURLを保護）
   for url_re, url_read in _URL_PATTERNS:
@@ -214,28 +206,12 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
   segments = _apply_regex(segments, re.compile(r'[ \u3000]+'), ',')
 
   # 5. 優先辞書 → 通常辞書 → 共通辞書
-  cur = conn.execute(
-    "SELECT word, reading FROM dict WHERE guild_id = ? AND is_priority = 1 AND reading IS NOT NULL ORDER BY added_at DESC",
-    (gid,)
-  )
-  d = dict(cur.fetchall())
-  if d:
-    segments = _apply_dict(segments, d)
-
-  cur = conn.execute(
-    "SELECT word, reading FROM dict WHERE guild_id = ? AND is_priority = 0 AND reading IS NOT NULL ORDER BY added_at DESC",
-    (gid,)
-  )
-  d = dict(cur.fetchall())
-  if d:
-    segments = _apply_dict(segments, d)
-
-  cur = conn.execute(
-    "SELECT word, reading FROM dict WHERE guild_id = '__common__' AND reading IS NOT NULL ORDER BY added_at DESC"
-  )
-  d = dict(cur.fetchall())
-  if d:
-    segments = _apply_dict(segments, d)
+  if dictionary.priority_readings:
+    segments = _apply_dict(segments, dictionary.priority_readings)
+  if dictionary.normal_readings:
+    segments = _apply_dict(segments, dictionary.normal_readings)
+  if dictionary.common_readings:
+    segments = _apply_dict(segments, dictionary.common_readings)
 
   # 6. emoji_ja short_name mapping
   if emoji_ja:

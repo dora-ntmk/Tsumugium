@@ -6,19 +6,16 @@
       Discord サウンドボード一覧の DB 同期 (UpdateSoundBoards)、
       およびスラッシュコマンド /sounddict (add / del / view) の実装 (SoundDictView) を提供する。
       view サブコマンドでは DictViewPaginator によるページング表示に対応する。
-依存関係：discord.py, requests
+依存関係：discord.py
 """
-import sqlite3
 import discord
-import requests
 from typing import Optional
-from messages import build_embed, get_desc, handle_internal_error
 from word_dict import DictManager, _filter_entries
 from dict_view import DictViewPaginator
-
-
-def _lstr(key: str) -> discord.app_commands.locale_str:
-  return discord.app_commands.locale_str(get_desc(key), key=key)
+from presentation.embeds import EmbedType, make_embed
+from presentation.error_handler import handle_internal_error
+from repositories.soundboard_cache_repository import SoundboardCacheRepository
+from services.error_notification_service import ensure_error_notifier
 
 
 class SoundDict:
@@ -37,135 +34,100 @@ class SoundDict:
 
 
 class UpdateSoundBoards:
-  def __init__(self, db_path, dict_manager=None):
-    self._conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30)
-    self._conn.execute("PRAGMA journal_mode=WAL")
-    self._conn.execute("""
-      CREATE TABLE IF NOT EXISTS soundboards (
-        guild_id  TEXT NOT NULL,
-        sound_id  TEXT NOT NULL,
-        name      TEXT NOT NULL,
-        PRIMARY KEY (guild_id, sound_id)
-      )
-    """)
-    self._conn.execute(
-      "CREATE INDEX IF NOT EXISTS idx_soundboards_guild ON soundboards (guild_id)"
-    )
-    self._conn.commit()
+  def __init__(
+      self,
+      db_path,
+      dict_manager=None,
+      soundboard_client=None,
+      error_notifier=None,
+  ):
+    self.error_notifier = ensure_error_notifier(error_notifier)
+    self.repository = SoundboardCacheRepository(db_path, self.error_notifier)
     self._dict_manager = dict_manager
+    self._soundboard_client = soundboard_client
 
   def remove_guild(self, guild_id: int):
-    try:
-      self._conn.execute(
-        "DELETE FROM soundboards WHERE guild_id = ?", (str(guild_id),)
-      )
-      self._conn.commit()
-    except sqlite3.Error as e:
-      print(f'サウンドボード一覧削除失敗 guild_id={guild_id}: {e}')
+    self.repository.remove_guild(guild_id)
+
+  def close(self) -> None:
+    self.repository.close()
 
   def add(self, guild_id: int, sound_id: int, name: str):
-    gid = str(guild_id)
-    sid = str(sound_id)
-    self._conn.execute(
-      """INSERT OR REPLACE INTO soundboards (guild_id, sound_id, name)
-         VALUES (?, ?, ?)""",
-      (gid, sid, name)
-    )
-    self._conn.commit()
+    self.repository.add(guild_id, sound_id, name)
 
   def delete(self, guild_id: int, sound_id: int):
     gid = str(guild_id)
     sid = str(sound_id)
-    self._conn.execute(
-      "DELETE FROM soundboards WHERE guild_id = ? AND sound_id = ?", (gid, sid)
-    )
-    self._conn.commit()
+    self.repository.delete(gid, sid)
     if self._dict_manager:
       self._dict_manager.invalidate_sound(gid, sid)
 
   def get_sounds(self, guild_id: int) -> list[tuple[str, str]]:
     """Returns list of (sound_id, name) for the guild."""
-    gid = str(guild_id)
-    cur = self._conn.cursor()
-    cur.execute("SELECT sound_id, name FROM soundboards WHERE guild_id = ?", (gid,))
-    return cur.fetchall()
+    return self.repository.get_sounds(guild_id)
 
-  def refresh(self, gid: str, token: str):
-    res = requests.get(
-      f'https://discord.com/api/v10/guilds/{gid}/soundboard-sounds',
-      headers={
-        'Authorization': f'Bot {token}',
-        'Content-Type': 'application/json',
-      })
-    res.raise_for_status()
-    d = res.json()
-    current_sound_names = list(s["name"] for s in d["items"])
-    current_sound_ids = list(str(s["sound_id"]) for s in d["items"])
-    cur = self._conn.cursor()
-    cur.execute(
-      "SELECT sound_id FROM soundboards WHERE guild_id = ?", (gid,)
-    )
-    rows = cur.fetchall()
-    db_sound_ids = list(row[0] for row in rows)
-    db_insert = []
-    db_delete = []
-    for n in range(len(current_sound_ids)):
-      if current_sound_ids[n] not in db_sound_ids:
-        db_insert.append((gid, current_sound_ids[n], current_sound_names[n]))
-    for n in range(len(db_sound_ids)):
-      if db_sound_ids[n] not in current_sound_ids:
-        db_delete.append((gid, db_sound_ids[n]))
-    cur.executemany(
-      "INSERT INTO soundboards (guild_id, sound_id, name) VALUES (?, ?, ?)", db_insert
-    )
-    cur.executemany(
-      "DELETE FROM soundboards WHERE guild_id = ? AND sound_id = ?", db_delete
-    )
-    self._conn.commit()
+  async def refresh(self, gid: str):
+    if self._soundboard_client is None:
+      raise RuntimeError("DiscordSoundboardClientが設定されていません")
+    current_sounds = await self._soundboard_client.list_sounds(gid)
+    deleted_ids = self.repository.synchronize(gid, current_sounds)
     if self._dict_manager:
-      for gid_del, sid_del in db_delete:
-        self._dict_manager.invalidate_sound(gid_del, sid_del)
+      for sound_id in deleted_ids:
+        self._dict_manager.invalidate_sound(gid, sound_id)
 
 class SoundDictView:
-  def __init__(self, client, tree, sound_dict: SoundDict, dict_manager: DictManager, server_config, sound_boards: UpdateSoundBoards):
+  def __init__(
+      self,
+      client,
+      tree,
+      sound_dict: SoundDict,
+      dict_manager: DictManager,
+      server_config,
+      sound_boards: UpdateSoundBoards,
+      error_notifier=None,
+  ):
     self.client = client
     self.tree = tree
     self.sound_dict = sound_dict
     self.dict_manager = dict_manager
     self.server_config = server_config
     self.sound_boards = sound_boards
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self._register()
 
   def _register(self):
     sounddict_group = discord.app_commands.Group(
       name='sounddict',
-      description=_lstr('commands.sounddict._group')
+      description='音声辞書を管理します'
     )
 
-    @sounddict_group.command(name='add', description=_lstr('commands.sounddict.add.description'))
+    @sounddict_group.command(name='add', description='音声辞書に単語を追加します')
     @discord.app_commands.describe(
-      word=_lstr('commands.sounddict.add.args.word'),
-      sound=_lstr('commands.sounddict.add.args.sound'),
-      read=_lstr('commands.sounddict.add.args.read'),
-      full_match=_lstr('commands.sounddict.add.args.full_match'),
-      trigger_user=_lstr('commands.sounddict.add.args.trigger_user')
+      word='追加する単語',
+      sound='サウンドボードのID',
+      read='読み方（省略可・50文字以内）',
+      full_match='Falseにすると単語が含まれているだけで再生されます（デフォルト: True=完全一致）',
+      trigger_user='このユーザー/Botが発言したときのみ再生します（省略可）'
     )
     @discord.app_commands.checks.has_permissions()
     async def sounddict_add(ctx, word: str, sound: str, read: Optional[str] = None,
                             full_match: bool = True, trigger_user: Optional[discord.Member] = None):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, 'Language')
         sounds = self.sound_boards.get_sounds(ctx.guild.id)
         sound_id = next((sid for sid, name in sounds if name == sound), None)
         if sound_id is None:
           await ctx.edit_original_response(
-            embed=build_embed('sounddict.add.not_found', lang=lang, sound=sound)
+            embed=make_embed(
+              'サウンドが見つかりませんでした',
+              f'サウンドボードに「{sound}」はありません。候補から選択してください。',
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
         trigger_user_id = str(trigger_user.id) if trigger_user else None
-        match_mode = get_desc('sounddict.add.match_mode.partial', lang=lang) if not full_match else get_desc('sounddict.add.match_mode.full', lang=lang)
-        trigger_label = trigger_user.display_name if trigger_user else get_desc('sounddict.add.trigger_none', lang=lang)
+        match_mode = '完全一致' if full_match else '部分一致'
+        trigger_label = trigger_user.display_name if trigger_user else 'なし'
         sound_overwrite = self.sound_dict.add(ctx.guild.id, word, sound_id, full_match=full_match, trigger_user_id=trigger_user_id)
         if read is not None:
           try:
@@ -173,21 +135,37 @@ class SoundDictView:
           except ValueError:
             dict_overwrite = False
           overwrite = sound_overwrite or dict_overwrite
-          key = 'sounddict.add.overwrite_both' if overwrite else 'sounddict.add.success_both'
-          await ctx.edit_original_response(
-            embed=build_embed(key, lang=lang, word=word, sound=sound, read=read, match_mode=match_mode, trigger=trigger_label)
+          title = '辞書への上書きが成功しました' if overwrite else '辞書への追加が成功しました'
+          description = '音声辞書と読み上げ辞書の単語が上書きされました' if overwrite else '音声辞書と読み上げ辞書に単語が追加されました'
+          embed = make_embed(title, description, embed_type=EmbedType.SUCCESS)
+          embed.add_field(
+            name='登録内容',
+            value=f'`{word}` → 音声: `{sound}`　読み: `{read}`',
+            inline=False,
           )
         else:
-          key = 'sounddict.add.overwrite' if sound_overwrite else 'sounddict.add.success'
-          await ctx.edit_original_response(
-            embed=build_embed(key, lang=lang, word=word, sound=sound, match_mode=match_mode, trigger=trigger_label)
+          title = '音声辞書への上書きが成功しました' if sound_overwrite else '音声辞書への追加が成功しました'
+          description = '音声辞書の単語が上書きされました' if sound_overwrite else '音声辞書に単語が追加されました'
+          embed = make_embed(title, description, embed_type=EmbedType.SUCCESS)
+          embed.add_field(
+            name='登録内容',
+            value=f'`{word}` → `{sound}`',
+            inline=False,
           )
+        embed.add_field(
+          name='オプション',
+          value=f'一致モード: `{match_mode}`　発話ユーザー: `{trigger_label}`',
+          inline=False,
+        )
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f'HTTPException in sounddict_add: {e}')
+        self.error_notifier.report(f'HTTPException in sounddict_add: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "sounddict_add", lang=self.server_config.get(ctx.guild.id, 'Language'))
+        await handle_internal_error(
+          ctx, e, "sounddict_add", self.error_notifier
+        )
 
     # noinspection PyUnusedLocal
     @sounddict_add.autocomplete("sound")
@@ -200,33 +178,42 @@ class SoundDictView:
       ]
       return filtered[:25]
 
-    @sounddict_group.command(name='del', description=_lstr('commands.sounddict.del.description'))
+    @sounddict_group.command(name='del', description='音声辞書から単語を削除します')
     @discord.app_commands.describe(
-      word=_lstr('commands.sounddict.del.args.word'),
-      both=_lstr('commands.sounddict.del.args.both')
+      word='削除する単語',
+      both='Trueにすると読み上げ辞書からも削除します'
     )
     @discord.app_commands.checks.has_permissions()
     async def sounddict_del(ctx, word: str, both: bool = False):
       try:
         await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, 'Language')
         sound_id = self.sound_dict.delete(ctx.guild.id, word)
         if sound_id is None:
           await ctx.edit_original_response(
-            embed=build_embed('sounddict.del.not_found', lang=lang, word=word)
+            embed=make_embed(
+              '音声辞書にその単語は見つかりませんでした',
+              f'音声辞書に`{word}`はありません。確認して入れなおしてください。',
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
         if both:
           self.dict_manager.delete(ctx.guild.id, word)
-        await ctx.edit_original_response(
-          embed=build_embed('sounddict.del.success', lang=lang, word=word)
+        embed = make_embed(
+          '音声辞書からの削除が成功しました',
+          '音声辞書から単語が削除されました',
+          embed_type=EmbedType.SUCCESS,
         )
+        embed.add_field(name='削除内容', value=f'`{word}`', inline=False)
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f'HTTPException in sounddict_del: {e}')
+        self.error_notifier.report(f'HTTPException in sounddict_del: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "sounddict_del", lang=self.server_config.get(ctx.guild.id, 'Language'))
+        await handle_internal_error(
+          ctx, e, "sounddict_del", self.error_notifier
+        )
 
     # noinspection PyUnusedLocal
     @sounddict_del.autocomplete("word")
@@ -240,20 +227,18 @@ class SoundDictView:
       ]
       return filtered[:25]
 
-    @sounddict_group.command(name='view', description=_lstr('commands.sounddict.view.description'))
+    @sounddict_group.command(name='view', description='音声辞書の内容を確認します')
     @discord.app_commands.describe(
-      ephemeral=_lstr('commands.sounddict.view.args.ephemeral'),
-      search=_lstr('commands.sounddict.view.args.search')
+      ephemeral='Trueにすると自分にだけ見える形で表示します',
+      search='検索する文字列（部分一致）'
     )
     async def sounddict_view(ctx, search: Optional[str] = None, ephemeral: bool = False):
       try:
         await ctx.response.defer(ephemeral=ephemeral)
-        lang = self.server_config.get(ctx.guild.id, 'Language')
         normal_entries, priority_entries = self.sound_dict.get_entries(ctx.guild.id)
 
         if not normal_entries and not priority_entries:
-          embed = build_embed('sounddict.view', lang=lang)
-          embed.description = get_desc('sounddict.view.empty', lang=lang)
+          embed = make_embed('音声辞書一覧', '音声辞書に登録された単語はありません')
           await ctx.edit_original_response(embed=embed)
           return
 
@@ -262,7 +247,7 @@ class SoundDictView:
         def make_label(fm, uid):
           parts = []
           if not fm:
-            parts.append(get_desc('sounddict.view.label_partial', lang=lang))
+            parts.append('部分一致')
           if uid:
             m = ctx.guild.get_member(int(uid))
             parts.append(f"@{m.display_name}" if m else f"uid:{uid}")
@@ -280,11 +265,20 @@ class SoundDictView:
 
         if not normal_items and not priority_items:
           await ctx.edit_original_response(
-            embed=build_embed('sounddict.view.not_found', lang=lang, word=search)
+            embed=make_embed(
+              '見つかりませんでした',
+              f'「{search}」に一致する単語は音声辞書にありません',
+              embed_type=EmbedType.ERROR,
+            )
           )
           return
 
-        paginator = DictViewPaginator(normal_items, priority_items, lang, 'sounddict')
+        paginator = DictViewPaginator(
+          normal_items,
+          priority_items,
+          'sounddict',
+          self.error_notifier,
+        )
         embed = paginator.build_embed()
 
         if paginator.total_pages <= 1:
@@ -296,15 +290,21 @@ class SoundDictView:
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
-        print(f'HTTPException in sounddict_view: {e}')
+        self.error_notifier.report(f'HTTPException in sounddict_view: {e}')
       except Exception as e:
-        await handle_internal_error(ctx, e, "sounddict_view", lang=self.server_config.get(ctx.guild.id, 'Language'))
+        await handle_internal_error(
+          ctx, e, "sounddict_view", self.error_notifier
+        )
 
     @sounddict_group.error
     async def sounddict_error(ctx, error):
       if isinstance(error, discord.app_commands.MissingPermissions):
         await ctx.response.send_message(
-          embed=build_embed('sounddict.error.no_permission'),
+          embed=make_embed(
+            '権限エラー',
+            'サーバー管理権限が必要です',
+            embed_type=EmbedType.ERROR,
+          ),
           ephemeral=True
         )
 

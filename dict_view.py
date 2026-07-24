@@ -7,18 +7,25 @@
 依存関係：discord.py
 """
 import discord
-from messages import build_embed, get_desc
+from presentation.embeds import make_embed
+from services.error_notification_service import ensure_error_notifier
 
 _PAGE_SIZE = 20
 
 
 class DictViewPaginator(discord.ui.View):
-  def __init__(self, normal_items: list[tuple[str, str]], priority_items: list[tuple[str, str]], lang: str, key_prefix: str):
+  def __init__(
+      self,
+      normal_items: list[tuple[str, str]],
+      priority_items: list[tuple[str, str]],
+      key_prefix: str,
+      error_notifier=None,
+  ):
     super().__init__(timeout=120)
     self.normal_items   = normal_items
     self.priority_items = priority_items
-    self.lang = lang
     self.key_prefix = key_prefix
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self.page = 0
     self.normal_pages   = (len(normal_items)   + _PAGE_SIZE - 1) // _PAGE_SIZE if normal_items   else 0
     self.priority_pages = (len(priority_items) + _PAGE_SIZE - 1) // _PAGE_SIZE if priority_items else 0
@@ -27,40 +34,33 @@ class DictViewPaginator(discord.ui.View):
     self._update_buttons()
 
   def build_embed(self) -> discord.Embed:
-    p = self.key_prefix
-    embed = build_embed(f'{p}.view', lang=self.lang)
-    prefix = get_desc(f'{p}.view.prefix', lang=self.lang)
+    is_sounddict = self.key_prefix == 'sounddict'
+    embed = make_embed('音声辞書一覧' if is_sounddict else '辞書一覧')
 
     if self.page < self.normal_pages:
       start = self.page * _PAGE_SIZE
       page_items = self.normal_items[start:start + _PAGE_SIZE]
-      section = get_desc(f'{p}.view.section_normal', lang=self.lang)
+      section = '通常辞書'
       section_page = self.page + 1
       section_total = self.normal_pages
     else:
       priority_page = self.page - self.normal_pages
       start = priority_page * _PAGE_SIZE
       page_items = self.priority_items[start:start + _PAGE_SIZE]
-      section = get_desc(f'{p}.view.section_priority', lang=self.lang)
+      section = '優先辞書'
       section_page = priority_page + 1
       section_total = self.priority_pages
 
-    header = get_desc(f'{p}.view.header', lang=self.lang)
+    header = '単語  →  音声名' if is_sounddict else '単語  →  読み方'
     lines = [f"{w}  →  {r}" for w, r in page_items]
     if header:
       separator = "─" * 24
       lines = [header, separator] + lines
-    parts = []
-    if prefix:
-      parts.append(prefix)
-    if section:
-      parts.append(f"**{section}**")
+    parts = [f"**{section}**"]
     parts.append("```\n" + "\n".join(lines) + "\n```")
     embed.description = "\n".join(parts)
 
-    page_str = get_desc(f'{p}.view.page', lang=self.lang).format(
-      page=section_page, total=section_total
-    )
+    page_str = f'ページ {section_page} / {section_total}'
     embed.set_footer(text=page_str)
     return embed
 
@@ -113,4 +113,4 @@ class DictViewPaginator(discord.ui.View):
       try:
         await self.message.edit(view=self)
       except Exception as e:
-        print(f"on_timeout: {e}")
+        self.error_notifier.report(f"on_timeout: {e}")
