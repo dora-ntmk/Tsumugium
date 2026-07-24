@@ -12,6 +12,7 @@ import discord
 import json
 from messages import build_embed, get_desc, handle_os_error, handle_internal_error
 from config import SPEAKERS_JSON
+from server_config import ServerConfig
 
 with open(SPEAKERS_JSON, encoding="utf-8") as _f:
   VOICEVOX_SPEAKERS = [(s["id"], s["name"]) for s in json.load(_f)]
@@ -24,17 +25,17 @@ def _lstr(key: str) -> discord.app_commands.locale_str:
 
 
 class Setting:
-  def __init__(self, client, tree, server_config):
+  def __init__(self, client: discord.Client, tree: discord.app_commands.CommandTree, server_config: ServerConfig) -> None:
     self.client = client
     self.tree = tree
     self.server_config = server_config
     self._register()
 
-  def _register(self):
+  def _register(self) -> None:
     setting_group = discord.app_commands.Group(name="setting", description=_lstr("commands.setting._group"), default_permissions=discord.Permissions(manage_guild=True))
 
     @setting_group.command(name="view", description=_lstr("commands.setting.view.description"))
-    async def setting_view(ctx):
+    async def setting_view(ctx: discord.Interaction) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -74,7 +75,7 @@ class Setting:
     @setting_group.command(name="text-target", description=_lstr("commands.setting.text_target.description"))
     @discord.app_commands.describe(channel=_lstr("commands.setting.text_target.args.channel"))
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_text_target(ctx, channel: discord.TextChannel = None):
+    async def setting_text_target(ctx: discord.Interaction, channel: discord.TextChannel | None = None) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -96,7 +97,7 @@ class Setting:
 
     @setting_group.command(name="text-target-reset", description=_lstr("commands.setting.text_target_reset.description"))
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_text_target_reset(ctx):
+    async def setting_text_target_reset(ctx: discord.Interaction) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -114,7 +115,7 @@ class Setting:
     @setting_group.command(name="voice-target", description=_lstr("commands.setting.voice_target.description"))
     @discord.app_commands.describe(channel=_lstr("commands.setting.voice_target.args.channel"))
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_voice_target(ctx, channel: discord.VoiceChannel = None):
+    async def setting_voice_target(ctx: discord.Interaction, channel: discord.VoiceChannel | None = None) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -140,7 +141,7 @@ class Setting:
 
     @setting_group.command(name="voice-target-reset", description=_lstr("commands.setting.voice_target_reset.description"))
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_voice_target_reset(ctx):
+    async def setting_voice_target_reset(ctx: discord.Interaction) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -158,7 +159,7 @@ class Setting:
     @setting_group.command(name="speaker", description=_lstr("commands.setting.speaker.description"))
     @discord.app_commands.describe(speaker=_lstr("commands.setting.speaker.args.speaker"))
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_speaker(ctx, speaker: str):
+    async def setting_speaker(ctx: discord.Interaction, speaker: str) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -183,7 +184,7 @@ class Setting:
 
     # noinspection PyUnusedLocal
     @setting_speaker.autocomplete("speaker")
-    async def speaker_autocomplete(ctx, current: str):
+    async def speaker_autocomplete(ctx: discord.Interaction, current: str) -> list[discord.app_commands.Choice]:
       choices = []
       if not current or current in BOT_DEFAULT_LABEL:
         choices.append(discord.app_commands.Choice(name=BOT_DEFAULT_LABEL, value=BOT_DEFAULT_LABEL))
@@ -193,7 +194,7 @@ class Setting:
     @setting_group.command(name="volume", description=_lstr("commands.setting.volume.description"))
     @discord.app_commands.describe(volume=_lstr("commands.setting.volume.args.volume"))
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_volume(ctx, volume: int):
+    async def setting_volume(ctx: discord.Interaction, volume: int) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -215,7 +216,7 @@ class Setting:
     @setting_group.command(name="speed", description=_lstr("commands.setting.speed.description"))
     @discord.app_commands.describe(speed=_lstr("commands.setting.speed.args.speed"))
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_speed(ctx, speed: int):
+    async def setting_speed(ctx: discord.Interaction, speed: int) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -237,7 +238,7 @@ class Setting:
     @setting_group.command(name="max-char", description=_lstr("commands.setting.max_char.description"))
     @discord.app_commands.describe(chars=_lstr("commands.setting.max_char.args.chars"))
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_max_char(ctx, chars: int):
+    async def setting_max_char(ctx: discord.Interaction, chars: int) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -262,7 +263,7 @@ class Setting:
     @setting_group.command(name="auto-join", description=_lstr("commands.setting.auto_join.description"))
     @discord.app_commands.describe(enabled=_lstr("commands.setting.auto_join.args.enabled"))
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_auto_join(ctx, enabled: bool):
+    async def setting_auto_join(ctx: discord.Interaction, enabled: bool) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -281,7 +282,7 @@ class Setting:
     @setting_group.command(name="access-notice", description=_lstr("commands.setting.access_notice.description"))
     @discord.app_commands.describe(enabled=_lstr("commands.setting.access_notice.args.enabled"))
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_access_notice(ctx, enabled: bool):
+    async def setting_access_notice(ctx: discord.Interaction, enabled: bool) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -310,7 +311,7 @@ class Setting:
       ]
     )
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_language(ctx, language: str):
+    async def setting_language(ctx: discord.Interaction, language: str) -> None:
       try:
         await ctx.response.defer()
         self.server_config.set(ctx.guild.id, "Language", language)
@@ -327,7 +328,7 @@ class Setting:
     @setting_group.command(name="auto-update", description=_lstr("commands.setting.auto_update.description"))
     @discord.app_commands.describe(enabled=_lstr("commands.setting.auto_update.args.enabled"))
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_auto_update(ctx, enabled: bool):
+    async def setting_auto_update(ctx: discord.Interaction, enabled: bool) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -346,7 +347,7 @@ class Setting:
     @setting_group.command(name="auto-update-check", description=_lstr("commands.setting.auto_update_check.description"))
     @discord.app_commands.describe(enabled=_lstr("commands.setting.auto_update_check.args.enabled"))
     @discord.app_commands.checks.has_permissions(manage_guild=True)
-    async def setting_auto_update_check(ctx, enabled: bool):
+    async def setting_auto_update_check(ctx: discord.Interaction, enabled: bool) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -363,7 +364,7 @@ class Setting:
         await handle_internal_error(ctx, e, "setting_auto_update_check", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @setting_group.error
-    async def setting_error(ctx, error):
+    async def setting_error(ctx: discord.Interaction, error: discord.app_commands.AppCommandError) -> None:
       if isinstance(error, discord.app_commands.MissingPermissions):
         await ctx.response.send_message(embed=build_embed("setting.error.no_permission"), ephemeral=True)
 

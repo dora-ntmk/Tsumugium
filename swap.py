@@ -7,8 +7,16 @@
 依存関係：なし
 """
 
+from __future__ import annotations
+
 import os
 import re
+import sqlite3
+from collections.abc import Callable
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+  import discord
 
 _CUSTOM_EMOJI_RE = re.compile(r"<a?:[\w/:%#$&?()~.=+\-]+:\d+>")
 _STANDARD_EMOJI_RE = re.compile(r"^:([\w/:%#$&?()~.=+\-]+):$")
@@ -58,13 +66,13 @@ _VIDEO_EXTS = {".mp4", ".mov", ".avi", ".webm", ".mkv", ".flv"}
 _AUDIO_EXTS = {".mp3", ".wav", ".ogg", ".m4a", ".flac", ".aac"}
 
 
-def _apply_dict(segments: list, mapping: dict) -> list:
+def _apply_dict(segments: list[tuple[str, bool]], mapping: dict[str, str]) -> list[tuple[str, bool]]:
   """Literal word replacements on non-replaced segments."""
   for word, read in mapping.items():
     if not word:
       continue
     pattern = re.escape(word)
-    new_segments = []
+    new_segments: list[tuple[str, bool]] = []
     for seg_text, replaced in segments:
       if replaced:
         new_segments.append((seg_text, True))
@@ -83,9 +91,9 @@ def _apply_dict(segments: list, mapping: dict) -> list:
   return segments
 
 
-def _apply_regex(segments: list, pattern, repl_fn) -> list:
+def _apply_regex(segments: list[tuple[str, bool]], pattern: re.Pattern[str], repl_fn: str | Callable[[re.Match[str]], str]) -> list[tuple[str, bool]]:
   """Regex replacements on non-replaced segments."""
-  new_segments = []
+  new_segments: list[tuple[str, bool]] = []
   for seg_text, replaced in segments:
     if replaced:
       new_segments.append((seg_text, True))
@@ -105,7 +113,7 @@ def _apply_regex(segments: list, pattern, repl_fn) -> list:
   return new_segments
 
 
-def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attachments, mentions=None, author_id=None) -> tuple[str, list[tuple[int, int]], str | None]:
+def preprocess_text(text: str, guild_id: int, conn: sqlite3.Connection, emoji_ja: dict[str, str], guild: discord.Guild | None, attachments: list[discord.Attachment], mentions: list[discord.Member] | None = None, author_id: int | None = None) -> tuple[str, list[tuple[int, int]], str | None]:
   segments = [(text, False)]
   gid = str(guild_id)
   author_str = str(author_id) if author_id is not None else None
@@ -144,7 +152,7 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
   segments = _apply_regex(segments, _CUSTOM_EMOJI_RE, ",")
 
   # 3c. www pattern → N × わら（URL内の www は protected=True でスキップ済み）
-  def _www_replace(m):
+  def _www_replace(m: re.Match[str]) -> str:
     return "わら" * len(m.group(0)) + ","
 
   segments = _apply_regex(segments, _WWW_RE, _www_replace)
@@ -163,7 +171,7 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
   # 4f. User mentions
   mention_map = {str(u.id): u.display_name for u in (mentions or [])}
 
-  def _mention_user(m):
+  def _mention_user(m: re.Match[str]) -> str:
     uid = m.group(1)
     if uid in mention_map:
       return f"{mention_map[uid]}へのメンション,"
@@ -176,7 +184,7 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
   segments = _apply_regex(segments, _MENTION_USER_RE, _mention_user)
 
   # 4g. Channel links
-  def _channel_link(m):
+  def _channel_link(m: re.Match[str]) -> str:
     if guild:
       ch = guild.get_channel(int(m.group(1)))
       if ch:
@@ -186,7 +194,7 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
   segments = _apply_regex(segments, _MENTION_CH_RE, _channel_link)
 
   # 4h. Role mentions
-  def _mention_role(m):
+  def _mention_role(m: re.Match[str]) -> str:
     if guild:
       role = guild.get_role(int(m.group(1)))
       if role:
@@ -221,8 +229,8 @@ def preprocess_text(text: str, guild_id: int, conn, emoji_ja: dict, guild, attac
     segments = _apply_dict(segments, emoji_ja)
 
   # 7. Join with replaced range tracking
-  result_parts = []
-  replaced_ranges = []
+  result_parts: list[str] = []
+  replaced_ranges: list[tuple[int, int]] = []
   pos = 0
   for seg_text, replaced in segments:
     end = pos + len(seg_text)

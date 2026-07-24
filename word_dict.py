@@ -13,10 +13,10 @@ import json
 import sqlite3
 import unicodedata
 import discord
-from typing import Optional
 from messages import build_embed, get_desc, handle_internal_error
 from config import EMOJI_JA_JSON
 from dict_view import DictViewPaginator
+from server_config import ServerConfig
 import swap
 from swap import (
   _CUSTOM_EMOJI_RE,
@@ -84,7 +84,7 @@ def _filter_entries(entries: dict, word: str) -> list[tuple[str, str]]:
 
 
 class DictManager:
-  def __init__(self, db_path):
+  def __init__(self, db_path: str) -> None:
     self._conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30)
     self._conn.execute("PRAGMA journal_mode=WAL")
     self._conn.execute("""
@@ -111,7 +111,7 @@ class DictManager:
     emoji_ja_data = _load_json(EMOJI_JA_JSON)
     self._emoji_ja: dict = {k: v["short_name"] for k, v in emoji_ja_data.items() if isinstance(v, dict) and "short_name" in v}
 
-  def remove_guild(self, guild_id: int):
+  def remove_guild(self, guild_id: int) -> None:
     try:
       self._conn.execute("DELETE FROM dict WHERE guild_id = ?", (str(guild_id),))
       self._conn.commit()
@@ -139,7 +139,7 @@ class DictManager:
     self._conn.commit()
     return overwrite
 
-  def delete(self, guild_id: int, word: str) -> Optional[str]:
+  def delete(self, guild_id: int, word: str) -> str | None:
     """Returns the removed read string, or None if not found."""
     gid = str(guild_id)
     cur = self._conn.execute("SELECT reading, sound_id FROM dict WHERE guild_id = ? AND word = ?", (gid, word))
@@ -167,7 +167,7 @@ class DictManager:
         normal.append((word, reading))
     return normal, priority
 
-  def add_sound(self, guild_id: int, word: str, sound_id: str, full_match: bool = True, trigger_user_id: Optional[str] = None) -> bool:
+  def add_sound(self, guild_id: int, word: str, sound_id: str, full_match: bool = True, trigger_user_id: str | None = None) -> bool:
     """Returns True if overwriting an existing sound entry."""
     is_priority = 1 if _is_priority_word(word) else 0
     gid = str(guild_id)
@@ -189,7 +189,7 @@ class DictManager:
     self._conn.commit()
     return overwrite
 
-  def delete_sound(self, guild_id: int, word: str) -> Optional[str]:
+  def delete_sound(self, guild_id: int, word: str) -> str | None:
     """Returns the removed sound_id, or None if not found."""
     gid = str(guild_id)
     cur = self._conn.execute("SELECT sound_id, reading FROM dict WHERE guild_id = ? AND word = ?", (gid, word))
@@ -204,7 +204,7 @@ class DictManager:
     self._conn.commit()
     return sound_id
 
-  def get_sound_entries(self, guild_id: int) -> tuple[list[tuple[str, str, int, Optional[str]]], list[tuple[str, str, int, Optional[str]]]]:
+  def get_sound_entries(self, guild_id: int) -> tuple[list[tuple[str, str, int, str | None]], list[tuple[str, str, int, str | None]]]:
     """Returns (normal_items, priority_items), each as list of (word, sound_id, full_match, trigger_user_id) in added_at DESC order."""
     gid = str(guild_id)
     cur = self._conn.execute("SELECT word, sound_id, is_priority, full_match, trigger_user_id FROM dict WHERE guild_id = ? AND sound_id IS NOT NULL ORDER BY added_at DESC", (gid,))
@@ -217,7 +217,7 @@ class DictManager:
         normal.append((word, sound_id, fm, uid))
     return normal, priority
 
-  def invalidate_sound(self, guild_id, sound_id: str):
+  def invalidate_sound(self, guild_id: int, sound_id: str) -> None:
     """指定 sound_id を参照する dict レコードを更新する。
     reading が NULL なら行削除、reading が存在すれば sound_id を NULL 化。"""
     gid = str(guild_id)
@@ -226,31 +226,31 @@ class DictManager:
     self._conn.execute("UPDATE dict SET sound_id = NULL WHERE guild_id = ? AND sound_id = ? AND reading IS NOT NULL", (gid, sid))
     self._conn.commit()
 
-  def delete_entry(self, guild_id: int, word: str):
+  def delete_entry(self, guild_id: int, word: str) -> None:
     """reading と sound_id 両方を削除する（行ごと削除）。"""
     gid = str(guild_id)
     self._conn.execute("DELETE FROM dict WHERE guild_id = ? AND word = ?", (gid, word))
     self._conn.commit()
 
-  def preprocess_text(self, text: str, guild_id: int, guild, attachments, mentions=None, author_id: Optional[int] = None) -> tuple[str, list[tuple[int, int]], str | None]:
+  def preprocess_text(self, text: str, guild_id: int, guild: discord.Guild, attachments: list[discord.Attachment], mentions: list[discord.Member] | None = None, author_id: int | None = None) -> tuple[str, list[tuple[int, int]], str | None]:
     return swap.preprocess_text(text, guild_id, self._conn, self._emoji_ja, guild, attachments, mentions, author_id=author_id)
 
 
 class WordDict:
-  def __init__(self, client, tree, dict_manager: DictManager, server_config):
+  def __init__(self, client: discord.Client, tree: discord.app_commands.CommandTree, dict_manager: DictManager, server_config: ServerConfig) -> None:
     self.client = client
     self.tree = tree
     self.dict_manager = dict_manager
     self.server_config = server_config
     self._register()
 
-  def _register(self):
+  def _register(self) -> None:
     dict_group = discord.app_commands.Group(name="dict", description=_lstr("commands.dict._group"))
 
     @dict_group.command(name="add", description=_lstr("commands.dict.add.description"))
     @discord.app_commands.describe(word=_lstr("commands.dict.add.args.word"), read=_lstr("commands.dict.add.args.read"))
     @discord.app_commands.checks.has_permissions()
-    async def dict_add(ctx, word: str, read: str):
+    async def dict_add(ctx: discord.Interaction, word: str, read: str) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -271,7 +271,7 @@ class WordDict:
     @dict_group.command(name="del", description=_lstr("commands.dict.del.description"))
     @discord.app_commands.describe(word=_lstr("commands.dict.del.args.word"), both=_lstr("commands.dict.del.args.both"))
     @discord.app_commands.checks.has_permissions()
-    async def dict_del(ctx, word: str, both: bool = False):
+    async def dict_del(ctx: discord.Interaction, word: str, both: bool = False) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -291,7 +291,7 @@ class WordDict:
 
     # noinspection PyUnusedLocal
     @dict_del.autocomplete("word")
-    async def dict_del_word_autocomplete(ctx, current: str):
+    async def dict_del_word_autocomplete(ctx: discord.Interaction, current: str) -> list[discord.app_commands.Choice[str]]:
       normal, priority = self.dict_manager.get_entries(ctx.guild.id)
       all_words = [word for word, _ in priority + normal]
       filtered = [discord.app_commands.Choice(name=word, value=word) for word in all_words if current in word]
@@ -299,7 +299,7 @@ class WordDict:
 
     @dict_group.command(name="view", description=_lstr("commands.dict.view.description"))
     @discord.app_commands.describe(ephemeral=_lstr("commands.dict.view.args.ephemeral"), search=_lstr("commands.dict.view.args.search"))
-    async def dict_view(ctx, search: Optional[str] = None, ephemeral: bool = False):
+    async def dict_view(ctx: discord.Interaction, search: str | None = None, ephemeral: bool = False) -> None:
       try:
         await ctx.response.defer(ephemeral=ephemeral)
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -339,7 +339,7 @@ class WordDict:
         await handle_internal_error(ctx, e, "dict_view", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @dict_group.error
-    async def dict_error(ctx, error):
+    async def dict_error(ctx: discord.Interaction, error: discord.app_commands.AppCommandError) -> None:
       if isinstance(error, discord.app_commands.MissingPermissions):
         await ctx.response.send_message(embed=build_embed("dict.error.no_permission"), ephemeral=True)
 

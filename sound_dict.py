@@ -12,10 +12,10 @@
 import sqlite3
 import discord
 import requests
-from typing import Optional
 from messages import build_embed, get_desc, handle_internal_error
 from word_dict import DictManager, _filter_entries
 from dict_view import DictViewPaginator
+from server_config import ServerConfig
 
 
 def _lstr(key: str) -> discord.app_commands.locale_str:
@@ -23,21 +23,21 @@ def _lstr(key: str) -> discord.app_commands.locale_str:
 
 
 class SoundDict:
-  def __init__(self, dict_manager: DictManager):
+  def __init__(self, dict_manager: DictManager) -> None:
     self._dm = dict_manager
 
-  def add(self, guild_id: int, word: str, sound_id: str, full_match: bool = True, trigger_user_id: Optional[str] = None) -> bool:
+  def add(self, guild_id: int, word: str, sound_id: str, full_match: bool = True, trigger_user_id: str | None = None) -> bool:
     return self._dm.add_sound(guild_id, word, sound_id, full_match=full_match, trigger_user_id=trigger_user_id)
 
-  def delete(self, guild_id: int, word: str) -> Optional[str]:
+  def delete(self, guild_id: int, word: str) -> str | None:
     return self._dm.delete_sound(guild_id, word)
 
-  def get_entries(self, guild_id: int):
+  def get_entries(self, guild_id: int) -> tuple[list[tuple[str, str, int, str | None]], list[tuple[str, str, int, str | None]]]:
     return self._dm.get_sound_entries(guild_id)
 
 
 class UpdateSoundBoards:
-  def __init__(self, db_path, dict_manager=None):
+  def __init__(self, db_path: str, dict_manager: DictManager | None = None) -> None:
     self._conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30)
     self._conn.execute("PRAGMA journal_mode=WAL")
     self._conn.execute("""
@@ -52,14 +52,14 @@ class UpdateSoundBoards:
     self._conn.commit()
     self._dict_manager = dict_manager
 
-  def remove_guild(self, guild_id: int):
+  def remove_guild(self, guild_id: int) -> None:
     try:
       self._conn.execute("DELETE FROM soundboards WHERE guild_id = ?", (str(guild_id),))
       self._conn.commit()
     except sqlite3.Error as e:
       print(f"サウンドボード一覧削除失敗 guild_id={guild_id}: {e}")
 
-  def add(self, guild_id: int, sound_id: int, name: str):
+  def add(self, guild_id: int, sound_id: int, name: str) -> None:
     gid = str(guild_id)
     sid = str(sound_id)
     self._conn.execute(
@@ -69,7 +69,7 @@ class UpdateSoundBoards:
     )
     self._conn.commit()
 
-  def delete(self, guild_id: int, sound_id: int):
+  def delete(self, guild_id: int, sound_id: int) -> None:
     gid = str(guild_id)
     sid = str(sound_id)
     self._conn.execute("DELETE FROM soundboards WHERE guild_id = ? AND sound_id = ?", (gid, sid))
@@ -84,7 +84,7 @@ class UpdateSoundBoards:
     cur.execute("SELECT sound_id, name FROM soundboards WHERE guild_id = ?", (gid,))
     return cur.fetchall()
 
-  def refresh(self, gid: str, token: str):
+  def refresh(self, gid: str, token: str) -> None:
     res = requests.get(
       f"https://discord.com/api/v10/guilds/{gid}/soundboard-sounds",
       headers={
@@ -117,7 +117,7 @@ class UpdateSoundBoards:
 
 
 class SoundDictView:
-  def __init__(self, client, tree, sound_dict: SoundDict, dict_manager: DictManager, server_config, sound_boards: UpdateSoundBoards):
+  def __init__(self, client: discord.Client, tree: discord.app_commands.CommandTree, sound_dict: SoundDict, dict_manager: DictManager, server_config: ServerConfig, sound_boards: UpdateSoundBoards) -> None:
     self.client = client
     self.tree = tree
     self.sound_dict = sound_dict
@@ -126,7 +126,7 @@ class SoundDictView:
     self.sound_boards = sound_boards
     self._register()
 
-  def _register(self):
+  def _register(self) -> None:
     sounddict_group = discord.app_commands.Group(name="sounddict", description=_lstr("commands.sounddict._group"))
 
     @sounddict_group.command(name="add", description=_lstr("commands.sounddict.add.description"))
@@ -138,7 +138,7 @@ class SoundDictView:
       trigger_user=_lstr("commands.sounddict.add.args.trigger_user"),
     )
     @discord.app_commands.checks.has_permissions()
-    async def sounddict_add(ctx, word: str, sound: str, read: Optional[str] = None, full_match: bool = True, trigger_user: Optional[discord.Member] = None):
+    async def sounddict_add(ctx: discord.Interaction, word: str, sound: str, read: str | None = None, full_match: bool = True, trigger_user: discord.Member | None = None) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -171,7 +171,7 @@ class SoundDictView:
 
     # noinspection PyUnusedLocal
     @sounddict_add.autocomplete("sound")
-    async def sound_autocomplete(ctx, current: str):
+    async def sound_autocomplete(ctx: discord.Interaction, current: str) -> list[discord.app_commands.Choice[str]]:
       sounds = self.sound_boards.get_sounds(ctx.guild.id)
       filtered = [discord.app_commands.Choice(name=name, value=name) for _, name in sounds if current in name]
       return filtered[:25]
@@ -179,7 +179,7 @@ class SoundDictView:
     @sounddict_group.command(name="del", description=_lstr("commands.sounddict.del.description"))
     @discord.app_commands.describe(word=_lstr("commands.sounddict.del.args.word"), both=_lstr("commands.sounddict.del.args.both"))
     @discord.app_commands.checks.has_permissions()
-    async def sounddict_del(ctx, word: str, both: bool = False):
+    async def sounddict_del(ctx: discord.Interaction, word: str, both: bool = False) -> None:
       try:
         await ctx.response.defer()
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -199,7 +199,7 @@ class SoundDictView:
 
     # noinspection PyUnusedLocal
     @sounddict_del.autocomplete("word")
-    async def sounddict_del_word_autocomplete(ctx, current: str):
+    async def sounddict_del_word_autocomplete(ctx: discord.Interaction, current: str) -> list[discord.app_commands.Choice[str]]:
       normal, priority = self.sound_dict.get_entries(ctx.guild.id)
       all_words = [word for word, _, _, _ in priority + normal]
       filtered = [discord.app_commands.Choice(name=word, value=word) for word in all_words if current in word]
@@ -207,7 +207,7 @@ class SoundDictView:
 
     @sounddict_group.command(name="view", description=_lstr("commands.sounddict.view.description"))
     @discord.app_commands.describe(ephemeral=_lstr("commands.sounddict.view.args.ephemeral"), search=_lstr("commands.sounddict.view.args.search"))
-    async def sounddict_view(ctx, search: Optional[str] = None, ephemeral: bool = False):
+    async def sounddict_view(ctx: discord.Interaction, search: str | None = None, ephemeral: bool = False) -> None:
       try:
         await ctx.response.defer(ephemeral=ephemeral)
         lang = self.server_config.get(ctx.guild.id, "Language")
@@ -221,7 +221,7 @@ class SoundDictView:
 
         sounds_map = {sid: name for sid, name in self.sound_boards.get_sounds(ctx.guild.id)}
 
-        def make_label(fm, uid):
+        def make_label(fm: int, uid: str | None) -> str:
           parts = []
           if not fm:
             parts.append(get_desc("sounddict.view.label_partial", lang=lang))
@@ -230,7 +230,7 @@ class SoundDictView:
             parts.append(f"@{m.display_name}" if m else f"uid:{uid}")
           return f" [{', '.join(parts)}]" if parts else ""
 
-        def resolve(entries):
+        def resolve(entries: list[tuple[str, str, int, str | None]]) -> list[tuple[str, str]]:
           return [(w, sounds_map.get(sid, sid) + make_label(fm, uid)) for w, sid, fm, uid in entries]
 
         if search:
@@ -261,7 +261,7 @@ class SoundDictView:
         await handle_internal_error(ctx, e, "sounddict_view", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @sounddict_group.error
-    async def sounddict_error(ctx, error):
+    async def sounddict_error(ctx: discord.Interaction, error: discord.app_commands.AppCommandError) -> None:
       if isinstance(error, discord.app_commands.MissingPermissions):
         await ctx.response.send_message(embed=build_embed("sounddict.error.no_permission"), ephemeral=True)
 

@@ -8,7 +8,7 @@
 """
 
 import sqlite3
-from typing import Set
+from typing import Any, Set
 from config import DEFAULT_SPEAKER
 
 DEFAULTS = {
@@ -46,7 +46,7 @@ _BOOL_KEYS = {"AutoJoin", "AccessNotice", "Greeting", "AutoUpdate", "AutoUpdateC
 
 
 class ServerConfig:
-  def __init__(self, db_path: str = "db/config.db"):
+  def __init__(self, db_path: str = "db/config.db") -> None:
     self._conn = sqlite3.connect(db_path, check_same_thread=False, timeout=30)
     self._conn.execute("PRAGMA journal_mode=WAL")
     self._conn.execute("""
@@ -104,7 +104,7 @@ class ServerConfig:
         COMMIT;
       """)
 
-  def _to_python(self, key: str, value):
+  def _to_python(self, key: str, value: Any) -> Any:
     """SQLiteの値をPython型に変換する。"""
     if value is None:
       if key == "Speaker":
@@ -114,17 +114,17 @@ class ServerConfig:
       return bool(value)
     return value
 
-  def _to_sql(self, value):
+  def _to_sql(self, value: Any) -> Any:
     """Python型をSQLiteに格納できる型に変換する。"""
     if isinstance(value, bool):
       return int(value)
     return value
 
-  def init_guild(self, guild_id: int):
+  def init_guild(self, guild_id: int) -> None:
     self._conn.execute("INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)", (str(guild_id),))
     self._conn.commit()
 
-  def get(self, guild_id: int, key: str):
+  def get(self, guild_id: int, key: str) -> Any:
     if key not in DEFAULTS:
       raise KeyError(f"不明な設定キー: {key}")
     cur = self._conn.execute(f"SELECT {key} FROM guild_config WHERE guild_id = ?", (str(guild_id),))
@@ -133,7 +133,7 @@ class ServerConfig:
       return DEFAULTS[key]
     return self._to_python(key, row[0])
 
-  def set(self, guild_id: int, key: str, value):
+  def set(self, guild_id: int, key: str, value: Any) -> None:
     if key not in DEFAULTS:
       raise KeyError(f"不明な設定キー: {key}")
     if not _TYPE_VALIDATORS[key](value):
@@ -156,7 +156,7 @@ class ServerConfig:
       result[k] = self._to_python(k, v)
     return result
 
-  def get_raw_speaker(self, guild_id: int):
+  def get_raw_speaker(self, guild_id: int) -> int | None:
     """DBのSpeaker値をそのまま返す。NULLの場合はNone（Botのデフォルト使用中）。"""
     cur = self._conn.execute("SELECT Speaker FROM guild_config WHERE guild_id = ?", (str(guild_id),))
     row = cur.fetchone()
@@ -164,11 +164,11 @@ class ServerConfig:
       return None
     return row[0]
 
-  def remove_guild(self, guild_id: int):
+  def remove_guild(self, guild_id: int) -> None:
     self._conn.execute("DELETE FROM guild_config WHERE guild_id = ?", (str(guild_id),))
     self._conn.commit()
 
-  def reset(self, guild_id: int, key: str):
+  def reset(self, guild_id: int, key: str) -> None:
     if key not in DEFAULTS:
       raise KeyError(f"不明な設定キー: {key}")
     self._conn.execute(f"UPDATE guild_config SET {key} = ? WHERE guild_id = ?", (self._to_sql(DEFAULTS[key]), str(guild_id)))
