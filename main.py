@@ -25,7 +25,6 @@ from sound_dict import SoundDict, SoundDictView, UpdateSoundBoards
 import updater
 
 
-# 起動設定
 intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents, enable_debug_events=True)
@@ -66,7 +65,6 @@ async def enqueue_notice(guild: discord.Guild, member: discord.Member, msg_key: 
       play.playing_tasks[guild.id] = asyncio.create_task(play.play_loop(guild))
 
 
-# 起動時動作
 @client.event
 async def on_ready() -> None:
   await tree.set_translator(BotTranslator())
@@ -98,7 +96,6 @@ async def on_ready() -> None:
   print(discord.__version__)
 
 
-# サーバー参加時にデフォルト設定を書き込む
 @client.event
 async def on_guild_join(guild: discord.Guild) -> None:
   server_config.init_guild(guild.id)
@@ -331,5 +328,4 @@ async def on_app_command_error(ctx: discord.Interaction, error: discord.app_comm
   print(f"Unhandled command error in {ctx.command.name}: {error}")
 
 
-# 起動
 client.run(DISCORD_BOT_TOKEN)

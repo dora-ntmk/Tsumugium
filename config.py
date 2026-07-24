@@ -27,14 +27,11 @@ BACKUP_TIMES = os.getenv("BACKUP_TIMES", "")
 BACKUP_INTERVAL_DAYS = os.getenv("BACKUP_INTERVAL_DAYS", "1")
 BACKUP_KEEP = os.getenv("BACKUP_KEEP", "7")
 
-# 自動アップデート確認
 AUTO_UPDATE_CHECK_ENABLED = os.getenv("AUTO_UPDATE_CHECK_ENABLED", "true").lower() == "true"
 GITHUB_REPO = os.getenv("GITHUB_REPO", "dora-ntmk/Tsumugium")
 UPDATE_CHECK_INTERVAL = int(os.getenv("UPDATE_CHECK_INTERVAL", "3600"))
 
-# エラー通知先
 OWNER_IDS = [int(x.strip()) for x in os.getenv("OWNER_IDS", "").split(",") if x.strip()]
 
-# バージョン情報
 VERSION = "3.0.8"
 LAST_UPDATED = "2026-04-05"
