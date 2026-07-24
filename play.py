@@ -39,36 +39,29 @@ class Play:
     # キュークリア
     @self.tree.command(name="clear", description=get_desc("commands.clear.description"))
     async def clear(ctx: discord.Interaction, instant: bool = True) -> None:
-      try:
-        await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
-        queue = self.voice_queues[ctx.guild.id]
-        cleared = queue.qsize()
-        pending_files = []
-        while not queue.empty():
-          try:
-            _, src = queue.get_nowait()
-            if isinstance(src, str):
-              pending_files.append(src)
-            queue.task_done()
-          except asyncio.QueueEmpty:
-            break
-        self.skip_flags[ctx.guild.id] = True
-        if instant and ctx.guild.voice_client and ctx.guild.voice_client.is_playing():
-          ctx.guild.voice_client.stop()
-        self.clearing_flags[ctx.guild.id] = True
-        await ctx.edit_original_response(embed=build_embed("clear.clearing", lang=lang))
-        await asyncio.sleep(1)
-        for src in pending_files:
-          await self.safe_remove(src)
-        self.clearing_flags[ctx.guild.id] = False
-        await ctx.edit_original_response(embed=build_embed("clear.success", lang=lang, cleared=cleared))
-      except discord.errors.InteractionResponded:
-        return
-      except discord.errors.HTTPException as e:
-        print(f"HTTPException in clear: {e}")
-      except Exception as e:
-        print(f"Exception in clear: {e}")
+      await ctx.response.defer()
+      lang = self.server_config.get(ctx.guild.id, "Language")
+      queue = self.voice_queues[ctx.guild.id]
+      cleared = queue.qsize()
+      pending_files = []
+      while not queue.empty():
+        try:
+          _, src = queue.get_nowait()
+          if isinstance(src, str):
+            pending_files.append(src)
+          queue.task_done()
+        except asyncio.QueueEmpty:
+          break
+      self.skip_flags[ctx.guild.id] = True
+      if instant and ctx.guild.voice_client and ctx.guild.voice_client.is_playing():
+        ctx.guild.voice_client.stop()
+      self.clearing_flags[ctx.guild.id] = True
+      await ctx.edit_original_response(embed=build_embed("clear.clearing", lang=lang))
+      await asyncio.sleep(1)
+      for src in pending_files:
+        await self.safe_remove(src)
+      self.clearing_flags[ctx.guild.id] = False
+      await ctx.edit_original_response(embed=build_embed("clear.success", lang=lang, cleared=cleared))
 
     # メッセージ検出
     @self.client.event

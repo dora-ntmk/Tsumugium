@@ -139,35 +139,28 @@ class SoundDictView:
     )
     @discord.app_commands.checks.has_permissions()
     async def sounddict_add(ctx: discord.Interaction, word: str, sound: str, read: str | None = None, full_match: bool = True, trigger_user: discord.Member | None = None) -> None:
-      try:
-        await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
-        sounds = self.sound_boards.get_sounds(ctx.guild.id)
-        sound_id = next((sid for sid, name in sounds if name == sound), None)
-        if sound_id is None:
-          await ctx.edit_original_response(embed=build_embed("sounddict.add.not_found", lang=lang, sound=sound))
-          return
-        trigger_user_id = str(trigger_user.id) if trigger_user else None
-        match_mode = get_desc("sounddict.add.match_mode.partial", lang=lang) if not full_match else get_desc("sounddict.add.match_mode.full", lang=lang)
-        trigger_label = trigger_user.display_name if trigger_user else get_desc("sounddict.add.trigger_none", lang=lang)
-        sound_overwrite = self.sound_dict.add(ctx.guild.id, word, sound_id, full_match=full_match, trigger_user_id=trigger_user_id)
-        if read is not None:
-          try:
-            dict_overwrite = self.dict_manager.add(ctx.guild.id, word, read)
-          except ValueError:
-            dict_overwrite = False
-          overwrite = sound_overwrite or dict_overwrite
-          key = "sounddict.add.overwrite_both" if overwrite else "sounddict.add.success_both"
-          await ctx.edit_original_response(embed=build_embed(key, lang=lang, word=word, sound=sound, read=read, match_mode=match_mode, trigger=trigger_label))
-        else:
-          key = "sounddict.add.overwrite" if sound_overwrite else "sounddict.add.success"
-          await ctx.edit_original_response(embed=build_embed(key, lang=lang, word=word, sound=sound, match_mode=match_mode, trigger=trigger_label))
-      except discord.errors.InteractionResponded:
+      await ctx.response.defer()
+      lang = self.server_config.get(ctx.guild.id, "Language")
+      sounds = self.sound_boards.get_sounds(ctx.guild.id)
+      sound_id = next((sid for sid, name in sounds if name == sound), None)
+      if sound_id is None:
+        await ctx.edit_original_response(embed=build_embed("sounddict.add.not_found", lang=lang, sound=sound))
         return
-      except discord.errors.HTTPException as e:
-        print(f"HTTPException in sounddict_add: {e}")
-      except Exception as e:
-        await handle_internal_error(ctx, e, "sounddict_add", lang=self.server_config.get(ctx.guild.id, "Language"))
+      trigger_user_id = str(trigger_user.id) if trigger_user else None
+      match_mode = get_desc("sounddict.add.match_mode.partial", lang=lang) if not full_match else get_desc("sounddict.add.match_mode.full", lang=lang)
+      trigger_label = trigger_user.display_name if trigger_user else get_desc("sounddict.add.trigger_none", lang=lang)
+      sound_overwrite = self.sound_dict.add(ctx.guild.id, word, sound_id, full_match=full_match, trigger_user_id=trigger_user_id)
+      if read is not None:
+        try:
+          dict_overwrite = self.dict_manager.add(ctx.guild.id, word, read)
+        except ValueError:
+          dict_overwrite = False
+        overwrite = sound_overwrite or dict_overwrite
+        key = "sounddict.add.overwrite_both" if overwrite else "sounddict.add.success_both"
+        await ctx.edit_original_response(embed=build_embed(key, lang=lang, word=word, sound=sound, read=read, match_mode=match_mode, trigger=trigger_label))
+      else:
+        key = "sounddict.add.overwrite" if sound_overwrite else "sounddict.add.success"
+        await ctx.edit_original_response(embed=build_embed(key, lang=lang, word=word, sound=sound, match_mode=match_mode, trigger=trigger_label))
 
     # noinspection PyUnusedLocal
     @sounddict_add.autocomplete("sound")
@@ -180,22 +173,15 @@ class SoundDictView:
     @discord.app_commands.describe(word=_lstr("commands.sounddict.del.args.word"), both=_lstr("commands.sounddict.del.args.both"))
     @discord.app_commands.checks.has_permissions()
     async def sounddict_del(ctx: discord.Interaction, word: str, both: bool = False) -> None:
-      try:
-        await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
-        sound_id = self.sound_dict.delete(ctx.guild.id, word)
-        if sound_id is None:
-          await ctx.edit_original_response(embed=build_embed("sounddict.del.not_found", lang=lang, word=word))
-          return
-        if both:
-          self.dict_manager.delete(ctx.guild.id, word)
-        await ctx.edit_original_response(embed=build_embed("sounddict.del.success", lang=lang, word=word))
-      except discord.errors.InteractionResponded:
+      await ctx.response.defer()
+      lang = self.server_config.get(ctx.guild.id, "Language")
+      sound_id = self.sound_dict.delete(ctx.guild.id, word)
+      if sound_id is None:
+        await ctx.edit_original_response(embed=build_embed("sounddict.del.not_found", lang=lang, word=word))
         return
-      except discord.errors.HTTPException as e:
-        print(f"HTTPException in sounddict_del: {e}")
-      except Exception as e:
-        await handle_internal_error(ctx, e, "sounddict_del", lang=self.server_config.get(ctx.guild.id, "Language"))
+      if both:
+        self.dict_manager.delete(ctx.guild.id, word)
+      await ctx.edit_original_response(embed=build_embed("sounddict.del.success", lang=lang, word=word))
 
     # noinspection PyUnusedLocal
     @sounddict_del.autocomplete("word")
@@ -208,57 +194,49 @@ class SoundDictView:
     @sounddict_group.command(name="view", description=_lstr("commands.sounddict.view.description"))
     @discord.app_commands.describe(ephemeral=_lstr("commands.sounddict.view.args.ephemeral"), search=_lstr("commands.sounddict.view.args.search"))
     async def sounddict_view(ctx: discord.Interaction, search: str | None = None, ephemeral: bool = False) -> None:
-      try:
-        await ctx.response.defer(ephemeral=ephemeral)
-        lang = self.server_config.get(ctx.guild.id, "Language")
-        normal_entries, priority_entries = self.sound_dict.get_entries(ctx.guild.id)
+      await ctx.response.defer(ephemeral=ephemeral)
+      lang = self.server_config.get(ctx.guild.id, "Language")
+      normal_entries, priority_entries = self.sound_dict.get_entries(ctx.guild.id)
 
-        if not normal_entries and not priority_entries:
-          embed = build_embed("sounddict.view", lang=lang)
-          embed.description = get_desc("sounddict.view.empty", lang=lang)
-          await ctx.edit_original_response(embed=embed)
-          return
-
-        sounds_map = {sid: name for sid, name in self.sound_boards.get_sounds(ctx.guild.id)}
-
-        def make_label(fm: int, uid: str | None) -> str:
-          parts = []
-          if not fm:
-            parts.append(get_desc("sounddict.view.label_partial", lang=lang))
-          if uid:
-            m = ctx.guild.get_member(int(uid))
-            parts.append(f"@{m.display_name}" if m else f"uid:{uid}")
-          return f" [{', '.join(parts)}]" if parts else ""
-
-        def resolve(entries: list[tuple[str, str, int, str | None]]) -> list[tuple[str, str]]:
-          return [(w, sounds_map.get(sid, sid) + make_label(fm, uid)) for w, sid, fm, uid in entries]
-
-        if search:
-          normal_items = _filter_entries(dict(resolve(normal_entries)), search)
-          priority_items = _filter_entries(dict(resolve(priority_entries)), search)
-        else:
-          normal_items = resolve(normal_entries)
-          priority_items = resolve(priority_entries)
-
-        if not normal_items and not priority_items:
-          await ctx.edit_original_response(embed=build_embed("sounddict.view.not_found", lang=lang, word=search))
-          return
-
-        paginator = DictViewPaginator(normal_items, priority_items, lang, "sounddict")
-        embed = paginator.build_embed()
-
-        if paginator.total_pages <= 1:
-          await ctx.edit_original_response(embed=embed)
-        else:
-          msg = await ctx.edit_original_response(embed=embed, view=paginator)
-          paginator.message = msg
-
-      except discord.errors.InteractionResponded:
+      if not normal_entries and not priority_entries:
+        embed = build_embed("sounddict.view", lang=lang)
+        embed.description = get_desc("sounddict.view.empty", lang=lang)
+        await ctx.edit_original_response(embed=embed)
         return
-      except discord.errors.HTTPException as e:
-        print(f"HTTPException in sounddict_view: {e}")
-      except Exception as e:
-        await handle_internal_error(ctx, e, "sounddict_view", lang=self.server_config.get(ctx.guild.id, "Language"))
+
+      sounds_map = {sid: name for sid, name in self.sound_boards.get_sounds(ctx.guild.id)}
+
+      def make_label(fm: int, uid: str | None) -> str:
+        parts = []
+        if not fm:
+          parts.append(get_desc("sounddict.view.label_partial", lang=lang))
+        if uid:
+          m = ctx.guild.get_member(int(uid))
+          parts.append(f"@{m.display_name}" if m else f"uid:{uid}")
+        return f" [{', '.join(parts)}]" if parts else ""
+
+      def resolve(entries: list[tuple[str, str, int, str | None]]) -> list[tuple[str, str]]:
+        return [(w, sounds_map.get(sid, sid) + make_label(fm, uid)) for w, sid, fm, uid in entries]
+
+      if search:
+        normal_items = _filter_entries(dict(resolve(normal_entries)), search)
+        priority_items = _filter_entries(dict(resolve(priority_entries)), search)
+      else:
+        normal_items = resolve(normal_entries)
+        priority_items = resolve(priority_entries)
+
+      if not normal_items and not priority_items:
+        await ctx.edit_original_response(embed=build_embed("sounddict.view.not_found", lang=lang, word=search))
+        return
+
+      paginator = DictViewPaginator(normal_items, priority_items, lang, "sounddict")
+      embed = paginator.build_embed()
+
+      if paginator.total_pages <= 1:
+        await ctx.edit_original_response(embed=embed)
+      else:
+        msg = await ctx.edit_original_response(embed=embed, view=paginator)
+        paginator.message = msg
 
     @sounddict_group.error
     async def sounddict_error(ctx: discord.Interaction, error: discord.app_commands.AppCommandError) -> None:

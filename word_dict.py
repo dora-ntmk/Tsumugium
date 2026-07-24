@@ -251,43 +251,29 @@ class WordDict:
     @discord.app_commands.describe(word=_lstr("commands.dict.add.args.word"), read=_lstr("commands.dict.add.args.read"))
     @discord.app_commands.checks.has_permissions()
     async def dict_add(ctx: discord.Interaction, word: str, read: str) -> None:
+      await ctx.response.defer()
+      lang = self.server_config.get(ctx.guild.id, "Language")
       try:
-        await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
-        try:
-          overwrite = self.dict_manager.add(ctx.guild.id, word, read)
-        except ValueError:
-          await ctx.edit_original_response(embed=build_embed("dict.add.too_long", lang=lang, read=read))
-          return
-        key = "dict.add.overwrite" if overwrite else "dict.add.success"
-        await ctx.edit_original_response(embed=build_embed(key, lang=lang, word=word, read=read))
-      except discord.errors.InteractionResponded:
+        overwrite = self.dict_manager.add(ctx.guild.id, word, read)
+      except ValueError:
+        await ctx.edit_original_response(embed=build_embed("dict.add.too_long", lang=lang, read=read))
         return
-      except discord.errors.HTTPException as e:
-        print(f"HTTPException in dict_add: {e}")
-      except Exception as e:
-        await handle_internal_error(ctx, e, "dict_add", lang=self.server_config.get(ctx.guild.id, "Language"))
+      key = "dict.add.overwrite" if overwrite else "dict.add.success"
+      await ctx.edit_original_response(embed=build_embed(key, lang=lang, word=word, read=read))
 
     @dict_group.command(name="del", description=_lstr("commands.dict.del.description"))
     @discord.app_commands.describe(word=_lstr("commands.dict.del.args.word"), both=_lstr("commands.dict.del.args.both"))
     @discord.app_commands.checks.has_permissions()
     async def dict_del(ctx: discord.Interaction, word: str, both: bool = False) -> None:
-      try:
-        await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
-        read = self.dict_manager.delete(ctx.guild.id, word)
-        if read is None:
-          await ctx.edit_original_response(embed=build_embed("dict.del.not_found", lang=lang, word=word))
-          return
-        if both:
-          self.dict_manager.delete_sound(ctx.guild.id, word)
-        await ctx.edit_original_response(embed=build_embed("dict.del.success", lang=lang, word=word, read=read))
-      except discord.errors.InteractionResponded:
+      await ctx.response.defer()
+      lang = self.server_config.get(ctx.guild.id, "Language")
+      read = self.dict_manager.delete(ctx.guild.id, word)
+      if read is None:
+        await ctx.edit_original_response(embed=build_embed("dict.del.not_found", lang=lang, word=word))
         return
-      except discord.errors.HTTPException as e:
-        print(f"HTTPException in dict_del: {e}")
-      except Exception as e:
-        await handle_internal_error(ctx, e, "dict_del", lang=self.server_config.get(ctx.guild.id, "Language"))
+      if both:
+        self.dict_manager.delete_sound(ctx.guild.id, word)
+      await ctx.edit_original_response(embed=build_embed("dict.del.success", lang=lang, word=word, read=read))
 
     # noinspection PyUnusedLocal
     @dict_del.autocomplete("word")
@@ -300,43 +286,35 @@ class WordDict:
     @dict_group.command(name="view", description=_lstr("commands.dict.view.description"))
     @discord.app_commands.describe(ephemeral=_lstr("commands.dict.view.args.ephemeral"), search=_lstr("commands.dict.view.args.search"))
     async def dict_view(ctx: discord.Interaction, search: str | None = None, ephemeral: bool = False) -> None:
-      try:
-        await ctx.response.defer(ephemeral=ephemeral)
-        lang = self.server_config.get(ctx.guild.id, "Language")
-        normal_entries, priority_entries = self.dict_manager.get_entries(ctx.guild.id)
+      await ctx.response.defer(ephemeral=ephemeral)
+      lang = self.server_config.get(ctx.guild.id, "Language")
+      normal_entries, priority_entries = self.dict_manager.get_entries(ctx.guild.id)
 
-        if not normal_entries and not priority_entries:
-          embed = build_embed("dict.view", lang=lang)
-          embed.description = get_desc("dict.view.empty", lang=lang)
-          await ctx.edit_original_response(embed=embed)
-          return
-
-        if search:
-          normal_items = _filter_entries(dict(normal_entries), search)
-          priority_items = _filter_entries(dict(priority_entries), search)
-        else:
-          normal_items = normal_entries
-          priority_items = priority_entries
-
-        if not normal_items and not priority_items:
-          await ctx.edit_original_response(embed=build_embed("dict.view.not_found", lang=lang, word=search))
-          return
-
-        paginator = DictViewPaginator(normal_items, priority_items, lang, "dict")
-        embed = paginator.build_embed()
-
-        if paginator.total_pages <= 1:
-          await ctx.edit_original_response(embed=embed)
-        else:
-          msg = await ctx.edit_original_response(embed=embed, view=paginator)
-          paginator.message = msg
-
-      except discord.errors.InteractionResponded:
+      if not normal_entries and not priority_entries:
+        embed = build_embed("dict.view", lang=lang)
+        embed.description = get_desc("dict.view.empty", lang=lang)
+        await ctx.edit_original_response(embed=embed)
         return
-      except discord.errors.HTTPException as e:
-        print(f"HTTPException in dict_view: {e}")
-      except Exception as e:
-        await handle_internal_error(ctx, e, "dict_view", lang=self.server_config.get(ctx.guild.id, "Language"))
+
+      if search:
+        normal_items = _filter_entries(dict(normal_entries), search)
+        priority_items = _filter_entries(dict(priority_entries), search)
+      else:
+        normal_items = normal_entries
+        priority_items = priority_entries
+
+      if not normal_items and not priority_items:
+        await ctx.edit_original_response(embed=build_embed("dict.view.not_found", lang=lang, word=search))
+        return
+
+      paginator = DictViewPaginator(normal_items, priority_items, lang, "dict")
+      embed = paginator.build_embed()
+
+      if paginator.total_pages <= 1:
+        await ctx.edit_original_response(embed=embed)
+      else:
+        msg = await ctx.edit_original_response(embed=embed, view=paginator)
+        paginator.message = msg
 
     @dict_group.error
     async def dict_error(ctx: discord.Interaction, error: discord.app_commands.AppCommandError) -> None:
