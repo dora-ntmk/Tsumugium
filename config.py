@@ -6,11 +6,10 @@
 依存関係：python-dotenv
 """
 
+import os
 from dotenv import load_dotenv
 
 load_dotenv()
-
-import os
 
 STATUS_MESSAGE = os.getenv("STATUS_MESSAGE", "")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")

@@ -11,7 +11,7 @@
 import discord
 import json
 from messages import build_embed, get_desc, handle_os_error, handle_internal_error
-from config import SPEAKERS_JSON, DEFAULT_SPEAKER
+from config import SPEAKERS_JSON
 
 with open(SPEAKERS_JSON, encoding="utf-8") as _f:
   VOICEVOX_SPEAKERS = [(s["id"], s["name"]) for s in json.load(_f)]
@@ -40,26 +40,27 @@ class Setting:
         lang = self.server_config.get(ctx.guild.id, "Language")
         cfg = self.server_config.get_all(ctx.guild.id)
         embed = build_embed("setting.view", lang=lang)
+        def __lbl(k: str) -> str:
+          return get_desc(f"setting.view.labels.{k}", lang=lang)
         not_set = get_desc("setting.view.not_set", lang=lang)
-        lbl = lambda k: get_desc(f"setting.view.labels.{k}", lang=lang)
         text_ch = ctx.guild.get_channel(cfg["TextTarget"])
         voice_ch = ctx.guild.get_channel(cfg["VoiceTarget"])
-        embed.add_field(name=lbl("TextTarget"), value=not_set if text_ch is None else text_ch.mention, inline=False)
-        embed.add_field(name=lbl("VoiceTarget"), value=not_set if voice_ch is None else voice_ch.mention, inline=False)
+        embed.add_field(name=_lbl("TextTarget"), value=not_set if text_ch is None else text_ch.mention, inline=False)
+        embed.add_field(name=_lbl("VoiceTarget"), value=not_set if voice_ch is None else voice_ch.mention, inline=False)
         raw_speaker = self.server_config.get_raw_speaker(ctx.guild.id)
         if raw_speaker is None:
           speaker_display = BOT_DEFAULT_LABEL
         else:
           speaker_display = next((name for sid, name in VOICEVOX_SPEAKERS if sid == raw_speaker), str(raw_speaker))
-        embed.add_field(name=lbl("Speaker"), value=speaker_display, inline=True)
-        embed.add_field(name=lbl("Volume"), value=str(cfg["Volume"]), inline=True)
-        embed.add_field(name=lbl("Speed"), value=str(cfg["Speed"]), inline=True)
-        embed.add_field(name=lbl("MaxChar"), value=str(cfg["MaxChar"]), inline=True)
-        embed.add_field(name=lbl("AutoJoin"), value=str(cfg["AutoJoin"]), inline=True)
-        embed.add_field(name=lbl("AccessNotice"), value=str(cfg["AccessNotice"]), inline=True)
-        embed.add_field(name=lbl("Language"), value=str(cfg["Language"]), inline=True)
-        embed.add_field(name=lbl("AutoUpdate"), value=str(cfg["AutoUpdate"]), inline=True)
-        embed.add_field(name=lbl("AutoUpdateCheck"), value=str(cfg["AutoUpdateCheck"]), inline=True)
+        embed.add_field(name=_lbl("Speaker"), value=speaker_display, inline=True)
+        embed.add_field(name=_lbl("Volume"), value=str(cfg["Volume"]), inline=True)
+        embed.add_field(name=_lbl("Speed"), value=str(cfg["Speed"]), inline=True)
+        embed.add_field(name=_lbl("MaxChar"), value=str(cfg["MaxChar"]), inline=True)
+        embed.add_field(name=_lbl("AutoJoin"), value=str(cfg["AutoJoin"]), inline=True)
+        embed.add_field(name=_lbl("AccessNotice"), value=str(cfg["AccessNotice"]), inline=True)
+        embed.add_field(name=_lbl("Language"), value=str(cfg["Language"]), inline=True)
+        embed.add_field(name=_lbl("AutoUpdate"), value=str(cfg["AutoUpdate"]), inline=True)
+        embed.add_field(name=_lbl("AutoUpdateCheck"), value=str(cfg["AutoUpdateCheck"]), inline=True)
         await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return

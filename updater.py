@@ -9,7 +9,6 @@
 import asyncio
 import re
 import aiohttp
-import discord
 from config import VERSION, GITHUB_REPO, AUTO_UPDATE_CHECK_ENABLED, UPDATE_CHECK_INTERVAL
 from messages import build_embed
 

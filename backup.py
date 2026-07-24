@@ -8,7 +8,6 @@
 """
 
 import asyncio
-import os
 import sqlite3
 from datetime import datetime, date, timedelta
 from pathlib import Path
