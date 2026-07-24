@@ -106,6 +106,18 @@
         "args": {
           "language": "使用する言語"
         }
+      },
+      "auto_update": {
+        "description": "新バージョンがあるときにサーバーに自動通知するかを設定します",
+        "args": {
+          "enabled": "有効にするかどうか"
+        }
+      },
+      "auto_update_check": {
+        "description": "自動アップデート確認機能を有効にするかを設定します",
+        "args": {
+          "enabled": "有効にするかどうか"
+        }
       }
     },
     "sounddict": {
@@ -361,7 +373,9 @@
         "MaxChar": "𓋴𓄿𓇌𓂩𓄿𓇌𓇌𓍯𓅓𓇌𓄿𓎼𓇋𓅓𓍯𓊃𓇌𓋴𓅱𓅱",
         "AutoJoin": "𓊃𓇌𓂩𓍯𓅱𓈖𓇌𓃭𓇌𓅱𓅱𓏏𓄿𓇌𓋴𓇌𓏏𓅱",
         "AccessNotice": "𓈖𓇌𓃭𓇌𓅱𓅱𓏏𓄿𓇌𓋴𓇌𓏏𓅱𓏏𓅱𓅱𓏏𓇌",
-        "Language": "𓎼𓇋𓈖𓎼𓍯"
+        "Language": "𓎼𓇋𓈖𓎼𓍯",
+        "AutoUpdate": "𓄿𓅱𓏏𓍯𔄢𓃀𓇌𓏏𓇌𓈖𓎼𓇌𓇌",
+        "AutoUpdateCheck": "𓄿𓅱𓏏𓍯𔄢𓃀𓇌𓏏𓇌𓈖𓎼𓇌𓈖𓊃𓇋𓏏𓇋"
       }
     },
     "text_target": {
@@ -476,6 +490,20 @@
       "success": {
         "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
         "description": "𓎼𓇋𓈖𓎼𓍯𓍯 {language} 𓈖𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
+        "color": "green"
+      }
+    },
+    "auto_update": {
+      "success": {
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+        "description": "𓄿𓅱𓏏𓍯𔄢𓃀𓇌𓏏𓇌𓈖𓎼𓇌𓇌 {state} 𓈖𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
+        "color": "green"
+      }
+    },
+    "auto_update_check": {
+      "success": {
+        "title": "𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓎡𓄿𓈖𓂋𓇌𓃭𓇌𓍯𓅱",
+        "description": "𓄿𓅱𓏏𓍯𔄢𓃀𓇌𓏏𓇌𓈖𓎼𓇌𓈖𓊃𓇋𓏏𓇋 {state} 𓈖𓇌𓋴𓇋𓃭𓏏𓍢𓏏𓇋𓇌𓋴𓇌𓅓𓄿𓋴𓇌𓏏𓄿",
         "color": "green"
       }
     },
@@ -603,6 +631,13 @@
         "description": "\uD80C\uDEF4\uD80C\uDD3Fー\uD80C\uDCC0\uD80C\uDD3Fー\uD80C\uDFA1\uD80C\uDD3F\uD80C\uDE16\uD80C\uDC8B\uD80C\uDDCC\uD80C\uDFA1\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDDCB\uD80C\uDE16\uD80C\uDFBC\uD80C\uDD3F\uD80C\uDE54\uD80C\uDDCC\uD80C\uDFCF\uD80C\uDD71\uD80C\uDDCC\uD80C\uDF6F\uD80C\uDD71\uD80C\uDCA9\uD80C\uDDCB\uD80C\uDEF4\uD80C\uDD71",
         "color": "red"
       }
+    }
+  },
+  "updater": {
+    "new_version": {
+      "title": "𓇋𓇋𓇌𓃀𓃀𓇌𓅱𓃀𓅱𓂧𓀀𓃀𓃀𓇋𓇌𓈖𓃀𓂧𓃀𓇌𓃀𓅱𓃀",
+      "description": "Tsumugium v{latest} 𓈖𓇌𓂧𓀀𓃀𓃀𓃀𓃀𓈌𓃀𓈌𓃀𓃀𓀀𓈌𓇋𓃀 (𓈅𓀀𓃀𓀀: v{current})\nhttps://github.com/dora-ntmk/Tsumugium/releases",
+      "color": "blue"
     }
   }
 }

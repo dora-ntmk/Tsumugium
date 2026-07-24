@@ -106,6 +106,18 @@
         "args": {
           "language": "使用する言語"
         }
+      },
+      "auto_update": {
+        "description": "新バージョンがあるときにサーバーに自動通知するかを設定します",
+        "args": {
+          "enabled": "有効にするかどうか"
+        }
+      },
+      "auto_update_check": {
+        "description": "自動アップデート確認機能を有効にするかを設定します",
+        "args": {
+          "enabled": "有効にするかどうか"
+        }
       }
     },
     "sounddict": {
@@ -343,7 +355,9 @@
         "MaxChar":      "最大読み上げ文字数",
         "AutoJoin":     "自動入退室",
         "AccessNotice": "入退室通知",
-        "Language":     "言語"
+        "Language":     "言語",
+        "AutoUpdate":   "自動更新通知",
+        "AutoUpdateCheck": "自動アップデート確認"
       }
     },
     "text_target": {
@@ -461,6 +475,20 @@
         "color": "green"
       }
     },
+    "auto_update": {
+      "success": {
+        "title": "設定完了",
+        "description": "自動更新通知を {state} に設定しました",
+        "color": "green"
+      }
+    },
+    "auto_update_check": {
+      "success": {
+        "title": "設定完了",
+        "description": "自動アップデート確認を {state} に設定しました",
+        "color": "green"
+      }
+    },
     "states": {
       "enabled": "有効",
       "disabled": "無効"
@@ -563,6 +591,13 @@
         "description": "サーバー管理権限が必要です",
         "color": "red"
       }
+    }
+  },
+  "updater": {
+    "new_version": {
+      "title": "新しいバージョンがあります",
+      "description": "Tsumugium の新しいバージョン v{latest} がリリースされています（現在: v{current}）\nhttps://github.com/dora-ntmk/Tsumugium/releases",
+      "color": "blue"
     }
   }
 }

@@ -6,19 +6,14 @@
       生成ファイルは TMP_DIR/{guild_id}-{msg_id}.wav に保存される。
 依存関係：requests
 """
+
 import requests
 import json
 import os
 from config import TMP_DIR
 
 
-def edit_query(
-    res_json,
-    speed: float,
-    pitch: float,
-    intonation: float,
-    volume: float
-):
+def edit_query(res_json: dict | None, speed: float, pitch: float, intonation: float, volume: float) -> str | None:
   try:
     if res_json is None:
       raise ValueError("res_json cannot be None")
@@ -40,20 +35,10 @@ def edit_query(
 
 
 class VvTTS:
-  def __init__(self, url: str = "http://127.0.0.1:50021"):
+  def __init__(self, url: str = "http://127.0.0.1:50021") -> None:
     self.url = url
 
-  async def generate(
-      self,
-      msg: str,
-      guildid: int,
-      msgid: int,
-      speaker: int = 0,
-      speed: float = 1.0,
-      pitch: float = 0.0,
-      intonation: float = 1.0,
-      volume: float = 1.0
-  ):
+  async def generate(self, msg: str, guildid: int, msgid: int, speaker: int = 0, speed: float = 1.0, pitch: float = 0.0, intonation: float = 1.0, volume: float = 1.0) -> str | None:
     try:
       if msg is None:
         raise ValueError("msg cannot be None")
@@ -64,12 +49,7 @@ class VvTTS:
       res1 = requests.post(f"{self.url}/audio_query", params={"text": msg, "speaker": speaker})
       res1.raise_for_status()
       res2 = edit_query(res1.json(), speed, pitch, intonation, volume)
-      res3 = requests.post(
-        f"{self.url}/synthesis",
-        headers={"content-type": "application/json"},
-        params={"speaker": speaker},
-        data=res2
-      )
+      res3 = requests.post(f"{self.url}/synthesis", headers={"content-type": "application/json"}, params={"speaker": speaker}, data=res2)
       res3.raise_for_status()
       os.makedirs(TMP_DIR, exist_ok=True)
       path = f"{TMP_DIR}/{guildid}-{msgid}.wav"

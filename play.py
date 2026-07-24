@@ -6,6 +6,7 @@
       サウンドボード ID が一致する場合は Discord API で直接再生する。
 依存関係：discord.py, aiohttp
 """
+
 import asyncio
 import aiohttp
 import discord
@@ -17,7 +18,7 @@ from messages import build_embed, get_desc
 
 
 class Play:
-  def __init__(self, client, tree, vvtts, server_config, dict_manager=None, leaving_guilds=None):
+  def __init__(self, client: discord.Client, tree: discord.app_commands.CommandTree, vvtts, server_config, dict_manager=None, leaving_guilds: set | None = None):
     self.client = client
     self.tree = tree
     self.vvtts = vvtts
@@ -33,48 +34,38 @@ class Play:
     self.keepalive_tasks: dict = {}
     self._register()
 
-  def _register(self):
+  def _register(self) -> None:
 
     # キュークリア
-    @self.tree.command(
-      name="clear",
-      description=get_desc("commands.clear.description")
-    )
-    async def clear(ctx, instant: bool = True):
-      try:
-        await ctx.response.defer()
-        lang = self.server_config.get(ctx.guild.id, "Language")
-        queue = self.voice_queues[ctx.guild.id]
-        cleared = queue.qsize()
-        pending_files = []
-        while not queue.empty():
-          try:
-            _, src = queue.get_nowait()
-            if isinstance(src, str):
-              pending_files.append(src)
-            queue.task_done()
-          except asyncio.QueueEmpty:
-            break
-        self.skip_flags[ctx.guild.id] = True
-        if instant and ctx.guild.voice_client and ctx.guild.voice_client.is_playing():
-          ctx.guild.voice_client.stop()
-        self.clearing_flags[ctx.guild.id] = True
-        await ctx.edit_original_response(embed=build_embed("clear.clearing", lang=lang))
-        await asyncio.sleep(1)
-        for src in pending_files:
-          await self.safe_remove(src)
-        self.clearing_flags[ctx.guild.id] = False
-        await ctx.edit_original_response(embed=build_embed("clear.success", lang=lang, cleared=cleared))
-      except discord.errors.InteractionResponded:
-        return
-      except discord.errors.HTTPException as e:
-        print(f"HTTPException in clear: {e}")
-      except Exception as e:
-        print(f"Exception in clear: {e}")
+    @self.tree.command(name="clear", description=get_desc("commands.clear.description"))
+    async def clear(ctx: discord.Interaction, instant: bool = True) -> None:
+      await ctx.response.defer()
+      lang = self.server_config.get(ctx.guild.id, "Language")
+      queue = self.voice_queues[ctx.guild.id]
+      cleared = queue.qsize()
+      pending_files = []
+      while not queue.empty():
+        try:
+          _, src = queue.get_nowait()
+          if isinstance(src, str):
+            pending_files.append(src)
+          queue.task_done()
+        except asyncio.QueueEmpty:
+          break
+      self.skip_flags[ctx.guild.id] = True
+      if instant and ctx.guild.voice_client and ctx.guild.voice_client.is_playing():
+        ctx.guild.voice_client.stop()
+      self.clearing_flags[ctx.guild.id] = True
+      await ctx.edit_original_response(embed=build_embed("clear.clearing", lang=lang))
+      await asyncio.sleep(1)
+      for src in pending_files:
+        await self.safe_remove(src)
+      self.clearing_flags[ctx.guild.id] = False
+      await ctx.edit_original_response(embed=build_embed("clear.success", lang=lang, cleared=cleared))
 
     # メッセージ検出
     @self.client.event
-    async def on_message(message):
+    async def on_message(message: discord.Message) -> None:
       if message.author.bot:
         # Botメッセージ: sounddict一致時のみ再生。TTS・メンション処理は行わない
         if message.guild is None or message.guild.voice_client is None:
@@ -95,7 +86,7 @@ class Play:
       # client.user.id を使用するためIDが変わっても動作する
       if message.guild is not None:
         bot_id = self.client.user.id
-        if message.content.strip() in (f'<@{bot_id}>', f'<@!{bot_id}>'):
+        if message.content.strip() in (f"<@{bot_id}>", f"<@!{bot_id}>"):
           lang = self.server_config.get(message.guild.id, "Language")
           try:
             if message.guild.voice_client is not None:
@@ -121,9 +112,7 @@ class Play:
                   return
                 await voice_channel.connect(timeout=60)
                 self.temp_text_targets[message.guild.id] = message.channel.id
-                await message.channel.send(
-                  embed=build_embed("join.success_temp", lang=lang, vc=voice_channel.mention, text=message.channel.mention)
-                )
+                await message.channel.send(embed=build_embed("join.success_temp", lang=lang, vc=voice_channel.mention, text=message.channel.mention))
               else:
                 await message.channel.send(embed=build_embed("join.failure", lang=lang))
           except Exception as e:
@@ -149,8 +138,7 @@ class Play:
         return
       asyncio.create_task(self.add_to_queue(message))
 
-
-  async def add_to_queue(self, content, msg: bool = True, sounddict_only: bool = False):
+  async def add_to_queue(self, content: discord.Message | str, msg: bool = True, sounddict_only: bool = False) -> None:
     if msg:
       message = content
       guild_id = message.guild.id
@@ -185,20 +173,17 @@ class Play:
           self.playing_tasks[guild_id] = asyncio.create_task(self.play_loop(message.guild))
 
   # 音声生成
-  async def generate(self, msg, guild_id, msg_id, speaker, speed=1.0, volume=1.0):
+  async def generate(self, msg: str, guild_id: int, msg_id: int, speaker: int, speed: float = 1.0, volume: float = 1.0) -> str | None:
     path = await self.vvtts.generate(msg, guild_id, msg_id, speaker, speed=speed, volume=volume)
     return path
 
   # 音声再生待機ループ
-  async def play_loop(self, guild):
+  async def play_loop(self, guild: discord.Guild) -> None:
     guild_id = guild.id
     while True:
       src = None
       try:
-        _, src = await asyncio.wait_for(
-          self.voice_queues[guild_id].get(),
-          timeout=300
-        )
+        _, src = await asyncio.wait_for(self.voice_queues[guild_id].get(), timeout=300)
         if guild.voice_client is None:
           self.voice_queues[guild_id].task_done()
           src = None
@@ -226,24 +211,24 @@ class Play:
         if src is not None:
           self.voice_queues[guild_id].task_done()
 
-  async def _play_soundboard(self, guild, sound_id: str):
+  async def _play_soundboard(self, guild: discord.Guild, sound_id: str) -> None:
     try:
       async with aiohttp.ClientSession() as session:
         async with session.post(
-          f'https://discord.com/api/v10/channels/{guild.voice_client.channel.id}/send-soundboard-sound',
+          f"https://discord.com/api/v10/channels/{guild.voice_client.channel.id}/send-soundboard-sound",
           headers={
-            'Authorization': f'Bot {DISCORD_BOT_TOKEN}',
-            'Content-Type': 'application/json',
+            "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
+            "Content-Type": "application/json",
           },
-          json={'sound_id': f'{sound_id}'},
+          json={"sound_id": f"{sound_id}"},
         ):
           pass
     except Exception as e:
-      print(f'サウンドボード再生エラー：{e}')
+      print(f"サウンドボード再生エラー：{e}")
 
   # キープアライブ
-  async def _keepalive_loop(self, guild):
-    SILENCE = b'\xF8\xFF\xFE'
+  async def _keepalive_loop(self, guild: discord.Guild) -> None:
+    SILENCE = b"\xf8\xff\xfe"
     while True:
       await asyncio.sleep(270)
       vc = guild.voice_client
@@ -255,16 +240,16 @@ class Play:
         except Exception as e:
           print(f"keepalive error: {e}")
 
-  def start_keepalive(self, guild):
+  def start_keepalive(self, guild: discord.Guild) -> None:
     self.stop_keepalive(guild.id)
     self.keepalive_tasks[guild.id] = asyncio.create_task(self._keepalive_loop(guild))
 
-  def stop_keepalive(self, guild_id):
+  def stop_keepalive(self, guild_id: int) -> None:
     task = self.keepalive_tasks.pop(guild_id, None)
     if task and not task.done():
       task.cancel()
 
-  async def safe_remove(self, src, retries=5, delay=0.3):
+  async def safe_remove(self, src: str, retries: int = 5, delay: float = 0.3) -> None:
     for _ in range(retries):
       try:
         if os.path.exists(src):
@@ -275,7 +260,7 @@ class Play:
     print(f"ファイル削除失敗（使用中）: {src}")
 
   # 音声再生
-  async def play(self, guild, src):
+  async def play(self, guild: discord.Guild, src: str) -> None:
     try:
       voice = await discord.FFmpegOpusAudio.from_probe(src)
       if self.skip_flags[guild.id]:
@@ -288,11 +273,6 @@ class Play:
         self.skip_flags[guild.id] = False
         asyncio.create_task(self.safe_remove(src))
         return
-      guild.voice_client.play(
-        voice,
-        after=lambda _: asyncio.run_coroutine_threadsafe(
-          self.safe_remove(src), self.client.loop
-        )
-      )
+      guild.voice_client.play(voice, after=lambda _: asyncio.run_coroutine_threadsafe(self.safe_remove(src), self.client.loop))
     except Exception as e:
       print(f"音声再生エラー: {e}")

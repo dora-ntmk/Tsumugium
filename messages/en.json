@@ -106,6 +106,18 @@
         "args": {
           "language": "Language to use"
         }
+      },
+      "auto_update": {
+        "description": "Set whether to auto-notify the server about new versions",
+        "args": {
+          "enabled": "Whether to enable"
+        }
+      },
+      "auto_update_check": {
+        "description": "Set whether to enable automatic update checking",
+        "args": {
+          "enabled": "Whether to enable"
+        }
       }
     },
     "sounddict": {
@@ -343,7 +355,9 @@
         "MaxChar":      "MaxChar",
         "AutoJoin":     "AutoJoin",
         "AccessNotice": "AccessNotice",
-        "Language":     "Language"
+        "Language":     "Language",
+        "AutoUpdate":   "AutoUpdate",
+        "AutoUpdateCheck": "AutoUpdateCheck"
       }
     },
     "text_target": {
@@ -461,6 +475,20 @@
         "color": "green"
       }
     },
+    "auto_update": {
+      "success": {
+        "title": "Settings Saved",
+        "description": "Auto-update notification set to {state}",
+        "color": "green"
+      }
+    },
+    "auto_update_check": {
+      "success": {
+        "title": "Settings Saved",
+        "description": "Auto-update check set to {state}",
+        "color": "green"
+      }
+    },
     "states": {
       "enabled": "Enabled",
       "disabled": "Disabled"
@@ -563,6 +591,13 @@
         "description": "Server management permission is required",
         "color": "red"
       }
+    }
+  },
+  "updater": {
+    "new_version": {
+      "title": "New Version Available",
+      "description": "Tsumugium v{latest} has been released (current: v{current})\nhttps://github.com/dora-ntmk/Tsumugium/releases",
+      "color": "blue"
     }
   }
 }

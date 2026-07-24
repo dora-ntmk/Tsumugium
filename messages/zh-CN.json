@@ -106,6 +106,18 @@
         "args": {
           "language": "要使用的语言"
         }
+      },
+      "auto_update": {
+        "description": "设置新版本发布时是否自动通知服务器",
+        "args": {
+          "enabled": "是否启用"
+        }
+      },
+      "auto_update_check": {
+        "description": "设置是否启用自动更新检查",
+        "args": {
+          "enabled": "是否启用"
+        }
       }
     },
     "sounddict": {
@@ -361,7 +373,9 @@
         "MaxChar": "最大朗读字数",
         "AutoJoin": "自动加入/退出",
         "AccessNotice": "入退通知",
-        "Language": "语言"
+        "Language": "语言",
+        "AutoUpdate": "自动更新通知",
+        "AutoUpdateCheck": "自动更新检查"
       }
     },
     "text_target": {
@@ -479,6 +493,20 @@
         "color": "green"
       }
     },
+    "auto_update": {
+      "success": {
+        "title": "设置成功",
+        "description": "自动更新通知已设为 {state}",
+        "color": "green"
+      }
+    },
+    "auto_update_check": {
+      "success": {
+        "title": "设置成功",
+        "description": "自动更新检查已设为 {state}",
+        "color": "green"
+      }
+    },
     "states": {
       "enabled": "启用",
       "disabled": "禁用"
@@ -587,6 +615,13 @@
         "description": "需要服务器管理权限",
         "color": "red"
       }
+    }
+  },
+  "updater": {
+    "new_version": {
+      "title": "有新版本可用",
+      "description": "Tsumugium v{latest} 已发布（当前: v{current}）\nhttps://github.com/dora-ntmk/Tsumugium/releases",
+      "color": "blue"
     }
   }
 }

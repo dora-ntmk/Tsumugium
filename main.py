@@ -8,6 +8,7 @@
       VvTTS / ServerConfig / DictManager / SoundDict などのモジュールを統括する。
 依存関係：discord.py
 """
+
 import asyncio
 import io
 import json
@@ -17,13 +18,13 @@ from backup import start as start_backup
 from vvtts import VvTTS
 from play import Play
 from server_config import ServerConfig
-from messages import build_embed, get_desc, handle_os_error, handle_internal_error, BotTranslator
+from messages import build_embed, get_desc, handle_os_error, handle_internal_error, BotTranslator, notify_owners
 from setting import Setting
 from word_dict import DictManager, WordDict
 from sound_dict import SoundDict, SoundDictView, UpdateSoundBoards
+import updater
 
 
-# 起動設定
 intents = discord.Intents.default()
 intents.message_content = True
 client = discord.Client(intents=intents, enable_debug_events=True)
@@ -39,9 +40,10 @@ setting = Setting(client, tree, server_config)
 word_dict = WordDict(client, tree, dict_manager, server_config)
 sound_dict_view = SoundDictView(client, tree, sound_dict, dict_manager, server_config, sound_boards)
 _backup_task = None
+_updater_task = None
 
 
-def get_notify_channel(guild, vc_channel=None):
+def get_notify_channel(guild: discord.Guild, vc_channel: discord.VoiceChannel | None = None) -> discord.TextChannel | discord.VoiceChannel | None:
   text_target = play.temp_text_targets.get(guild.id)
   if text_target is None:
     text_target = server_config.get(guild.id, "TextTarget")
@@ -50,7 +52,7 @@ def get_notify_channel(guild, vc_channel=None):
   return vc_channel
 
 
-async def enqueue_notice(guild, member, msg_key, lang: str = "ja"):
+async def enqueue_notice(guild: discord.Guild, member: discord.Member, msg_key: str, lang: str = "ja") -> None:
   notice_text = get_desc(msg_key, lang=lang).format(display_name=member.display_name)
   notice_text, _, _ = dict_manager.preprocess_text(notice_text, guild.id, guild, [])
   speaker = server_config.get(guild.id, "Speaker")
@@ -63,9 +65,8 @@ async def enqueue_notice(guild, member, msg_key, lang: str = "ja"):
       play.playing_tasks[guild.id] = asyncio.create_task(play.play_loop(guild))
 
 
-# 起動時動作
 @client.event
-async def on_ready():
+async def on_ready() -> None:
   await tree.set_translator(BotTranslator())
   await tree.sync()
 
@@ -75,40 +76,40 @@ async def on_ready():
 
   for gid_str in current_guild_ids - db_guild_ids:
     server_config.init_guild(int(gid_str))
-    print(f'on_ready: init_guild {gid_str}')
+    print(f"on_ready: init_guild {gid_str}")
 
   for gid_str in db_guild_ids - current_guild_ids:
     server_config.remove_guild(int(gid_str))
     dict_manager.remove_guild(int(gid_str))
     sound_boards.remove_guild(int(gid_str))
-    print(f'on_ready: remove_guild {gid_str}')
+    print(f"on_ready: remove_guild {gid_str}")
 
   for gid_str in current_guild_ids:
     sound_boards.refresh(gid_str, DISCORD_BOT_TOKEN)
-    print(f'on_ready: refresh {gid_str}')
+    print(f"on_ready: refresh {gid_str}")
 
-  global _backup_task
+  global _backup_task, _updater_task
   _backup_task = start_backup([SERVER_CONFIG_DB, DICT_DB])
+  _updater_task = updater.start(client, server_config)
 
   await client.change_presence(status=discord.Status.online, activity=discord.Game(name=STATUS_MESSAGE))
   print(discord.__version__)
 
 
-# サーバー参加時にデフォルト設定を書き込む
 @client.event
-async def on_guild_join(guild):
+async def on_guild_join(guild: discord.Guild) -> None:
   server_config.init_guild(guild.id)
 
 
 # サーバー退出時に辞書データをオーナーへ送信して削除
 @client.event
-async def on_guild_remove(guild):
+async def on_guild_remove(guild: discord.Guild) -> None:
   try:
     normal_items, priority_items = dict_manager.get_entries(guild.id)
     combined = dict(priority_items + normal_items)  # 優先辞書が上、通常辞書が下
     if combined:
-      data = json.dumps(combined, ensure_ascii=False, indent=2).encode('utf-8')
-      file = discord.File(io.BytesIO(data), filename=f'{guild.id}_dict.json')
+      data = json.dumps(combined, ensure_ascii=False, indent=2).encode("utf-8")
+      file = discord.File(io.BytesIO(data), filename=f"{guild.id}_dict.json")
       owner = guild.owner
       if owner is None and guild.owner_id:
         try:
@@ -118,14 +119,11 @@ async def on_guild_remove(guild):
       if owner:
         try:
           dm = await owner.create_dm()
-          await dm.send(
-            content=f'サーバー「{guild.name}」の辞書データをお送りします。',
-            files=[file]
-          )
+          await dm.send(content=f"サーバー「{guild.name}」の辞書データをお送りします。", files=[file])
         except (discord.Forbidden, discord.HTTPException):
           pass
   except Exception as e:
-    print(f'Exception in on_guild_remove (DM): {e}')
+    print(f"Exception in on_guild_remove (DM): {e}")
   finally:
     server_config.remove_guild(guild.id)
     dict_manager.remove_guild(guild.id)
@@ -134,7 +132,7 @@ async def on_guild_remove(guild):
 
 # サウンドボード更新トリガー
 @client.event
-async def on_socket_raw_receive(msg):
+async def on_socket_raw_receive(msg: str) -> None:
   data = json.loads(msg)
   if data.get("op") != 0:
     return
@@ -154,7 +152,7 @@ async def on_socket_raw_receive(msg):
 
 # VC入退室検知（AutoJoin / AccessNotice）
 @client.event
-async def on_voice_state_update(member, before, after):
+async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState) -> None:
   guild = member.guild
   lang = server_config.get(guild.id, "Language")
 
@@ -246,121 +244,88 @@ async def on_voice_state_update(member, before, after):
 
 
 # 入室
-@tree.command(
-  name="join",
-  description=discord.app_commands.locale_str(get_desc("commands.join.description"), key="commands.join.description")
-)
-@discord.app_commands.describe(
-  change_channel=discord.app_commands.locale_str(
-    get_desc("commands.join.args.change_channel"),
-    key="commands.join.args.change_channel"
-  )
-)
-async def join(ctx, change_channel: bool = False):
-  try:
-    await ctx.response.defer()
-    lang = server_config.get(ctx.guild.id, "Language")
-    if ctx.user.voice:
-      voice_channel = ctx.user.voice.channel
-      text_channel  = ctx.channel
-      bot_member    = ctx.guild.me
-      vc_perms      = voice_channel.permissions_for(bot_member)
-      text_perms    = text_channel.permissions_for(bot_member)
-      issues = []
-      if not (vc_perms.connect and vc_perms.speak):
-        issues.append(get_desc("join.no_permission_vc", lang=lang).format(channel=voice_channel.mention))
-      if not (text_perms.view_channel and text_perms.send_messages):
-        issues.append(get_desc("join.no_permission_text", lang=lang).format(channel=text_channel.mention))
-      if issues:
-        await ctx.edit_original_response(
-          embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues))
-        )
-        return
-      if ctx.guild.voice_client is not None:
-        leaving_guilds.add(ctx.guild.id)
-        await ctx.guild.voice_client.disconnect()
-        await asyncio.sleep(0.5)
-      await voice_channel.connect(timeout=60)
-      if change_channel:
-        if not ctx.user.guild_permissions.manage_guild:
-          await ctx.edit_original_response(
-            embed=build_embed("join.no_permission_change_channel", lang=lang)
-          )
-        else:
-          try:
-            server_config.set(ctx.guild.id, "TextTarget", ctx.channel.id)
-            server_config.set(ctx.guild.id, "VoiceTarget", ctx.user.voice.channel.id)
-            await ctx.edit_original_response(
-              embed=build_embed(
-                "join.success_change_channel",
-                lang=lang,
-                vc=ctx.user.voice.channel.mention,
-                text=ctx.channel.mention,
-                voice=ctx.user.voice.channel.mention
-              )
-            )
-          except OSError:
-            await ctx.edit_original_response(embed=build_embed("join.failure_change_channel", lang=lang))
+@tree.command(name="join", description=discord.app_commands.locale_str(get_desc("commands.join.description"), key="commands.join.description"))
+@discord.app_commands.describe(change_channel=discord.app_commands.locale_str(get_desc("commands.join.args.change_channel"), key="commands.join.args.change_channel"))
+async def join(ctx: discord.Interaction, change_channel: bool = False) -> None:
+  await ctx.response.defer()
+  lang = server_config.get(ctx.guild.id, "Language")
+  if ctx.user.voice:
+    voice_channel = ctx.user.voice.channel
+    text_channel = ctx.channel
+    bot_member = ctx.guild.me
+    vc_perms = voice_channel.permissions_for(bot_member)
+    text_perms = text_channel.permissions_for(bot_member)
+    issues = []
+    if not (vc_perms.connect and vc_perms.speak):
+      issues.append(get_desc("join.no_permission_vc", lang=lang).format(channel=voice_channel.mention))
+    if not (text_perms.view_channel and text_perms.send_messages):
+      issues.append(get_desc("join.no_permission_text", lang=lang).format(channel=text_channel.mention))
+    if issues:
+      await ctx.edit_original_response(embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues)))
+      return
+    if ctx.guild.voice_client is not None:
+      leaving_guilds.add(ctx.guild.id)
+      await ctx.guild.voice_client.disconnect()
+      await asyncio.sleep(0.5)
+    await voice_channel.connect(timeout=60)
+    if change_channel:
+      if not ctx.user.guild_permissions.manage_guild:
+        await ctx.edit_original_response(embed=build_embed("join.no_permission_change_channel", lang=lang))
       else:
-        play.temp_text_targets[ctx.guild.id] = ctx.channel.id
-        await ctx.edit_original_response(
-          embed=build_embed("join.success_temp", lang=lang, vc=ctx.user.voice.channel.mention, text=ctx.channel.mention)
-        )
+        try:
+          server_config.set(ctx.guild.id, "TextTarget", ctx.channel.id)
+          server_config.set(ctx.guild.id, "VoiceTarget", ctx.user.voice.channel.id)
+          await ctx.edit_original_response(
+            embed=build_embed("join.success_change_channel", lang=lang, vc=ctx.user.voice.channel.mention, text=ctx.channel.mention, voice=ctx.user.voice.channel.mention)
+          )
+        except OSError:
+          await ctx.edit_original_response(embed=build_embed("join.failure_change_channel", lang=lang))
     else:
-      await ctx.edit_original_response(embed=build_embed("join.failure", lang=lang))
-  except discord.errors.InteractionResponded:
-    return
-  except discord.errors.HTTPException as e:
-    print(f"HTTPException in join: {e}")
-  except OSError as e:
-    await handle_os_error(ctx, e, "join", lang=server_config.get(ctx.guild.id, "Language"))
-  except Exception as e:
-    await handle_internal_error(ctx, e, "join", lang=server_config.get(ctx.guild.id, "Language"))
+      play.temp_text_targets[ctx.guild.id] = ctx.channel.id
+      await ctx.edit_original_response(embed=build_embed("join.success_temp", lang=lang, vc=ctx.user.voice.channel.mention, text=ctx.channel.mention))
+  else:
+    await ctx.edit_original_response(embed=build_embed("join.failure", lang=lang))
 
 
 # 退室
-@tree.command(
-  name="leave",
-  description=discord.app_commands.locale_str(get_desc("commands.leave.description"), key="commands.leave.description")
-)
-async def leave(ctx):
-  try:
-    await ctx.response.defer()
+@tree.command(name="leave", description=discord.app_commands.locale_str(get_desc("commands.leave.description"), key="commands.leave.description"))
+async def leave(ctx: discord.Interaction) -> None:
+  await ctx.response.defer()
+  lang = server_config.get(ctx.guild.id, "Language")
+  if ctx.user.voice:
+    leaving_guilds.add(ctx.guild.id)
+    await ctx.guild.voice_client.disconnect()
+    await ctx.edit_original_response(embed=build_embed("leave.success", lang=lang))
+  else:
+    await ctx.edit_original_response(embed=build_embed("leave.failure", lang=lang))
+
+
+@tree.command(name="version", description=discord.app_commands.locale_str(get_desc("commands.version.description"), key="commands.version.description"))
+async def version_cmd(ctx: discord.Interaction) -> None:
+  await ctx.response.defer()
+  lang = server_config.get(ctx.guild.id, "Language")
+  await ctx.edit_original_response(embed=build_embed("version.info", lang=lang, version=VERSION, last_updated=LAST_UPDATED))
+
+
+@client.event
+async def on_error(event, *args, **kwargs):
+  await notify_owners(client, f"未処理のエラー ({event})", f"args: {args}, kwargs: {kwargs}")
+
+
+@tree.error
+async def on_app_command_error(ctx: discord.Interaction, error: discord.app_commands.AppCommandError):
+  if isinstance(error, discord.errors.HTTPException):
+    print(f"HTTPException in {ctx.command.name}: {error}")
+    return
+  if isinstance(error, discord.app_commands.CommandInvokeError):
+    original = error.original
     lang = server_config.get(ctx.guild.id, "Language")
-    if ctx.user.voice:
-      leaving_guilds.add(ctx.guild.id)
-      await ctx.guild.voice_client.disconnect()
-      await ctx.edit_original_response(embed=build_embed("leave.success", lang=lang))
+    if isinstance(original, OSError):
+      await handle_os_error(ctx, original, ctx.command.name, lang=lang)
     else:
-      await ctx.edit_original_response(embed=build_embed("leave.failure", lang=lang))
-  except discord.errors.InteractionResponded:
+      await handle_internal_error(ctx, original, ctx.command.name, lang=lang)
     return
-  except discord.errors.HTTPException as e:
-    print(f"HTTPException in leave: {e}")
-  except OSError as e:
-    await handle_os_error(ctx, e, "leave", lang=server_config.get(ctx.guild.id, "Language"))
-  except Exception as e:
-    await handle_internal_error(ctx, e, "leave", lang=server_config.get(ctx.guild.id, "Language"))
+  print(f"Unhandled command error in {ctx.command.name}: {error}")
 
 
-@tree.command(
-  name="version",
-  description=discord.app_commands.locale_str(get_desc("commands.version.description"), key="commands.version.description")
-)
-async def version_cmd(ctx):
-  try:
-    await ctx.response.defer()
-    lang = server_config.get(ctx.guild.id, "Language")
-    await ctx.edit_original_response(
-      embed=build_embed("version.info", lang=lang, version=VERSION, last_updated=LAST_UPDATED)
-    )
-  except discord.errors.InteractionResponded:
-    return
-  except discord.errors.HTTPException as e:
-    print(f"HTTPException in version: {e}")
-  except Exception as e:
-    await handle_internal_error(ctx, e, "version", lang=server_config.get(ctx.guild.id, "Language"))
-
-
-# 起動
 client.run(DISCORD_BOT_TOKEN)

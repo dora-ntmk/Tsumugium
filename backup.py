@@ -6,8 +6,8 @@
       古いバックアップを自動削除してディスク使用量を管理する。
 依存関係：なし
 """
+
 import asyncio
-import os
 import sqlite3
 from datetime import datetime, date, timedelta
 from pathlib import Path
@@ -94,7 +94,7 @@ def rotate_backups(db_name: str, backup_dir: str, keep: int) -> None:
   dest_dir = Path(backup_dir)
   pattern = f"backup_{db_name}_*.db"
   files = sorted(dest_dir.glob(pattern))  # ファイル名のタイムスタンプ順
-  excess = files[:max(0, len(files) - keep)]
+  excess = files[: max(0, len(files) - keep)]
   for f in excess:
     try:
       f.unlink()
