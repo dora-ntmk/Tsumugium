@@ -6,6 +6,7 @@
       ドット区切りキーによる階層参照・Discord Embed 生成・スラッシュコマンド翻訳を提供する。
 依存関係：discord.py
 """
+
 import json
 import os
 import discord
@@ -13,26 +14,28 @@ from config import MESSAGES_DIR, OWNER_IDS
 
 _LANGS = ("ja", "en", "zh-CN", "zh-TW", "ko", "hg")
 
+
 def _load_messages(lang: str) -> dict:
   with open(os.path.join(MESSAGES_DIR, f"{lang}.json"), encoding="utf-8") as f:
     return json.load(f)
 
+
 _MESSAGES_BY_LANG = {lang: _load_messages(lang) for lang in _LANGS}
 
 _COLOR_MAP = {
-  "green":  discord.Color.green,
-  "red":    discord.Color.red,
-  "blue":   discord.Color.blue,
+  "green": discord.Color.green,
+  "red": discord.Color.red,
+  "blue": discord.Color.blue,
   "yellow": discord.Color.yellow,
 }
 
 _DISCORD_LOCALE_TO_LANG = {
-  discord.Locale.japanese:        "ja",
+  discord.Locale.japanese: "ja",
   discord.Locale.american_english: "en",
-  discord.Locale.british_english:  "en",
-  discord.Locale.chinese:          "zh-CN",
-  discord.Locale.taiwan_chinese:   "zh-TW",
-  discord.Locale.korean:           "ko",
+  discord.Locale.british_english: "en",
+  discord.Locale.chinese: "zh-CN",
+  discord.Locale.taiwan_chinese: "zh-TW",
+  discord.Locale.korean: "ko",
 }
 
 
@@ -100,11 +103,7 @@ def build_embed(key: str, lang: str = "ja", **kwargs) -> discord.Embed:
   color = _COLOR_MAP[node["color"]]()
   embed = discord.Embed(title=title, description=description or None, color=color)
   for field in node.get("fields", []):
-    embed.add_field(
-      name=field["name"].format(**kwargs),
-      value=field["value"].format(**kwargs),
-      inline=field.get("inline", True)
-    )
+    embed.add_field(name=field["name"].format(**kwargs), value=field["value"].format(**kwargs), inline=field.get("inline", True))
   footer = messages.get("_footer", {}).get("auto_translation", "")
   if footer:
     embed.set_footer(text=footer)
@@ -113,10 +112,10 @@ def build_embed(key: str, lang: str = "ja", **kwargs) -> discord.Embed:
 
 class BotTranslator(discord.app_commands.Translator):
   async def translate(
-      self,
-      string: discord.app_commands.locale_str,
-      locale: discord.Locale,
-      context: discord.app_commands.TranslationContext,
+    self,
+    string: discord.app_commands.locale_str,
+    locale: discord.Locale,
+    context: discord.app_commands.TranslationContext,
   ) -> str | None:
     key = string.extras.get("key")
     if not key:

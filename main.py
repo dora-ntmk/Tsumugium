@@ -8,6 +8,7 @@
       VvTTS / ServerConfig / DictManager / SoundDict などのモジュールを統括する。
 依存関係：discord.py
 """
+
 import asyncio
 import io
 import json
@@ -77,17 +78,17 @@ async def on_ready():
 
   for gid_str in current_guild_ids - db_guild_ids:
     server_config.init_guild(int(gid_str))
-    print(f'on_ready: init_guild {gid_str}')
+    print(f"on_ready: init_guild {gid_str}")
 
   for gid_str in db_guild_ids - current_guild_ids:
     server_config.remove_guild(int(gid_str))
     dict_manager.remove_guild(int(gid_str))
     sound_boards.remove_guild(int(gid_str))
-    print(f'on_ready: remove_guild {gid_str}')
+    print(f"on_ready: remove_guild {gid_str}")
 
   for gid_str in current_guild_ids:
     sound_boards.refresh(gid_str, DISCORD_BOT_TOKEN)
-    print(f'on_ready: refresh {gid_str}')
+    print(f"on_ready: refresh {gid_str}")
 
   global _backup_task, _updater_task
   _backup_task = start_backup([SERVER_CONFIG_DB, DICT_DB])
@@ -110,8 +111,8 @@ async def on_guild_remove(guild):
     normal_items, priority_items = dict_manager.get_entries(guild.id)
     combined = dict(priority_items + normal_items)  # 優先辞書が上、通常辞書が下
     if combined:
-      data = json.dumps(combined, ensure_ascii=False, indent=2).encode('utf-8')
-      file = discord.File(io.BytesIO(data), filename=f'{guild.id}_dict.json')
+      data = json.dumps(combined, ensure_ascii=False, indent=2).encode("utf-8")
+      file = discord.File(io.BytesIO(data), filename=f"{guild.id}_dict.json")
       owner = guild.owner
       if owner is None and guild.owner_id:
         try:
@@ -121,14 +122,11 @@ async def on_guild_remove(guild):
       if owner:
         try:
           dm = await owner.create_dm()
-          await dm.send(
-            content=f'サーバー「{guild.name}」の辞書データをお送りします。',
-            files=[file]
-          )
+          await dm.send(content=f"サーバー「{guild.name}」の辞書データをお送りします。", files=[file])
         except (discord.Forbidden, discord.HTTPException):
           pass
   except Exception as e:
-    print(f'Exception in on_guild_remove (DM): {e}')
+    print(f"Exception in on_guild_remove (DM): {e}")
   finally:
     server_config.remove_guild(guild.id)
     dict_manager.remove_guild(guild.id)
@@ -249,35 +247,25 @@ async def on_voice_state_update(member, before, after):
 
 
 # 入室
-@tree.command(
-  name="join",
-  description=discord.app_commands.locale_str(get_desc("commands.join.description"), key="commands.join.description")
-)
-@discord.app_commands.describe(
-  change_channel=discord.app_commands.locale_str(
-    get_desc("commands.join.args.change_channel"),
-    key="commands.join.args.change_channel"
-  )
-)
+@tree.command(name="join", description=discord.app_commands.locale_str(get_desc("commands.join.description"), key="commands.join.description"))
+@discord.app_commands.describe(change_channel=discord.app_commands.locale_str(get_desc("commands.join.args.change_channel"), key="commands.join.args.change_channel"))
 async def join(ctx, change_channel: bool = False):
   try:
     await ctx.response.defer()
     lang = server_config.get(ctx.guild.id, "Language")
     if ctx.user.voice:
       voice_channel = ctx.user.voice.channel
-      text_channel  = ctx.channel
-      bot_member    = ctx.guild.me
-      vc_perms      = voice_channel.permissions_for(bot_member)
-      text_perms    = text_channel.permissions_for(bot_member)
+      text_channel = ctx.channel
+      bot_member = ctx.guild.me
+      vc_perms = voice_channel.permissions_for(bot_member)
+      text_perms = text_channel.permissions_for(bot_member)
       issues = []
       if not (vc_perms.connect and vc_perms.speak):
         issues.append(get_desc("join.no_permission_vc", lang=lang).format(channel=voice_channel.mention))
       if not (text_perms.view_channel and text_perms.send_messages):
         issues.append(get_desc("join.no_permission_text", lang=lang).format(channel=text_channel.mention))
       if issues:
-        await ctx.edit_original_response(
-          embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues))
-        )
+        await ctx.edit_original_response(embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues)))
         return
       if ctx.guild.voice_client is not None:
         leaving_guilds.add(ctx.guild.id)
@@ -286,29 +274,19 @@ async def join(ctx, change_channel: bool = False):
       await voice_channel.connect(timeout=60)
       if change_channel:
         if not ctx.user.guild_permissions.manage_guild:
-          await ctx.edit_original_response(
-            embed=build_embed("join.no_permission_change_channel", lang=lang)
-          )
+          await ctx.edit_original_response(embed=build_embed("join.no_permission_change_channel", lang=lang))
         else:
           try:
             server_config.set(ctx.guild.id, "TextTarget", ctx.channel.id)
             server_config.set(ctx.guild.id, "VoiceTarget", ctx.user.voice.channel.id)
             await ctx.edit_original_response(
-              embed=build_embed(
-                "join.success_change_channel",
-                lang=lang,
-                vc=ctx.user.voice.channel.mention,
-                text=ctx.channel.mention,
-                voice=ctx.user.voice.channel.mention
-              )
+              embed=build_embed("join.success_change_channel", lang=lang, vc=ctx.user.voice.channel.mention, text=ctx.channel.mention, voice=ctx.user.voice.channel.mention)
             )
           except OSError:
             await ctx.edit_original_response(embed=build_embed("join.failure_change_channel", lang=lang))
       else:
         play.temp_text_targets[ctx.guild.id] = ctx.channel.id
-        await ctx.edit_original_response(
-          embed=build_embed("join.success_temp", lang=lang, vc=ctx.user.voice.channel.mention, text=ctx.channel.mention)
-        )
+        await ctx.edit_original_response(embed=build_embed("join.success_temp", lang=lang, vc=ctx.user.voice.channel.mention, text=ctx.channel.mention))
     else:
       await ctx.edit_original_response(embed=build_embed("join.failure", lang=lang))
   except discord.errors.InteractionResponded:
@@ -322,10 +300,7 @@ async def join(ctx, change_channel: bool = False):
 
 
 # 退室
-@tree.command(
-  name="leave",
-  description=discord.app_commands.locale_str(get_desc("commands.leave.description"), key="commands.leave.description")
-)
+@tree.command(name="leave", description=discord.app_commands.locale_str(get_desc("commands.leave.description"), key="commands.leave.description"))
 async def leave(ctx):
   try:
     await ctx.response.defer()
@@ -346,17 +321,12 @@ async def leave(ctx):
     await handle_internal_error(ctx, e, "leave", lang=server_config.get(ctx.guild.id, "Language"))
 
 
-@tree.command(
-  name="version",
-  description=discord.app_commands.locale_str(get_desc("commands.version.description"), key="commands.version.description")
-)
+@tree.command(name="version", description=discord.app_commands.locale_str(get_desc("commands.version.description"), key="commands.version.description"))
 async def version_cmd(ctx):
   try:
     await ctx.response.defer()
     lang = server_config.get(ctx.guild.id, "Language")
-    await ctx.edit_original_response(
-      embed=build_embed("version.info", lang=lang, version=VERSION, last_updated=LAST_UPDATED)
-    )
+    await ctx.edit_original_response(embed=build_embed("version.info", lang=lang, version=VERSION, last_updated=LAST_UPDATED))
   except discord.errors.InteractionResponded:
     return
   except discord.errors.HTTPException as e:

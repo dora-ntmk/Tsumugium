@@ -6,6 +6,7 @@
       サウンドボード ID が一致する場合は Discord API で直接再生する。
 依存関係：discord.py, aiohttp
 """
+
 import asyncio
 import aiohttp
 import discord
@@ -36,10 +37,7 @@ class Play:
   def _register(self):
 
     # キュークリア
-    @self.tree.command(
-      name="clear",
-      description=get_desc("commands.clear.description")
-    )
+    @self.tree.command(name="clear", description=get_desc("commands.clear.description"))
     async def clear(ctx, instant: bool = True):
       try:
         await ctx.response.defer()
@@ -95,7 +93,7 @@ class Play:
       # client.user.id を使用するためIDが変わっても動作する
       if message.guild is not None:
         bot_id = self.client.user.id
-        if message.content.strip() in (f'<@{bot_id}>', f'<@!{bot_id}>'):
+        if message.content.strip() in (f"<@{bot_id}>", f"<@!{bot_id}>"):
           lang = self.server_config.get(message.guild.id, "Language")
           try:
             if message.guild.voice_client is not None:
@@ -121,9 +119,7 @@ class Play:
                   return
                 await voice_channel.connect(timeout=60)
                 self.temp_text_targets[message.guild.id] = message.channel.id
-                await message.channel.send(
-                  embed=build_embed("join.success_temp", lang=lang, vc=voice_channel.mention, text=message.channel.mention)
-                )
+                await message.channel.send(embed=build_embed("join.success_temp", lang=lang, vc=voice_channel.mention, text=message.channel.mention))
               else:
                 await message.channel.send(embed=build_embed("join.failure", lang=lang))
           except Exception as e:
@@ -148,7 +144,6 @@ class Play:
           message.guild.voice_client.stop()
         return
       asyncio.create_task(self.add_to_queue(message))
-
 
   async def add_to_queue(self, content, msg: bool = True, sounddict_only: bool = False):
     if msg:
@@ -195,10 +190,7 @@ class Play:
     while True:
       src = None
       try:
-        _, src = await asyncio.wait_for(
-          self.voice_queues[guild_id].get(),
-          timeout=300
-        )
+        _, src = await asyncio.wait_for(self.voice_queues[guild_id].get(), timeout=300)
         if guild.voice_client is None:
           self.voice_queues[guild_id].task_done()
           src = None
@@ -230,20 +222,20 @@ class Play:
     try:
       async with aiohttp.ClientSession() as session:
         async with session.post(
-          f'https://discord.com/api/v10/channels/{guild.voice_client.channel.id}/send-soundboard-sound',
+          f"https://discord.com/api/v10/channels/{guild.voice_client.channel.id}/send-soundboard-sound",
           headers={
-            'Authorization': f'Bot {DISCORD_BOT_TOKEN}',
-            'Content-Type': 'application/json',
+            "Authorization": f"Bot {DISCORD_BOT_TOKEN}",
+            "Content-Type": "application/json",
           },
-          json={'sound_id': f'{sound_id}'},
+          json={"sound_id": f"{sound_id}"},
         ):
           pass
     except Exception as e:
-      print(f'サウンドボード再生エラー：{e}')
+      print(f"サウンドボード再生エラー：{e}")
 
   # キープアライブ
   async def _keepalive_loop(self, guild):
-    SILENCE = b'\xF8\xFF\xFE'
+    SILENCE = b"\xf8\xff\xfe"
     while True:
       await asyncio.sleep(270)
       vc = guild.voice_client
@@ -288,11 +280,6 @@ class Play:
         self.skip_flags[guild.id] = False
         asyncio.create_task(self.safe_remove(src))
         return
-      guild.voice_client.play(
-        voice,
-        after=lambda _: asyncio.run_coroutine_threadsafe(
-          self.safe_remove(src), self.client.loop
-        )
-      )
+      guild.voice_client.play(voice, after=lambda _: asyncio.run_coroutine_threadsafe(self.safe_remove(src), self.client.loop))
     except Exception as e:
       print(f"音声再生エラー: {e}")

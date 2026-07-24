@@ -6,6 +6,7 @@
       設定値のバリデーション、デフォルト値管理、VOICEVOX パラメータへの変換を担う。
 依存関係：なし
 """
+
 import sqlite3
 from typing import Set
 from config import DEFAULT_SPEAKER
@@ -26,17 +27,17 @@ DEFAULTS = {
 }
 
 _TYPE_VALIDATORS = {
-  "TextTarget":   (lambda v: v is None or (isinstance(v, int) and v > 0)),
-  "VoiceTarget":  (lambda v: v is None or (isinstance(v, int) and v > 0)),
-  "Speaker":      (lambda v: v is None or (isinstance(v, int) and v >= 0)),
-  "Volume":       (lambda v: isinstance(v, int) and 0 <= v <= 100),
-  "Speed":        (lambda v: isinstance(v, int) and 50 <= v <= 200),
-  "MaxChar":      (lambda v: isinstance(v, int) and 30 <= v <= 200),
-  "AutoJoin":     (lambda v: isinstance(v, bool)),
+  "TextTarget": (lambda v: v is None or (isinstance(v, int) and v > 0)),
+  "VoiceTarget": (lambda v: v is None or (isinstance(v, int) and v > 0)),
+  "Speaker": (lambda v: v is None or (isinstance(v, int) and v >= 0)),
+  "Volume": (lambda v: isinstance(v, int) and 0 <= v <= 100),
+  "Speed": (lambda v: isinstance(v, int) and 50 <= v <= 200),
+  "MaxChar": (lambda v: isinstance(v, int) and 30 <= v <= 200),
+  "AutoJoin": (lambda v: isinstance(v, bool)),
   "AccessNotice": (lambda v: isinstance(v, bool)),
-  "Language":     (lambda v: isinstance(v, str) and v in ("ja", "en", "zh-CN", "zh-TW", "ko", "hg")),
-  "Greeting":     (lambda v: isinstance(v, bool)),
-  "AutoUpdate":   (lambda v: isinstance(v, bool)),
+  "Language": (lambda v: isinstance(v, str) and v in ("ja", "en", "zh-CN", "zh-TW", "ko", "hg")),
+  "Greeting": (lambda v: isinstance(v, bool)),
+  "AutoUpdate": (lambda v: isinstance(v, bool)),
   "AutoUpdateCheck": (lambda v: isinstance(v, bool)),
 }
 
@@ -120,19 +121,13 @@ class ServerConfig:
     return value
 
   def init_guild(self, guild_id: int):
-    self._conn.execute(
-      "INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)",
-      (str(guild_id),)
-    )
+    self._conn.execute("INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)", (str(guild_id),))
     self._conn.commit()
 
   def get(self, guild_id: int, key: str):
     if key not in DEFAULTS:
       raise KeyError(f"不明な設定キー: {key}")
-    cur = self._conn.execute(
-      f"SELECT {key} FROM guild_config WHERE guild_id = ?",
-      (str(guild_id),)
-    )
+    cur = self._conn.execute(f"SELECT {key} FROM guild_config WHERE guild_id = ?", (str(guild_id),))
     row = cur.fetchone()
     if row is None:
       return DEFAULTS[key]
@@ -144,21 +139,13 @@ class ServerConfig:
     if not _TYPE_VALIDATORS[key](value):
       raise ValueError(f"{key} に無効な値です: {value!r}")
     gid = str(guild_id)
-    self._conn.execute(
-      "INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)",
-      (gid,)
-    )
-    self._conn.execute(
-      f"UPDATE guild_config SET {key} = ? WHERE guild_id = ?",
-      (self._to_sql(value), gid)
-    )
+    self._conn.execute("INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)", (gid,))
+    self._conn.execute(f"UPDATE guild_config SET {key} = ? WHERE guild_id = ?", (self._to_sql(value), gid))
     self._conn.commit()
 
   def get_all(self, guild_id: int) -> dict:
     cur = self._conn.execute(
-      "SELECT TextTarget, VoiceTarget, Speaker, Volume, Speed, MaxChar, AutoJoin, AccessNotice, Language, Greeting, AutoUpdate, AutoUpdateCheck"
-      " FROM guild_config WHERE guild_id = ?",
-      (str(guild_id),)
+      "SELECT TextTarget, VoiceTarget, Speaker, Volume, Speed, MaxChar, AutoJoin, AccessNotice, Language, Greeting, AutoUpdate, AutoUpdateCheck FROM guild_config WHERE guild_id = ?", (str(guild_id),)
     )
     row = cur.fetchone()
     if row is None:
@@ -171,29 +158,20 @@ class ServerConfig:
 
   def get_raw_speaker(self, guild_id: int):
     """DBのSpeaker値をそのまま返す。NULLの場合はNone（Botのデフォルト使用中）。"""
-    cur = self._conn.execute(
-      "SELECT Speaker FROM guild_config WHERE guild_id = ?",
-      (str(guild_id),)
-    )
+    cur = self._conn.execute("SELECT Speaker FROM guild_config WHERE guild_id = ?", (str(guild_id),))
     row = cur.fetchone()
     if row is None:
       return None
     return row[0]
 
   def remove_guild(self, guild_id: int):
-    self._conn.execute(
-      "DELETE FROM guild_config WHERE guild_id = ?",
-      (str(guild_id),)
-    )
+    self._conn.execute("DELETE FROM guild_config WHERE guild_id = ?", (str(guild_id),))
     self._conn.commit()
 
   def reset(self, guild_id: int, key: str):
     if key not in DEFAULTS:
       raise KeyError(f"不明な設定キー: {key}")
-    self._conn.execute(
-      f"UPDATE guild_config SET {key} = ? WHERE guild_id = ?",
-      (self._to_sql(DEFAULTS[key]), str(guild_id))
-    )
+    self._conn.execute(f"UPDATE guild_config SET {key} = ? WHERE guild_id = ?", (self._to_sql(DEFAULTS[key]), str(guild_id)))
     self._conn.commit()
 
   def get_all_guild_ids(self) -> Set[str]:

@@ -5,6 +5,7 @@
       定期的に最新バージョンを確認し、新バージョンがあれば該当サーバーに通知する。
 依存関係：aiohttp, asyncio
 """
+
 import asyncio
 import re
 import aiohttp
@@ -36,9 +37,11 @@ async def fetch_latest_version() -> str | None:
 
 def is_newer_version(latest: str, current: str) -> bool:
   """セマンティックバージョン比較。latest > current なら True。"""
+
   def parse(v: str):
     parts = re.split(r"[._\-]", v)
     return [int(x) if x.isdigit() else x for x in parts]
+
   return parse(latest) > parse(current)
 
 
@@ -77,9 +80,7 @@ async def notify_guilds(client, server_config, latest: str) -> None:
       if channel is None:
         continue
       lang = server_config.get(guild.id, "Language")
-      await channel.send(
-        embed=build_embed("updater.new_version", lang=lang, current=VERSION, latest=latest)
-      )
+      await channel.send(embed=build_embed("updater.new_version", lang=lang, current=VERSION, latest=latest))
     except Exception as e:
       print(f"[updater] 通知失敗 (guild={guild.id}): {e}")
 
