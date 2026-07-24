@@ -51,7 +51,7 @@ def get_desc(key: str, lang: str = "ja") -> str:
   return node
 
 
-async def notify_owners(client, title: str, description: str, error: Exception = None) -> None:
+async def notify_owners(client: discord.Client, title: str, description: str, error: Exception | None = None) -> None:
   if not OWNER_IDS:
     return
   embed = discord.Embed(title=title, description=description, color=discord.Color.red())
@@ -66,7 +66,7 @@ async def notify_owners(client, title: str, description: str, error: Exception =
       print(f"Failed to notify owner {uid}: {e}")
 
 
-async def handle_os_error(ctx, e: OSError, cmd_name: str, lang: str = "ja") -> None:
+async def handle_os_error(ctx: discord.Interaction, e: OSError, cmd_name: str, lang: str = "ja") -> None:
   print(f"OSError in {cmd_name}: {e}")
   try:
     await ctx.edit_original_response(embed=build_embed("error.os_error", lang=lang))
@@ -76,7 +76,7 @@ async def handle_os_error(ctx, e: OSError, cmd_name: str, lang: str = "ja") -> N
     await notify_owners(ctx.client, f"OSError in {cmd_name}", str(e), error=e)
 
 
-async def handle_internal_error(ctx, e: Exception, cmd_name: str, lang: str = "ja") -> None:
+async def handle_internal_error(ctx: discord.Interaction, e: Exception, cmd_name: str, lang: str = "ja") -> None:
   print(f"Exception in {cmd_name}: {e}")
   try:
     await ctx.edit_original_response(embed=build_embed("error.internal", lang=lang, error_type=type(e).__name__))

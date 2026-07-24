@@ -8,9 +8,14 @@
 
 import asyncio
 import re
+from typing import TYPE_CHECKING
 import aiohttp
 from config import VERSION, GITHUB_REPO, AUTO_UPDATE_CHECK_ENABLED, UPDATE_CHECK_INTERVAL
+from server_config import ServerConfig
 from messages import build_embed
+
+if TYPE_CHECKING:
+  import discord
 
 
 async def fetch_latest_version() -> str | None:
@@ -37,14 +42,14 @@ async def fetch_latest_version() -> str | None:
 def is_newer_version(latest: str, current: str) -> bool:
   """セマンティックバージョン比較。latest > current なら True。"""
 
-  def parse(v: str):
+  def parse(v: str) -> list[int | str]:
     parts = re.split(r"[._\-]", v)
     return [int(x) if x.isdigit() else x for x in parts]
 
   return parse(latest) > parse(current)
 
 
-async def update_checker(client, server_config) -> None:
+async def update_checker(client: discord.Client, server_config: ServerConfig) -> None:
   """定期的にバージョン確認を行い、新バージョンがあれば該当サーバーに通知する。"""
   if not AUTO_UPDATE_CHECK_ENABLED:
     print("[updater] AUTO_UPDATE_CHECK_ENABLED=false のため無効")
@@ -63,7 +68,7 @@ async def update_checker(client, server_config) -> None:
     await asyncio.sleep(UPDATE_CHECK_INTERVAL)
 
 
-async def notify_guilds(client, server_config, latest: str) -> None:
+async def notify_guilds(client: discord.Client, server_config: ServerConfig, latest: str) -> None:
   """AutoUpdateCheck と AutoUpdate が有効な全サーバーに通知する。"""
   for guild in client.guilds:
     try:
@@ -84,7 +89,7 @@ async def notify_guilds(client, server_config, latest: str) -> None:
       print(f"[updater] 通知失敗 (guild={guild.id}): {e}")
 
 
-def start(client, server_config) -> asyncio.Task | None:
+def start(client: discord.Client, server_config: ServerConfig) -> asyncio.Task | None:
   if not AUTO_UPDATE_CHECK_ENABLED:
     return None
   return asyncio.create_task(update_checker(client, server_config))
