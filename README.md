@@ -4,23 +4,9 @@ VOICEVOXを用いたDiscord読み上げBotです。
 
 ## 必要なもの
 
-* Python
+* Python 3.11+
+* [uv](https://docs.astral.sh/uv/)（パッケージ管理）
 * ffmpeg（これがないと音声が再生されません）
-
-## 必要ライブラリ
-
-#### 【外部パッケージ】
-* Discord.py >= 2.7.0
-* requests >= 2.32.5
-* python-dotenv >= 1.2.2
-* aiohttp >= 3.9.0
-* PyNaCl >= 1.6.0
-* davey >= 0.1.0
-
-#### 【標準ライブラリ】
-
-asyncio, io, json, os, re, sqlite3, unicodedata, typing,
-datetime, pathlib, collections, shutill
 
 ## 必要権限
 
@@ -53,11 +39,14 @@ Discord Developer PotalのBot管理画面にて、以下のスコープと権限
 > 移行方法は直接お問い合わせください。
 
 ## 起動方法
-必要ライブラリをすべてインストールしたうえで、
+
 ```bash
-python main.py
+# 依存関係をインストール
+uv sync
+
+# 起動
+uv run python main.py
 ```
-を使用すると起動できます。
 
 不足ファイル群は自動的に作成されます。
 
