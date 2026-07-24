@@ -44,7 +44,7 @@ _backup_task = None
 _updater_task = None
 
 
-def get_notify_channel(guild, vc_channel=None):
+def get_notify_channel(guild: discord.Guild, vc_channel: discord.VoiceChannel | None = None) -> discord.TextChannel | discord.VoiceChannel | None:
   text_target = play.temp_text_targets.get(guild.id)
   if text_target is None:
     text_target = server_config.get(guild.id, "TextTarget")
@@ -53,7 +53,7 @@ def get_notify_channel(guild, vc_channel=None):
   return vc_channel
 
 
-async def enqueue_notice(guild, member, msg_key, lang: str = "ja"):
+async def enqueue_notice(guild: discord.Guild, member: discord.Member, msg_key: str, lang: str = "ja") -> None:
   notice_text = get_desc(msg_key, lang=lang).format(display_name=member.display_name)
   notice_text, _, _ = dict_manager.preprocess_text(notice_text, guild.id, guild, [])
   speaker = server_config.get(guild.id, "Speaker")
@@ -68,7 +68,7 @@ async def enqueue_notice(guild, member, msg_key, lang: str = "ja"):
 
 # 起動時動作
 @client.event
-async def on_ready():
+async def on_ready() -> None:
   await tree.set_translator(BotTranslator())
   await tree.sync()
 
@@ -100,13 +100,13 @@ async def on_ready():
 
 # サーバー参加時にデフォルト設定を書き込む
 @client.event
-async def on_guild_join(guild):
+async def on_guild_join(guild: discord.Guild) -> None:
   server_config.init_guild(guild.id)
 
 
 # サーバー退出時に辞書データをオーナーへ送信して削除
 @client.event
-async def on_guild_remove(guild):
+async def on_guild_remove(guild: discord.Guild) -> None:
   try:
     normal_items, priority_items = dict_manager.get_entries(guild.id)
     combined = dict(priority_items + normal_items)  # 優先辞書が上、通常辞書が下
@@ -135,7 +135,7 @@ async def on_guild_remove(guild):
 
 # サウンドボード更新トリガー
 @client.event
-async def on_socket_raw_receive(msg):
+async def on_socket_raw_receive(msg: str) -> None:
   data = json.loads(msg)
   if data.get("op") != 0:
     return
@@ -155,7 +155,7 @@ async def on_socket_raw_receive(msg):
 
 # VC入退室検知（AutoJoin / AccessNotice）
 @client.event
-async def on_voice_state_update(member, before, after):
+async def on_voice_state_update(member: discord.Member, before: discord.VoiceState, after: discord.VoiceState) -> None:
   guild = member.guild
   lang = server_config.get(guild.id, "Language")
 
@@ -249,7 +249,7 @@ async def on_voice_state_update(member, before, after):
 # 入室
 @tree.command(name="join", description=discord.app_commands.locale_str(get_desc("commands.join.description"), key="commands.join.description"))
 @discord.app_commands.describe(change_channel=discord.app_commands.locale_str(get_desc("commands.join.args.change_channel"), key="commands.join.args.change_channel"))
-async def join(ctx, change_channel: bool = False):
+async def join(ctx: discord.Interaction, change_channel: bool = False) -> None:
   try:
     await ctx.response.defer()
     lang = server_config.get(ctx.guild.id, "Language")
@@ -301,7 +301,7 @@ async def join(ctx, change_channel: bool = False):
 
 # 退室
 @tree.command(name="leave", description=discord.app_commands.locale_str(get_desc("commands.leave.description"), key="commands.leave.description"))
-async def leave(ctx):
+async def leave(ctx: discord.Interaction) -> None:
   try:
     await ctx.response.defer()
     lang = server_config.get(ctx.guild.id, "Language")
@@ -322,7 +322,7 @@ async def leave(ctx):
 
 
 @tree.command(name="version", description=discord.app_commands.locale_str(get_desc("commands.version.description"), key="commands.version.description"))
-async def version_cmd(ctx):
+async def version_cmd(ctx: discord.Interaction) -> None:
   try:
     await ctx.response.defer()
     lang = server_config.get(ctx.guild.id, "Language")
@@ -336,7 +336,7 @@ async def version_cmd(ctx):
 
 
 @client.event
-async def on_error(event, *args, **kwargs):
+async def on_error(event: str, *args: object, **kwargs: object) -> None:
   await notify_owners(client, f"未処理のエラー ({event})", f"args: {args}, kwargs: {kwargs}")
 
 
