@@ -63,7 +63,7 @@ class DictViewPaginator(discord.ui.View):
     embed.set_footer(text=page_str)
     return embed
 
-  def _update_buttons(self):
+  def _update_buttons(self) -> None:
     in_normal = self.page < self.normal_pages
     section_pages = self.normal_pages if in_normal else self.priority_pages
 
@@ -105,7 +105,7 @@ class DictViewPaginator(discord.ui.View):
     self._update_buttons()
     await interaction.response.edit_message(embed=self.build_embed(), view=self)
 
-  async def on_timeout(self):
+  async def on_timeout(self) -> None:
     if self.message is not None:
       for item in self.children:
         item.disabled = True
