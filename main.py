@@ -17,10 +17,11 @@ from backup import start as start_backup
 from vvtts import VvTTS
 from play import Play
 from server_config import ServerConfig
-from messages import build_embed, get_desc, handle_os_error, handle_internal_error, BotTranslator
+from messages import build_embed, get_desc, handle_os_error, handle_internal_error, BotTranslator, notify_owners
 from setting import Setting
 from word_dict import DictManager, WordDict
 from sound_dict import SoundDict, SoundDictView, UpdateSoundBoards
+import updater
 
 
 # 起動設定
@@ -39,6 +40,7 @@ setting = Setting(client, tree, server_config)
 word_dict = WordDict(client, tree, dict_manager, server_config)
 sound_dict_view = SoundDictView(client, tree, sound_dict, dict_manager, server_config, sound_boards)
 _backup_task = None
+_updater_task = None
 
 
 def get_notify_channel(guild, vc_channel=None):
@@ -87,8 +89,9 @@ async def on_ready():
     sound_boards.refresh(gid_str, DISCORD_BOT_TOKEN)
     print(f'on_ready: refresh {gid_str}')
 
-  global _backup_task
+  global _backup_task, _updater_task
   _backup_task = start_backup([SERVER_CONFIG_DB, DICT_DB])
+  _updater_task = updater.start(client, server_config)
 
   await client.change_presence(status=discord.Status.online, activity=discord.Game(name=STATUS_MESSAGE))
   print(discord.__version__)
@@ -360,6 +363,11 @@ async def version_cmd(ctx):
     print(f"HTTPException in version: {e}")
   except Exception as e:
     await handle_internal_error(ctx, e, "version", lang=server_config.get(ctx.guild.id, "Language"))
+
+
+@client.event
+async def on_error(event, *args, **kwargs):
+  await notify_owners(client, f"未処理のエラー ({event})", f"args: {args}, kwargs: {kwargs}")
 
 
 # 起動

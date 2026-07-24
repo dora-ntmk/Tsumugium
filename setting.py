@@ -85,6 +85,12 @@ class Setting:
         embed.add_field(name=lbl("Language"),
                         value=str(cfg["Language"]),
                         inline=True)
+        embed.add_field(name=lbl("AutoUpdate"),
+                        value=str(cfg["AutoUpdate"]),
+                        inline=True)
+        embed.add_field(name=lbl("AutoUpdateCheck"),
+                        value=str(cfg["AutoUpdateCheck"]),
+                        inline=True)
         await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
@@ -473,6 +479,66 @@ class Setting:
         await handle_os_error(ctx, e, "setting_language", lang=language)
       except Exception as e:
         await handle_internal_error(ctx, e, "setting_language", lang=language)
+
+    @setting_group.command(
+      name="auto-update",
+      description=_lstr("commands.setting.auto_update.description")
+    )
+    @discord.app_commands.describe(
+      enabled=_lstr("commands.setting.auto_update.args.enabled")
+    )
+    @discord.app_commands.checks.has_permissions(manage_guild=True)
+    async def setting_auto_update(ctx, enabled: bool):
+      try:
+        await ctx.response.defer()
+        lang = self.server_config.get(ctx.guild.id, "Language")
+        self.server_config.set(ctx.guild.id, "AutoUpdate", enabled)
+        state_key = "setting.states.enabled" if enabled else "setting.states.disabled"
+        await ctx.edit_original_response(
+          embed=build_embed(
+            "setting.auto_update.success",
+            lang=lang,
+            state=get_desc(state_key, lang=lang)
+          )
+        )
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as e:
+        print(f"HTTPException in setting_auto_update: {e}")
+      except OSError as e:
+        await handle_os_error(ctx, e, "setting_auto_update", lang=self.server_config.get(ctx.guild.id, "Language"))
+      except Exception as e:
+        await handle_internal_error(ctx, e, "setting_auto_update", lang=self.server_config.get(ctx.guild.id, "Language"))
+
+    @setting_group.command(
+      name="auto-update-check",
+      description=_lstr("commands.setting.auto_update_check.description")
+    )
+    @discord.app_commands.describe(
+      enabled=_lstr("commands.setting.auto_update_check.args.enabled")
+    )
+    @discord.app_commands.checks.has_permissions(manage_guild=True)
+    async def setting_auto_update_check(ctx, enabled: bool):
+      try:
+        await ctx.response.defer()
+        lang = self.server_config.get(ctx.guild.id, "Language")
+        self.server_config.set(ctx.guild.id, "AutoUpdateCheck", enabled)
+        state_key = "setting.states.enabled" if enabled else "setting.states.disabled"
+        await ctx.edit_original_response(
+          embed=build_embed(
+            "setting.auto_update_check.success",
+            lang=lang,
+            state=get_desc(state_key, lang=lang)
+          )
+        )
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as e:
+        print(f"HTTPException in setting_auto_update_check: {e}")
+      except OSError as e:
+        await handle_os_error(ctx, e, "setting_auto_update_check", lang=self.server_config.get(ctx.guild.id, "Language"))
+      except Exception as e:
+        await handle_internal_error(ctx, e, "setting_auto_update_check", lang=self.server_config.get(ctx.guild.id, "Language"))
 
     @setting_group.error
     async def setting_error(ctx, error):

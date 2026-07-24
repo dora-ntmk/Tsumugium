@@ -21,6 +21,8 @@ DEFAULTS = {
   "AccessNotice": False,
   "Language": "ja",
   "Greeting": True,
+  "AutoUpdate": False,
+  "AutoUpdateCheck": True,
 }
 
 _TYPE_VALIDATORS = {
@@ -34,10 +36,12 @@ _TYPE_VALIDATORS = {
   "AccessNotice": (lambda v: isinstance(v, bool)),
   "Language":     (lambda v: isinstance(v, str) and v in ("ja", "en", "zh-CN", "zh-TW", "ko", "hg")),
   "Greeting":     (lambda v: isinstance(v, bool)),
+  "AutoUpdate":   (lambda v: isinstance(v, bool)),
+  "AutoUpdateCheck": (lambda v: isinstance(v, bool)),
 }
 
 # bool型のキー一覧（SQLiteの0/1 ↔ Python bool変換用）
-_BOOL_KEYS = {"AutoJoin", "AccessNotice", "Greeting"}
+_BOOL_KEYS = {"AutoJoin", "AccessNotice", "Greeting", "AutoUpdate", "AutoUpdateCheck"}
 
 
 class ServerConfig:
@@ -46,28 +50,33 @@ class ServerConfig:
     self._conn.execute("PRAGMA journal_mode=WAL")
     self._conn.execute("""
                        CREATE TABLE IF NOT EXISTS guild_config (
-                                                                   guild_id      TEXT    PRIMARY KEY,
-                                                                   TextTarget    INTEGER,
-                                                                   VoiceTarget   INTEGER,
-                                                                   Speaker       INTEGER,
-                                                                   Volume        INTEGER NOT NULL DEFAULT 100,
-                                                                   Speed         INTEGER NOT NULL DEFAULT 100,
-                                                                   MaxChar       INTEGER NOT NULL DEFAULT 50,
-                                                                   AutoJoin      INTEGER NOT NULL DEFAULT 0,
-                                                                   AccessNotice  INTEGER NOT NULL DEFAULT 0,
-                                                                   Language      TEXT    NOT NULL DEFAULT 'ja',
-                                                                   Greeting      INTEGER NOT NULL DEFAULT 1
+                                                                    guild_id      TEXT    PRIMARY KEY,
+                                                                    TextTarget    INTEGER,
+                                                                    VoiceTarget   INTEGER,
+                                                                    Speaker       INTEGER,
+                                                                    Volume        INTEGER NOT NULL DEFAULT 100,
+                                                                    Speed         INTEGER NOT NULL DEFAULT 100,
+                                                                    MaxChar       INTEGER NOT NULL DEFAULT 50,
+                                                                    AutoJoin      INTEGER NOT NULL DEFAULT 0,
+                                                                    AccessNotice  INTEGER NOT NULL DEFAULT 0,
+                                                                    Language      TEXT    NOT NULL DEFAULT 'ja',
+                                                                    Greeting      INTEGER NOT NULL DEFAULT 1,
+                                                                    AutoUpdate    INTEGER NOT NULL DEFAULT 0,
+                                                                    AutoUpdateCheck INTEGER NOT NULL DEFAULT 1
                        )
                        """)
     self._conn.commit()
     # 既存DBマイグレーション
     info = self._conn.execute("PRAGMA table_info(guild_config)").fetchall()
     col_names = {c[1] for c in info}
-    # Greeting列がなければ追加
-    if "Greeting" not in col_names:
-      self._conn.execute("ALTER TABLE guild_config ADD COLUMN Greeting INTEGER NOT NULL DEFAULT 1")
-      self._conn.commit()
-      info = self._conn.execute("PRAGMA table_info(guild_config)").fetchall()
+    for col, dtype, default in [
+      ("Greeting", "INTEGER NOT NULL DEFAULT 1", 1),
+      ("AutoUpdate", "INTEGER NOT NULL DEFAULT 0", 0),
+      ("AutoUpdateCheck", "INTEGER NOT NULL DEFAULT 1", 1),
+    ]:
+      if col not in col_names:
+        self._conn.execute(f"ALTER TABLE guild_config ADD COLUMN {col} {dtype}")
+        self._conn.commit()
     # Speaker列がNOT NULLの場合、テーブルを再作成してNULL許容に変更
     speaker_col = next((c for c in info if c[1] == "Speaker"), None)
     if speaker_col and speaker_col[3] == 1:  # notnull=1
@@ -84,7 +93,9 @@ class ServerConfig:
           AutoJoin      INTEGER NOT NULL DEFAULT 0,
           AccessNotice  INTEGER NOT NULL DEFAULT 0,
           Language      TEXT    NOT NULL DEFAULT 'ja',
-          Greeting      INTEGER NOT NULL DEFAULT 1
+          Greeting      INTEGER NOT NULL DEFAULT 1,
+          AutoUpdate    INTEGER NOT NULL DEFAULT 0,
+          AutoUpdateCheck INTEGER NOT NULL DEFAULT 1
         );
         INSERT INTO guild_config_new SELECT * FROM guild_config;
         DROP TABLE guild_config;
@@ -145,14 +156,14 @@ class ServerConfig:
 
   def get_all(self, guild_id: int) -> dict:
     cur = self._conn.execute(
-      "SELECT TextTarget, VoiceTarget, Speaker, Volume, Speed, MaxChar, AutoJoin, AccessNotice, Language, Greeting"
+      "SELECT TextTarget, VoiceTarget, Speaker, Volume, Speed, MaxChar, AutoJoin, AccessNotice, Language, Greeting, AutoUpdate, AutoUpdateCheck"
       " FROM guild_config WHERE guild_id = ?",
       (str(guild_id),)
     )
     row = cur.fetchone()
     if row is None:
       return dict(DEFAULTS)
-    keys = ["TextTarget", "VoiceTarget", "Speaker", "Volume", "Speed", "MaxChar", "AutoJoin", "AccessNotice", "Language", "Greeting"]
+    keys = ["TextTarget", "VoiceTarget", "Speaker", "Volume", "Speed", "MaxChar", "AutoJoin", "AccessNotice", "Language", "Greeting", "AutoUpdate", "AutoUpdateCheck"]
     result = {}
     for k, v in zip(keys, row):
       result[k] = self._to_python(k, v)

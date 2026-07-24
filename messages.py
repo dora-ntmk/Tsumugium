@@ -9,7 +9,7 @@
 import json
 import os
 import discord
-from config import MESSAGES_DIR
+from config import MESSAGES_DIR, OWNER_IDS
 
 _LANGS = ("ja", "en", "zh-CN", "zh-TW", "ko", "hg")
 
@@ -48,12 +48,29 @@ def get_desc(key: str, lang: str = "ja") -> str:
   return node
 
 
+async def notify_owners(client, title: str, description: str, error: Exception = None) -> None:
+  if not OWNER_IDS:
+    return
+  embed = discord.Embed(title=title, description=description, color=discord.Color.red())
+  if error:
+    embed.add_field(name="エラー詳細", value=f"```\n{type(error).__name__}: {error}\n```", inline=False)
+  for uid in OWNER_IDS:
+    try:
+      user = client.get_user(uid) or await client.fetch_user(uid)
+      if user:
+        await user.send(embed=embed)
+    except Exception as e:
+      print(f"Failed to notify owner {uid}: {e}")
+
+
 async def handle_os_error(ctx, e: OSError, cmd_name: str, lang: str = "ja") -> None:
   print(f"OSError in {cmd_name}: {e}")
   try:
     await ctx.edit_original_response(embed=build_embed("error.os_error", lang=lang))
   except Exception as inner:
     print(f"Failed to send OSError embed in {cmd_name}: {inner}")
+  if ctx.client:
+    await notify_owners(ctx.client, f"OSError in {cmd_name}", str(e), error=e)
 
 
 async def handle_internal_error(ctx, e: Exception, cmd_name: str, lang: str = "ja") -> None:
@@ -62,6 +79,8 @@ async def handle_internal_error(ctx, e: Exception, cmd_name: str, lang: str = "j
     await ctx.edit_original_response(embed=build_embed("error.internal", lang=lang, error_type=type(e).__name__))
   except Exception as inner:
     print(f"Failed to send internal error embed in {cmd_name}: {inner}")
+  if ctx.client:
+    await notify_owners(ctx.client, f"Exception in {cmd_name}", str(e), error=e)
 
 
 def build_embed(key: str, lang: str = "ja", **kwargs) -> discord.Embed:

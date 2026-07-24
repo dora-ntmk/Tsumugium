@@ -106,6 +106,18 @@
         "args": {
           "language": "사용할 언어"
         }
+      },
+      "auto_update": {
+        "description": "새 버전이 있을 때 서버에 자동 알림을 설정합니다",
+        "args": {
+          "enabled": "활성화 여부"
+        }
+      },
+      "auto_update_check": {
+        "description": "자동 업데이트 확인 기능을 설정합니다",
+        "args": {
+          "enabled": "활성화 여부"
+        }
       }
     },
     "sounddict": {
@@ -361,7 +373,9 @@
         "MaxChar": "최대 읽기 글자 수",
         "AutoJoin": "자동 입퇴장",
         "AccessNotice": "입퇴장 알림",
-        "Language": "언어"
+        "Language": "언어",
+        "AutoUpdate": "자동 업데이트 알림",
+        "AutoUpdateCheck": "자동 업데이트 확인"
       }
     },
     "text_target": {
@@ -479,6 +493,20 @@
         "color": "green"
       }
     },
+    "auto_update": {
+      "success": {
+        "title": "설정 완료",
+        "description": "자동 업데이트 알림을 {state}로 설정했습니다",
+        "color": "green"
+      }
+    },
+    "auto_update_check": {
+      "success": {
+        "title": "설정 완료",
+        "description": "자동 업데이트 확인을 {state}로 설정했습니다",
+        "color": "green"
+      }
+    },
     "states": {
       "enabled": "활성화",
       "disabled": "비활성화"
@@ -587,6 +615,13 @@
         "description": "서버 관리 권한이 필요합니다",
         "color": "red"
       }
+    }
+  },
+  "updater": {
+    "new_version": {
+      "title": "새 버전이 있습니다",
+      "description": "Tsumugium v{latest}가 출시되었습니다 (현재: v{current})\nhttps://github.com/dora-ntmk/Tsumugium/releases",
+      "color": "blue"
     }
   }
 }
