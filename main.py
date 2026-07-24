@@ -250,94 +250,85 @@ async def on_voice_state_update(member: discord.Member, before: discord.VoiceSta
 @tree.command(name="join", description=discord.app_commands.locale_str(get_desc("commands.join.description"), key="commands.join.description"))
 @discord.app_commands.describe(change_channel=discord.app_commands.locale_str(get_desc("commands.join.args.change_channel"), key="commands.join.args.change_channel"))
 async def join(ctx: discord.Interaction, change_channel: bool = False) -> None:
-  try:
-    await ctx.response.defer()
-    lang = server_config.get(ctx.guild.id, "Language")
-    if ctx.user.voice:
-      voice_channel = ctx.user.voice.channel
-      text_channel = ctx.channel
-      bot_member = ctx.guild.me
-      vc_perms = voice_channel.permissions_for(bot_member)
-      text_perms = text_channel.permissions_for(bot_member)
-      issues = []
-      if not (vc_perms.connect and vc_perms.speak):
-        issues.append(get_desc("join.no_permission_vc", lang=lang).format(channel=voice_channel.mention))
-      if not (text_perms.view_channel and text_perms.send_messages):
-        issues.append(get_desc("join.no_permission_text", lang=lang).format(channel=text_channel.mention))
-      if issues:
-        await ctx.edit_original_response(embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues)))
-        return
-      if ctx.guild.voice_client is not None:
-        leaving_guilds.add(ctx.guild.id)
-        await ctx.guild.voice_client.disconnect()
-        await asyncio.sleep(0.5)
-      await voice_channel.connect(timeout=60)
-      if change_channel:
-        if not ctx.user.guild_permissions.manage_guild:
-          await ctx.edit_original_response(embed=build_embed("join.no_permission_change_channel", lang=lang))
-        else:
-          try:
-            server_config.set(ctx.guild.id, "TextTarget", ctx.channel.id)
-            server_config.set(ctx.guild.id, "VoiceTarget", ctx.user.voice.channel.id)
-            await ctx.edit_original_response(
-              embed=build_embed("join.success_change_channel", lang=lang, vc=ctx.user.voice.channel.mention, text=ctx.channel.mention, voice=ctx.user.voice.channel.mention)
-            )
-          except OSError:
-            await ctx.edit_original_response(embed=build_embed("join.failure_change_channel", lang=lang))
+  await ctx.response.defer()
+  lang = server_config.get(ctx.guild.id, "Language")
+  if ctx.user.voice:
+    voice_channel = ctx.user.voice.channel
+    text_channel = ctx.channel
+    bot_member = ctx.guild.me
+    vc_perms = voice_channel.permissions_for(bot_member)
+    text_perms = text_channel.permissions_for(bot_member)
+    issues = []
+    if not (vc_perms.connect and vc_perms.speak):
+      issues.append(get_desc("join.no_permission_vc", lang=lang).format(channel=voice_channel.mention))
+    if not (text_perms.view_channel and text_perms.send_messages):
+      issues.append(get_desc("join.no_permission_text", lang=lang).format(channel=text_channel.mention))
+    if issues:
+      await ctx.edit_original_response(embed=build_embed("join.no_permission", lang=lang, issues="\n".join(issues)))
+      return
+    if ctx.guild.voice_client is not None:
+      leaving_guilds.add(ctx.guild.id)
+      await ctx.guild.voice_client.disconnect()
+      await asyncio.sleep(0.5)
+    await voice_channel.connect(timeout=60)
+    if change_channel:
+      if not ctx.user.guild_permissions.manage_guild:
+        await ctx.edit_original_response(embed=build_embed("join.no_permission_change_channel", lang=lang))
       else:
-        play.temp_text_targets[ctx.guild.id] = ctx.channel.id
-        await ctx.edit_original_response(embed=build_embed("join.success_temp", lang=lang, vc=ctx.user.voice.channel.mention, text=ctx.channel.mention))
+        try:
+          server_config.set(ctx.guild.id, "TextTarget", ctx.channel.id)
+          server_config.set(ctx.guild.id, "VoiceTarget", ctx.user.voice.channel.id)
+          await ctx.edit_original_response(
+            embed=build_embed("join.success_change_channel", lang=lang, vc=ctx.user.voice.channel.mention, text=ctx.channel.mention, voice=ctx.user.voice.channel.mention)
+          )
+        except OSError:
+          await ctx.edit_original_response(embed=build_embed("join.failure_change_channel", lang=lang))
     else:
-      await ctx.edit_original_response(embed=build_embed("join.failure", lang=lang))
-  except discord.errors.InteractionResponded:
-    return
-  except discord.errors.HTTPException as e:
-    print(f"HTTPException in join: {e}")
-  except OSError as e:
-    await handle_os_error(ctx, e, "join", lang=server_config.get(ctx.guild.id, "Language"))
-  except Exception as e:
-    await handle_internal_error(ctx, e, "join", lang=server_config.get(ctx.guild.id, "Language"))
+      play.temp_text_targets[ctx.guild.id] = ctx.channel.id
+      await ctx.edit_original_response(embed=build_embed("join.success_temp", lang=lang, vc=ctx.user.voice.channel.mention, text=ctx.channel.mention))
+  else:
+    await ctx.edit_original_response(embed=build_embed("join.failure", lang=lang))
 
 
 # 退室
 @tree.command(name="leave", description=discord.app_commands.locale_str(get_desc("commands.leave.description"), key="commands.leave.description"))
 async def leave(ctx: discord.Interaction) -> None:
-  try:
-    await ctx.response.defer()
-    lang = server_config.get(ctx.guild.id, "Language")
-    if ctx.user.voice:
-      leaving_guilds.add(ctx.guild.id)
-      await ctx.guild.voice_client.disconnect()
-      await ctx.edit_original_response(embed=build_embed("leave.success", lang=lang))
-    else:
-      await ctx.edit_original_response(embed=build_embed("leave.failure", lang=lang))
-  except discord.errors.InteractionResponded:
-    return
-  except discord.errors.HTTPException as e:
-    print(f"HTTPException in leave: {e}")
-  except OSError as e:
-    await handle_os_error(ctx, e, "leave", lang=server_config.get(ctx.guild.id, "Language"))
-  except Exception as e:
-    await handle_internal_error(ctx, e, "leave", lang=server_config.get(ctx.guild.id, "Language"))
+  await ctx.response.defer()
+  lang = server_config.get(ctx.guild.id, "Language")
+  if ctx.user.voice:
+    leaving_guilds.add(ctx.guild.id)
+    await ctx.guild.voice_client.disconnect()
+    await ctx.edit_original_response(embed=build_embed("leave.success", lang=lang))
+  else:
+    await ctx.edit_original_response(embed=build_embed("leave.failure", lang=lang))
 
 
 @tree.command(name="version", description=discord.app_commands.locale_str(get_desc("commands.version.description"), key="commands.version.description"))
 async def version_cmd(ctx: discord.Interaction) -> None:
-  try:
-    await ctx.response.defer()
-    lang = server_config.get(ctx.guild.id, "Language")
-    await ctx.edit_original_response(embed=build_embed("version.info", lang=lang, version=VERSION, last_updated=LAST_UPDATED))
-  except discord.errors.InteractionResponded:
-    return
-  except discord.errors.HTTPException as e:
-    print(f"HTTPException in version: {e}")
-  except Exception as e:
-    await handle_internal_error(ctx, e, "version", lang=server_config.get(ctx.guild.id, "Language"))
+  await ctx.response.defer()
+  lang = server_config.get(ctx.guild.id, "Language")
+  await ctx.edit_original_response(embed=build_embed("version.info", lang=lang, version=VERSION, last_updated=LAST_UPDATED))
 
 
 @client.event
-async def on_error(event: str, *args: object, **kwargs: object) -> None:
+async def on_error(event, *args, **kwargs):
   await notify_owners(client, f"未処理のエラー ({event})", f"args: {args}, kwargs: {kwargs}")
+
+
+@tree.error
+async def on_app_command_error(ctx: discord.Interaction, error: discord.app_commands.AppCommandError):
+  if isinstance(error, discord.errors.HTTPException):
+    print(f"HTTPException in {ctx.command.name}: {error}")
+    return
+  if isinstance(error, discord.app_commands.CommandInvokeError):
+    original = error.original
+    lang = server_config.get(ctx.guild.id, "Language")
+    if isinstance(original, OSError):
+      await handle_os_error(ctx, original, ctx.command.name, lang=lang)
+    else:
+      await handle_internal_error(ctx, original, ctx.command.name, lang=lang)
+    return
+  print(f"Unhandled command error in {ctx.command.name}: {error}")
 
 
 # 起動
