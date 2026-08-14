@@ -19,7 +19,7 @@ class LifecycleCog:
       sound_boards,
       *,
       backup_databases,
-      status_message: str,
+      status_service,
       error_notifier=None,
   ):
     self.client = client
@@ -28,7 +28,7 @@ class LifecycleCog:
     self.dict_manager = dict_manager
     self.sound_boards = sound_boards
     self.backup_databases = backup_databases
-    self.status_message = status_message
+    self.status_service = status_service
     self.error_notifier = ensure_error_notifier(error_notifier)
     self.backup_task = None
     self._register()
@@ -58,15 +58,13 @@ class LifecycleCog:
         self.backup_databases,
         self.error_notifier,
       )
-      await self.client.change_presence(
-        status=discord.Status.online,
-        activity=discord.Game(name=self.status_message),
-      )
+      await self.status_service.update()
       print(discord.__version__)
 
     @self.client.event
     async def on_guild_join(guild):
       self.server_config.init_guild(guild.id)
+      self.status_service.schedule_update()
 
     @self.client.event
     async def on_guild_remove(guild):
@@ -104,6 +102,7 @@ class LifecycleCog:
         self.server_config.remove_guild(guild.id)
         self.dict_manager.remove_guild(guild.id)
         self.sound_boards.remove_guild(guild.id)
+        self.status_service.schedule_update()
 
     @self.client.event
     async def on_socket_raw_receive(message):

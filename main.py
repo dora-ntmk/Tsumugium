@@ -26,6 +26,7 @@ from services.connection_service import ConnectionService
 from services.error_notification_service import ErrorNotificationService
 from services.message_service import MessageService
 from services.speech_service import SpeechService
+from services.status_service import StatusService
 from services.voice_service import VoiceService
 from setting import Setting
 from sound_dict import SoundDict, SoundDictView, UpdateSoundBoards
@@ -82,6 +83,8 @@ connection_service = ConnectionService(
   voice_service,
   error_notifier,
 )
+status_service = StatusService(client, STATUS_MESSAGE, error_notifier)
+client.register_closeable(status_service)
 message_service = MessageService(
   client,
   server_config,
@@ -98,7 +101,12 @@ playback_cog = PlaybackCog(
   voice_service,
   error_notifier,
 )
-connection_cog = ConnectionCog(client, tree, connection_service)
+connection_cog = ConnectionCog(
+  client,
+  tree,
+  connection_service,
+  status_service,
+)
 general_cog = GeneralCog(tree, VERSION, LAST_UPDATED, error_notifier)
 lifecycle_cog = LifecycleCog(
   client,
@@ -107,7 +115,7 @@ lifecycle_cog = LifecycleCog(
   dict_manager,
   sound_boards,
   backup_databases=[SERVER_CONFIG_DB, DICT_DB],
-  status_message=STATUS_MESSAGE,
+  status_service=status_service,
   error_notifier=error_notifier,
 )
 

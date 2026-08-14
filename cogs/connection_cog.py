@@ -4,10 +4,11 @@ import discord
 
 
 class ConnectionCog:
-  def __init__(self, client, tree, connection_service):
+  def __init__(self, client, tree, connection_service, status_service):
     self.client = client
     self.tree = tree
     self.connection_service = connection_service
+    self.status_service = status_service
     self._register()
 
   def _register(self) -> None:
@@ -44,3 +45,5 @@ class ConnectionCog:
             member, before, after
           ),
         )
+      finally:
+        self.status_service.schedule_update()

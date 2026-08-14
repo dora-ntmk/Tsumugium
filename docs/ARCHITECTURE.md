@@ -1,6 +1,6 @@
-# Tsumugium v3.5 アーキテクチャ
+# Tsumugium v3.5.2 アーキテクチャ
 
-v3.5は、Discord固有の登録処理、ユースケース、状態、外部通信、DB操作を分離しています。機能とv3系DBの互換性は維持し、表示言語は日本語へ固定しています。
+v3.5.2は、Discord固有の登録処理、ユースケース、状態、外部通信、DB操作を分離しています。機能とv3系DBの互換性は維持し、表示言語は日本語へ固定しています。
 
 ## 全体構成
 
@@ -12,6 +12,7 @@ flowchart LR
     Connection["ConnectionService"]
     Speech["SpeechService"]
     Voice["VoiceService"]
+    Status["StatusService"]
     Session["GuildSession<br/>キュー・一時状態"]
     Swap["swap.py<br/>純粋なテキスト前処理"]
     Dictionary["DictManager"]
@@ -30,6 +31,8 @@ flowchart LR
     Cogs --> Message
     Cogs --> Connection
     Cogs --> Voice
+    Cogs --> Status
+    Status --> Discord
     Message --> Connection
     Message --> Speech
     Connection --> Speech
@@ -130,6 +133,10 @@ stateDiagram-v2
 
 自発的な切断は`ConnectionService.voluntary_disconnects`で識別し、一時読み上げチャンネルを破棄します。
 
+## Discordステータス
+
+`StatusService`は`STATUS_MESSAGE`を起動時に検証し、`{voice_connections}`、`{voice_users}`、`{guilds}`を現在のDiscordキャッシュから展開します。起動時は即時反映し、VC状態または参加サーバーが変化した場合は連続イベントを1秒間まとめて更新します。展開結果が変わらない場合はDiscord APIを呼びません。
+
 ## DB境界と互換性
 
 | DB | 所有Repository | 用途 |
@@ -138,7 +145,7 @@ stateDiagram-v2
 | `dict.db` | `DictionaryRepository` | 読み辞書・音声辞書 |
 | `soundboards.db` | `SoundboardCacheRepository` | Soundboard候補キャッシュ |
 
-- v3.5はテーブル名・主要カラム・主キーをv3系から変更しません。
+- v3.5.2はテーブル名・主要カラム・主キーをv3系から変更しません。
 - `guild_config.Language`は旧DB互換性のため残しますが、実行時には参照しません。
 - 旧DBに不足する`Greeting`、`full_match`、`trigger_user_id`は起動時に補完します。
 - Bot終了時は`ManagedDiscordClient`がHTTPセッションとSQLite接続を閉じます。

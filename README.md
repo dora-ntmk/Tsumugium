@@ -2,7 +2,7 @@
 
 VOICEVOXを利用してDiscordのテキストチャンネルを読み上げるBotです。
 
-現在のバージョンは **v3.5.1** です。Botが送信するメッセージとコマンド説明は日本語固定です。
+現在のバージョンは **v3.5.2** です。Botが送信するメッセージとコマンド説明は日本語固定です。
 
 ## 主な機能
 
@@ -37,7 +37,10 @@ python -m pip install -r requirements.txt
 DISCORD_BOT_TOKEN=YOUR_DISCORD_BOT_TOKEN
 VOICEVOX_URL=http://127.0.0.1:50021
 DEFAULT_SPEAKER=8
+STATUS_MESSAGE="Tsumugium v3.5.2｜{voice_connections}個のVCに接続中"
 ```
+
+`STATUS_MESSAGE`では、`{voice_connections}`（Botの接続VC数）、`{voice_users}`（接続先VCにいる人間ユーザー数）、`{guilds}`（参加サーバー数）を利用できます。波括弧自体を表示する場合は`{{`または`}}`と記述します。未知の変数や不正な構文がある場合、設定エラーとしてBotは起動しません。
 
 VOICEVOX ENGINEを起動してからBotを起動します。
 

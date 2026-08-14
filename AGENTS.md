@@ -1,6 +1,6 @@
 # Tsumugium — Discord 読み上げBot 仕様書
 
-**バージョン**: 3.5.1 / **最終更新**: 2026-08-14
+**バージョン**: 3.5.2 / **最終更新**: 2026-08-14
 VOICEVOXを使ったDiscordテキスト読み上げBot。
 
 全体の依存関係と処理フローは[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)を参照。
@@ -17,6 +17,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `services/speech_service.py` | テキスト前処理、Soundboard/TTS選択、最大文字数処理、VOICEVOX生成依頼を担当 |
 | `services/voice_service.py` | ギルド別キュー、再生、スキップ、クリア、キープアライブを担当。外部API通信はClientへ委譲 |
 | `services/error_notification_service.py` | エラーのCLI出力と、任意設定された運営者へのDiscord Embed形式DM通知を担当 |
+| `services/status_service.py` | STATUS_MESSAGEの検証・変数展開と、接続状態に応じたDiscordステータス更新を担当 |
 | `cogs/connection_cog.py` | `/join`・`/leave`とVC状態イベントを`ConnectionService`へ接続する登録層 |
 | `cogs/playback_cog.py` | `/clear`と`on_message`を読み上げサービスへ接続する登録層 |
 | `cogs/general_cog.py` | `/version`を登録する一般コマンド層 |
@@ -251,4 +252,4 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `BACKUP_TIMES` | `""` | バックアップ実行時刻（カンマ区切り、例: `03:00,15:00`） |
 | `BACKUP_INTERVAL_DAYS` | `1` | バックアップ実行間隔（日） |
 | `BACKUP_KEEP` | `7` | バックアップ保持世代数 |
-| `STATUS_MESSAGE` | `""` | Botのステータスメッセージ |
+| `STATUS_MESSAGE` | `""` | Botのステータスメッセージ。`{voice_connections}`（接続VC数）、`{voice_users}`（同席中の人間ユーザー数）、`{guilds}`（参加サーバー数）を利用可能 |
