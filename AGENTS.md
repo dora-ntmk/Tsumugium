@@ -1,6 +1,6 @@
 # Tsumugium — Discord 読み上げBot 仕様書
 
-**バージョン**: 3.5.0 / **最終更新**: 2026-07-18
+**バージョン**: 3.5.1 / **最終更新**: 2026-08-14
 VOICEVOXを使ったDiscordテキスト読み上げBot。
 
 全体の依存関係と処理フローは[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)を参照。

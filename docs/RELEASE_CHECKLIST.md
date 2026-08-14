@@ -27,6 +27,8 @@ python -m unittest discover -s tests -v
 - [ ] Embed共通ひな形
 - [ ] VOICEVOX・Soundboard HTTP Client
 
+**不手際により`tests/`は消失した**ため、今後のバージョン更新で同梱可能な範囲で同内容のものを作り直します。
+
 ## 3. DB互換性
 
 本番相当の3DBをバックアップまたは一時ディレクトリへコピーして確認します。

@@ -22,6 +22,7 @@ _TIMESTAMP_RE    = re.compile(r'<t:(\d+):[\s\S]>')
 _MENTION_USER_RE = re.compile(r'<@!?(\d+)>')
 _MENTION_CH_RE   = re.compile(r'<#(\d+)>')
 _MENTION_ROLE_RE = re.compile(r'<@&(\d+)>')
+_MENTION_GAME_RE = re.compile(r'<@\$(\d+)>')
 _WWW_RE          = re.compile(r'[wWｗＷ]{2,}')
 
 _URL_PATTERNS = [
@@ -200,9 +201,16 @@ def preprocess_text(
 
   segments = _apply_regex(segments, _MENTION_ROLE_RE, _mention_role)
 
-  # 4i. Newlines
+  # 4i. Game mentions
+  def _mention_game(m):
+    if guild:
+      return 'ゲームへのメンション,'
+
+  segments = _apply_regex(segments, _MENTION_GAME_RE, _mention_game)
+
+  # 4j. Newlines
   segments = _apply_regex(segments, re.compile(r'\n'), ',')
-  # 4j. Spaces (half-width and full-width)
+  # 4k. Spaces (half-width and full-width)
   segments = _apply_regex(segments, re.compile(r'[ \u3000]+'), ',')
 
   # 5. 優先辞書 → 通常辞書 → 共通辞書
