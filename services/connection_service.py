@@ -2,6 +2,7 @@
 
 import asyncio
 
+import aiohttp
 import discord
 
 from models.audio_item import TTSItem
@@ -25,6 +26,63 @@ class ConnectionService:
     self.voice_service = voice_service
     self.error_notifier = ensure_error_notifier(error_notifier)
     self.voluntary_disconnects: set[int] = set()
+    self._connection_locks: dict[int, asyncio.Lock] = {}
+    self._voice_state_stages: dict[int, str] = {}
+
+  def voice_state_error_context(self, member, before, after):
+    context = self.voice_service.connection_context(member.guild)
+    context.update({
+      "member_id": member.id,
+      "before_channel_id": getattr(before.channel, "id", None),
+      "after_channel_id": getattr(after.channel, "id", None),
+      "stage": self._voice_state_stages.get(member.guild.id, "unknown"),
+    })
+    return context
+
+  @staticmethod
+  def _is_transient_connection_error(error: BaseException) -> bool:
+    if isinstance(error, discord.HTTPException):
+      return error.status >= 500
+    return isinstance(
+      error,
+      (
+        asyncio.TimeoutError,
+        aiohttp.ServerDisconnectedError,
+        aiohttp.ClientConnectionError,
+        ConnectionError,
+      ),
+    )
+
+  async def _connect_voice(
+      self,
+      voice_channel,
+      *,
+      retry: bool = False,
+      retry_validator=None,
+  ):
+    """ギルド単位で接続を直列化し、AutoJoinだけ一時障害を再試行する。"""
+    guild = voice_channel.guild
+    lock = self._connection_locks.setdefault(guild.id, asyncio.Lock())
+    attempts = 3 if retry else 1
+    async with lock:
+      for attempt in range(attempts):
+        if retry_validator is not None and not retry_validator():
+          return None
+        if guild.voice_client is not None:
+          if guild.voice_client.is_connected():
+            return guild.voice_client
+          try:
+            await guild.voice_client.disconnect(force=True)
+          except Exception:
+            pass
+        try:
+          return await voice_channel.connect(timeout=60)
+        except Exception as error:
+          last_attempt = attempt + 1 >= attempts
+          if last_attempt or not self._is_transient_connection_error(error):
+            raise
+          await asyncio.sleep(2 ** attempt)
+    return None
 
   def get_notify_channel(self, guild, voice_channel=None):
     session = self.voice_service.get_session(guild.id)
@@ -48,7 +106,15 @@ class ConnectionService:
 
   async def disconnect(self, guild) -> None:
     self.voluntary_disconnects.add(guild.id)
-    await guild.voice_client.disconnect()
+    try:
+      voice_client = guild.voice_client
+      if voice_client is None:
+        self.voluntary_disconnects.discard(guild.id)
+        return
+      await voice_client.disconnect()
+    except Exception:
+      self.voluntary_disconnects.discard(guild.id)
+      raise
 
   async def enqueue_notice(self, guild, member, joined: bool) -> None:
     action = "入室" if joined else "退室"
@@ -121,7 +187,7 @@ class ConnectionService:
         )
         return
 
-      await voice_channel.connect(timeout=60)
+      await self._connect_voice(voice_channel)
       self.voice_service.get_session(
         message.guild.id
       ).temporary_text_channel_id = message.channel.id
@@ -137,11 +203,30 @@ class ConnectionService:
       )
       await message.channel.send(embed=embed)
     except Exception as e:
-      self.error_notifier.report(f"Exception in mention join/leave: {e}")
+      self.error_notifier.report_exception(
+        e,
+        "mention join/leave",
+        self.voice_service.connection_context(message.guild),
+      )
+      try:
+        await message.channel.send(
+          embed=make_embed(
+            "接続失敗",
+            "Discordとの音声接続に失敗しました。時間をおいて再試行してください。",
+            embed_type=EmbedType.ERROR,
+          )
+        )
+      except Exception as response_error:
+        self.error_notifier.report_exception(
+          response_error,
+          "mention join/leave error response",
+          self.voice_service.connection_context(message.guild),
+        )
 
   async def handle_voice_state_update(self, member, before, after) -> None:
     guild = member.guild
     session = self.voice_service.get_session(guild.id)
+    self._voice_state_stages[guild.id] = "classify_event"
 
     if member == guild.me:
       if before.channel is None and after.channel is not None:
@@ -151,6 +236,7 @@ class ConnectionService:
           session.temporary_text_channel_id = saved
         self.voice_service.start_keepalive(guild)
       elif before.channel is not None and after.channel is None:
+        self._voice_state_stages[guild.id] = "bot_disconnect_cleanup"
         if guild.id in self.voluntary_disconnects:
           self.voluntary_disconnects.discard(guild.id)
           session.temporary_text_channel_id = None
@@ -160,6 +246,7 @@ class ConnectionService:
           if saved is not None:
             session.pending_text_channel_id = saved
         self.voice_service.stop_keepalive(guild.id)
+        await self.voice_service.discard_queue(guild.id)
       return
 
     user_joined = before.channel is None and after.channel is not None
@@ -184,6 +271,7 @@ class ConnectionService:
             return
           await self.disconnect(guild)
           if notify_channel:
+            self._voice_state_stages[guild.id] = "auto_leave_notification"
             await notify_channel.send(
               embed=make_embed(
                 "自動退出",
@@ -192,6 +280,7 @@ class ConnectionService:
             )
           return
         if self.server_config.get(guild.id, "AccessNotice"):
+          self._voice_state_stages[guild.id] = "access_notice_leave"
           await self.enqueue_notice(guild, member, joined=False)
 
     if not user_joined:
@@ -238,9 +327,30 @@ class ConnectionService:
               )
             )
           return
+        def auto_join_still_valid():
+          configured_target = self.server_config.get(guild.id, "VoiceTarget")
+          humans = [m for m in target_channel.members if not m.bot]
+          return (
+            self.server_config.get(guild.id, "AutoJoin")
+            and configured_target == target_channel.id
+            and bool(humans)
+            and (
+              guild.voice_client is None
+              or not guild.voice_client.is_connected()
+            )
+          )
+
         await asyncio.sleep(1)
-        await target_channel.connect(timeout=60)
+        self._voice_state_stages[guild.id] = "auto_join_connect"
+        connected = await self._connect_voice(
+          target_channel,
+          retry=True,
+          retry_validator=auto_join_still_valid,
+        )
+        if connected is None:
+          return
         if notify_channel:
+          self._voice_state_stages[guild.id] = "auto_join_notification"
           embed = make_embed(
             "自動入室",
             "ボイスチャンネルに自動で接続しました",
@@ -258,6 +368,7 @@ class ConnectionService:
         and guild.voice_client is not None
         and after.channel == guild.voice_client.channel
     ):
+      self._voice_state_stages[guild.id] = "access_notice_join"
       await self.enqueue_notice(guild, member, joined=True)
 
   async def join(self, ctx, change_channel: bool = False) -> None:
@@ -288,7 +399,7 @@ class ConnectionService:
       if ctx.guild.voice_client is not None:
         await self.disconnect(ctx.guild)
         await asyncio.sleep(0.5)
-      await voice_channel.connect(timeout=60)
+      await self._connect_voice(voice_channel)
       if change_channel:
         if not ctx.user.guild_permissions.manage_guild:
           await ctx.edit_original_response(
@@ -343,7 +454,7 @@ class ConnectionService:
     except discord.errors.InteractionResponded:
       return
     except discord.errors.HTTPException as e:
-      self.error_notifier.report(f"HTTPException in join: {e}")
+      await handle_internal_error(ctx, e, "join HTTP", self.error_notifier)
     except OSError as e:
       await handle_os_error(ctx, e, "join", self.error_notifier)
     except Exception as e:

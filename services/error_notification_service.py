@@ -1,6 +1,7 @@
 """CLI出力と運営者へのDiscord DM通知を一元管理する。"""
 
 import asyncio
+import traceback
 from collections.abc import Coroutine
 from typing import Any
 
@@ -39,6 +40,29 @@ class ErrorNotificationService:
     self._tasks.add(task)
     task.add_done_callback(self._tasks.discard)
 
+  def report_exception(
+      self,
+      error: BaseException,
+      context: str,
+      metadata: dict[str, object] | None = None,
+  ) -> None:
+    """例外のトレースバックと安全な実行コンテキストを報告する。"""
+    details = [f"Exception in {context}: {type(error).__name__}: {error}"]
+    if metadata:
+      details.append("Context:")
+      details.extend(
+        f"  {key}={value}"
+        for key, value in sorted(metadata.items())
+      )
+    details.append("Traceback:")
+    details.extend(
+      line.rstrip("\n")
+      for line in traceback.format_exception(
+        type(error), error, error.__traceback__
+      )
+    )
+    self.report("\n".join(details))
+
   def create_task(
       self,
       coroutine: Coroutine[Any, Any, Any],
@@ -52,9 +76,7 @@ class ErrorNotificationService:
         return
       error = done_task.exception()
       if error is not None:
-        self.report(
-          f"Exception in {context}: {type(error).__name__}: {error}"
-        )
+        self.report_exception(error, context)
 
     task.add_done_callback(report_failure)
     return task
@@ -76,7 +98,10 @@ class ErrorNotificationService:
         )
         await user.send(embed=embed)
     except Exception as error:
-      print(f"Failed to send error notification: {error}")
+      print(
+        "Failed to send error notification (Discord DM): "
+        f"{type(error).__name__}: {error}"
+      )
 
 
 def ensure_error_notifier(error_notifier=None) -> ErrorNotificationService:

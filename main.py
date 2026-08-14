@@ -44,6 +44,9 @@ voicevox_client = VoicevoxClient(
   tmp_dir=TMP_DIR,
   error_notifier=error_notifier,
 )
+removed_tmp_wavs = voicevox_client.cleanup_tmp_wav_files()
+if removed_tmp_wavs:
+  print(f"起動時に一時WAVファイルを{removed_tmp_wavs}件削除しました")
 discord_soundboard_client = DiscordSoundboardClient(DISCORD_BOT_TOKEN)
 client.register_closeable(voicevox_client)
 client.register_closeable(discord_soundboard_client)

@@ -30,8 +30,17 @@ class ConnectionCog:
 
     @self.client.event
     async def on_voice_state_update(member, before, after):
-      await self.connection_service.handle_voice_state_update(
-        member,
-        before,
-        after,
-      )
+      try:
+        await self.connection_service.handle_voice_state_update(
+          member,
+          before,
+          after,
+        )
+      except Exception as error:
+        self.connection_service.error_notifier.report_exception(
+          error,
+          "on_voice_state_update",
+          self.connection_service.voice_state_error_context(
+            member, before, after
+          ),
+        )

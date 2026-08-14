@@ -22,6 +22,39 @@ class VoicevoxClient:
     self._owns_session = session is None
     self.error_notifier = ensure_error_notifier(error_notifier)
 
+  def cleanup_tmp_wav_files(self) -> int:
+    """起動前に前回実行で残ったTMP_DIR直下のWAVを削除する。"""
+    if not os.path.isdir(self.tmp_dir):
+      return 0
+    removed = 0
+    try:
+      entries = list(os.scandir(self.tmp_dir))
+    except OSError as error:
+      self.error_notifier.report_exception(
+        error,
+        "startup temporary audio scan",
+        {"tmp_dir": os.path.abspath(self.tmp_dir)},
+      )
+      return 0
+    for entry in entries:
+      if not entry.is_file(follow_symlinks=False):
+        continue
+      if not entry.name.lower().endswith(".wav"):
+        continue
+      try:
+        os.remove(entry.path)
+        removed += 1
+      except OSError as error:
+        self.error_notifier.report_exception(
+          error,
+          "startup temporary audio cleanup",
+          {
+            "tmp_dir": os.path.abspath(self.tmp_dir),
+            "file_name": entry.name,
+          },
+        )
+    return removed
+
   async def _get_session(self):
     if self._session is None or getattr(self._session, "closed", False):
       import aiohttp
@@ -79,7 +112,15 @@ class VoicevoxClient:
         file.write(wav)
       return path
     except Exception as e:
-      self.error_notifier.report(str(e))
+      self.error_notifier.report_exception(
+        e,
+        "VOICEVOX generation",
+        {
+          "guild_id": guildid,
+          "message_id": msgid,
+          "speaker": speaker,
+        },
+      )
       return None
 
   async def close(self) -> None:

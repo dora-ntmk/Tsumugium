@@ -11,7 +11,7 @@ async def handle_os_error(
     error_notifier=None,
 ) -> None:
   notifier = ensure_error_notifier(error_notifier)
-  notifier.report(f"OSError in {command_name}: {error}")
+  notifier.report_exception(error, f"{command_name} OS operation")
   try:
     await ctx.edit_original_response(
       embed=make_embed(
@@ -21,7 +21,7 @@ async def handle_os_error(
       )
     )
   except Exception as inner:
-    notifier.report(f"Failed to send OSError embed in {command_name}: {inner}")
+    notifier.report_exception(inner, f"{command_name} OSError response")
 
 
 async def handle_internal_error(
@@ -31,7 +31,7 @@ async def handle_internal_error(
     error_notifier=None,
 ) -> None:
   notifier = ensure_error_notifier(error_notifier)
-  notifier.report(f"Exception in {command_name}: {error}")
+  notifier.report_exception(error, command_name)
   try:
     await ctx.edit_original_response(
       embed=make_embed(
@@ -41,4 +41,4 @@ async def handle_internal_error(
       )
     )
   except Exception as inner:
-    notifier.report(f"Failed to send internal error embed in {command_name}: {inner}")
+    notifier.report_exception(inner, f"{command_name} internal error response")

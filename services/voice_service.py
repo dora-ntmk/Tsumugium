@@ -16,6 +16,7 @@ class VoiceService:
     self.soundboard_client = soundboard_client
     self.error_notifier = ensure_error_notifier(error_notifier)
     self.sessions: dict[int, GuildSession] = {}
+    self._delayed_cleanup_paths: set[str] = set()
 
   def get_session(self, guild_id: int) -> GuildSession:
     """ギルドの実行状態を取得し、存在しなければ初期化する。"""
@@ -69,6 +70,37 @@ class VoiceService:
     if guild.voice_client and guild.voice_client.is_playing():
       guild.voice_client.stop()
 
+  def connection_context(self, guild) -> dict[str, object]:
+    session = self.get_session(guild.id)
+    voice_client = guild.voice_client
+    return {
+      "guild_id": guild.id,
+      "channel_id": getattr(getattr(voice_client, "channel", None), "id", None),
+      "voice_client_present": voice_client is not None,
+      "voice_connected": (
+        voice_client.is_connected() if voice_client is not None else False
+      ),
+      "queue_size": session.queue.qsize(),
+      "discord_py_version": discord.__version__,
+    }
+
+  async def discard_queue(self, guild_id: int) -> int:
+    """切断時に待機アイテムを破棄し、生成済みWAVを削除する。"""
+    session = self.get_session(guild_id)
+    discarded = 0
+    while True:
+      try:
+        item = session.queue.get_nowait()
+      except asyncio.QueueEmpty:
+        break
+      try:
+        discarded += 1
+        if isinstance(item, TTSItem):
+          await self.safe_remove(item.path)
+      finally:
+        session.queue.task_done()
+    return discarded
+
   async def play_loop(self, guild):
     guild_id = guild.id
     session = self.get_session(guild_id)
@@ -76,32 +108,31 @@ class VoiceService:
       item = None
       try:
         item = await asyncio.wait_for(session.queue.get(), timeout=300)
-        if guild.voice_client is None:
-          session.queue.task_done()
-          item = None
+        voice_client = guild.voice_client
+        if voice_client is None or not voice_client.is_connected():
+          if isinstance(item, TTSItem):
+            await self.safe_remove(item.path)
           continue
         if isinstance(item, SoundboardItem):
-          while guild.voice_client is not None and guild.voice_client.is_playing():
+          while voice_client.is_connected() and voice_client.is_playing():
             await asyncio.sleep(0.1)
-          if guild.voice_client is not None:
+          if voice_client.is_connected():
             await self._play_soundboard(guild, item.sound_id)
         elif isinstance(item, TTSItem):
           await self.play(guild, item.path)
         else:
           raise TypeError(f"未対応の音声アイテムです: {type(item).__name__}")
-        session.queue.task_done()
-        item = None
       except asyncio.TimeoutError:
         break
       except asyncio.CancelledError:
         if isinstance(item, TTSItem):
-          self.error_notifier.create_task(
-            self.safe_remove(item.path),
-            f"cancelled audio cleanup path={item.path}",
-          )
+          await self.safe_remove(item.path)
         raise
       except Exception as e:
-        self.error_notifier.report(f"再生エラー: {e}")
+        self.error_notifier.report_exception(
+          e, "play loop", self.connection_context(guild)
+        )
+      finally:
         if item is not None:
           session.queue.task_done()
 
@@ -109,12 +140,14 @@ class VoiceService:
     try:
       if self.soundboard_client is None:
         raise RuntimeError("DiscordSoundboardClientが設定されていません")
-      await self.soundboard_client.play(
-        guild.voice_client.channel.id,
-        sound_id,
-      )
+      voice_client = guild.voice_client
+      if voice_client is None or not voice_client.is_connected():
+        return
+      await self.soundboard_client.play(voice_client.channel.id, sound_id)
     except Exception as e:
-      self.error_notifier.report(f'サウンドボード再生エラー：{e}')
+      self.error_notifier.report_exception(
+        e, "Discord Soundboard playback", self.connection_context(guild)
+      )
 
   async def _keepalive_loop(self, guild):
     silence = b'\xF8\xFF\xFE'
@@ -127,7 +160,9 @@ class VoiceService:
         try:
           voice_client.send_audio_packet(silence, encode=False)
         except Exception as e:
-          self.error_notifier.report(f"keepalive error: {e}")
+          self.error_notifier.report_exception(
+            e, "voice keepalive", self.connection_context(guild)
+          )
 
   def start_keepalive(self, guild):
     self.stop_keepalive(guild.id)
@@ -144,17 +179,48 @@ class VoiceService:
     if task and not task.done():
       task.cancel()
 
-  async def safe_remove(self, path: str, retries: int = 5, delay: float = 0.3):
+  async def safe_remove(
+      self,
+      path: str,
+      retries: int = 5,
+      delay: float = 0.3,
+      *,
+      schedule_delayed_retry: bool = True,
+  ) -> bool:
+    """WAVを削除し、使用中ならFFmpeg終了後の再試行を予約する。"""
     for _ in range(retries):
       try:
         if os.path.exists(path):
           os.remove(path)
-        return
+        return True
       except PermissionError:
         await asyncio.sleep(delay)
-    self.error_notifier.report(f"ファイル削除失敗（使用中）: {path}")
+    if schedule_delayed_retry:
+      if path not in self._delayed_cleanup_paths:
+        self._delayed_cleanup_paths.add(path)
+        self.error_notifier.create_task(
+          self._delayed_remove(path),
+          f"delayed audio cleanup path={path}",
+        )
+      return False
+    self.error_notifier.report(f"ファイル削除失敗（時間差再試行後）: {path}")
+    return False
+
+  async def _delayed_remove(self, path: str) -> None:
+    """FFmpegのファイルハンドル解放を待ってから削除を再試行する。"""
+    try:
+      await asyncio.sleep(5)
+      await self.safe_remove(
+        path,
+        retries=10,
+        delay=1,
+        schedule_delayed_retry=False,
+      )
+    finally:
+      self._delayed_cleanup_paths.discard(path)
 
   async def play(self, guild, path: str):
+    playback_started = False
     try:
       session = self.get_session(guild.id)
       voice = await discord.FFmpegOpusAudio.from_probe(path)
@@ -165,7 +231,10 @@ class VoiceService:
           f"skipped audio cleanup path={path}",
         )
         return
-      while guild.voice_client is not None and guild.voice_client.is_playing():
+      voice_client = guild.voice_client
+      if voice_client is None or not voice_client.is_connected():
+        return
+      while voice_client.is_connected() and voice_client.is_playing():
         await asyncio.sleep(0.1)
       if session.skipping:
         session.skipping = False
@@ -174,11 +243,36 @@ class VoiceService:
           f"skipped audio cleanup path={path}",
         )
         return
-      guild.voice_client.play(
+      if not voice_client.is_connected():
+        return
+      voice_client.play(
         voice,
-        after=lambda _: asyncio.run_coroutine_threadsafe(
-          self.safe_remove(path), self.client.loop
+        after=lambda error: asyncio.run_coroutine_threadsafe(
+          self._finish_playback(guild, path, error), self.client.loop
         ),
       )
+      playback_started = True
     except Exception as e:
-      self.error_notifier.report(f"音声再生エラー: {e}")
+      voice_client = guild.voice_client
+      disconnected = (
+        voice_client is None or not voice_client.is_connected()
+      )
+      if not disconnected and "Not connected to voice" not in str(e):
+        self.error_notifier.report_exception(
+          e, "TTS playback start", self.connection_context(guild)
+        )
+    finally:
+      if not playback_started:
+        await self.safe_remove(path)
+
+  async def _finish_playback(self, guild, path: str, error) -> None:
+    await self.safe_remove(path)
+    if error is not None:
+      voice_client = guild.voice_client
+      disconnected = (
+        voice_client is None or not voice_client.is_connected()
+      )
+      if not disconnected and "Not connected to voice" not in str(error):
+        self.error_notifier.report_exception(
+          error, "TTS audio player", self.connection_context(guild)
+        )
