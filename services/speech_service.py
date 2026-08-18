@@ -22,7 +22,7 @@ class SpeechService:
     speed = self.server_config.speed_to_vvtts(guild_id)
     reference = getattr(message, "reference", None)
     if reference is not None and reference.type is discord.MessageReferenceType.forward:
-      text = "転送されたメッセージ"
+      text = "転送済みメッセージ"
     else:
       text = message.content
     replaced_ranges = []
