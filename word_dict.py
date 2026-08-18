@@ -41,6 +41,12 @@ def _is_emoji_word(word: str) -> bool:
       return False
   return True
 
+def replace_word(word: str) -> str:
+  def replace(match):
+    custom_emoji = match.group(0)
+    emoji_name = custom_emoji.rsplit(':', 1)[0].split(':', 1)[1]
+    return f':{emoji_name}:'
+  return _CUSTOM_EMOJI_RE.sub(replace, word)
 
 def _is_priority_word(word: str) -> bool:
   """優先辞書に登録すべき語かどうかを判定する。"""
@@ -301,6 +307,7 @@ class WordDict:
           priority_items,
           'dict',
           self.error_notifier,
+          word_formatter=replace_word,
         )
         embed = paginator.build_embed()
 

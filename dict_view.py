@@ -9,6 +9,7 @@
 import discord
 from presentation.embeds import make_embed
 from services.error_notification_service import ensure_error_notifier
+from collections.abc import Callable
 
 _PAGE_SIZE = 20
 
@@ -20,12 +21,14 @@ class DictViewPaginator(discord.ui.View):
       priority_items: list[tuple[str, str]],
       key_prefix: str,
       error_notifier=None,
+      word_formatter: Callable[[str], str] | None = None,
   ):
     super().__init__(timeout=120)
     self.normal_items   = normal_items
     self.priority_items = priority_items
     self.key_prefix = key_prefix
     self.error_notifier = ensure_error_notifier(error_notifier)
+    self.word_formatter = word_formatter or (lambda word: word)
     self.page = 0
     self.normal_pages   = (len(normal_items)   + _PAGE_SIZE - 1) // _PAGE_SIZE if normal_items   else 0
     self.priority_pages = (len(priority_items) + _PAGE_SIZE - 1) // _PAGE_SIZE if priority_items else 0
@@ -52,7 +55,10 @@ class DictViewPaginator(discord.ui.View):
       section_total = self.priority_pages
 
     header = '単語  →  音声名' if is_sounddict else '単語  →  読み方'
-    lines = [f"{w}  →  {r}" for w, r in page_items]
+    lines = [
+      f"{self.word_formatter(w)}  →  {r}"
+      for w, r in page_items
+    ]
     if header:
       separator = "─" * 24
       lines = [header, separator] + lines
