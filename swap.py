@@ -146,11 +146,14 @@ def preprocess_text(
   if dictionary.priority_readings:
     segments = _apply_dict(segments, dictionary.priority_readings)
 
-  # 3. URL処理（辞書より前に実行してURLを保護）
+  # 3a .Markdown links
+  segments = _apply_regex(segments, _MDLINK_RE, lambda m: f',{m.group(1)}へのリンク,')
+
+  # 3b. URL処理（辞書より前に実行してURLを保護）
   for url_re, url_read in _URL_PATTERNS:
     segments = _apply_regex(segments, url_re, url_read + ',')
 
-  # 3b. Custom Emojis（www より先にフィルタして ww 等の置換から保護する）
+  # 3c. Custom Emojis（www より先にフィルタして ww 等の置換から保護する）
   segments = _apply_regex(segments, _CUSTOM_EMOJI_RE, ',')
 
   # 3c. www pattern → N × わら（URL内の www は protected=True でスキップ済み）
@@ -168,8 +171,6 @@ def preprocess_text(
   segments = _apply_regex(segments, _INLINE_CODE_RE, ',コードブロック,')
   # 4e. Time stamp
   segments = _apply_regex(segments, _TIMESTAMP_RE, ',タイムスタンプ,')
-  # 4e2.Markdown links
-  segments = _apply_regex(segments, _MDLINK_RE, lambda m: f',{m.group(1)}へのリンク,')
 
   # 4f. User mentions
   mention_map = {str(u.id): u.display_name for u in (mentions or [])}
