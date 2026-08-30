@@ -19,10 +19,13 @@ _STRIKE_RE       = re.compile(r'~~[\s\S]+?~~')
 _CODE_BLOCK_RE   = re.compile(r'```[\s\S]+?```')
 _INLINE_CODE_RE  = re.compile(r'`[^`]+`')
 _TIMESTAMP_RE    = re.compile(r'<t:(\d+):[\s\S]>')
+_MDLINK_RE       = re.compile(r'\[([^\]]+)\]\((https?://[^\s)]+)\)')
+
 _MENTION_USER_RE = re.compile(r'<@!?(\d+)>')
 _MENTION_CH_RE   = re.compile(r'<#(\d+)>')
 _MENTION_ROLE_RE = re.compile(r'<@&(\d+)>')
 _MENTION_GAME_RE = re.compile(r'<@\$(\d+)>')
+
 _WWW_RE          = re.compile(r'[wWｗＷ]{2,}')
 
 _URL_PATTERNS = [
@@ -165,6 +168,8 @@ def preprocess_text(
   segments = _apply_regex(segments, _INLINE_CODE_RE, ',コードブロック,')
   # 4e. Time stamp
   segments = _apply_regex(segments, _TIMESTAMP_RE, ',タイムスタンプ,')
+  # 4e2.Markdown links
+  segments = _apply_regex(segments, _MDLINK_RE, lambda m: f',{m.group(1)}へのリンク,')
 
   # 4f. User mentions
   mention_map = {str(u.id): u.display_name for u in (mentions or [])}
