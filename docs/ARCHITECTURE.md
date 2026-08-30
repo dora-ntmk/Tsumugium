@@ -1,6 +1,6 @@
-# Tsumugium v3.5.2 アーキテクチャ
+# Tsumugium v3.6.0.68 アーキテクチャ
 
-v3.5.2は、Discord固有の登録処理、ユースケース、状態、外部通信、DB操作を分離しています。機能とv3系DBの互換性は維持し、表示言語は日本語へ固定しています。
+v3.6.0.68は、Discord固有の登録処理、ユースケース、状態、外部通信、DB操作を分離しています。機能とv3系DBの互換性は維持し、表示言語は日本語へ固定しています。
 
 ## 全体構成
 
@@ -111,6 +111,11 @@ sequenceDiagram
 
 最大文字数の判定は`swap.py`の後に`SpeechService`が行います。優先辞書で保護された範囲の途中では切らず、その語の末尾まで残して「以下省略」を付けます。
 
+### 音声生成・再生の一時障害
+
+- `VoicevoxClient`はタイムアウト・接続切断などの一時的な通信障害に限り、短いバックオフを挟んで最大3回生成を試行します。HTTP 4xxなどの恒久エラーは再試行しません。
+- `VoiceService`は再生中のTTSファイルを`GuildSession`で追跡します。`s`または`/clear instant`による意図的なFFmpeg停止はエラー通知せず、意図しない終了だけを通知します。
+
 ## 接続状態
 
 ```mermaid
@@ -145,7 +150,7 @@ stateDiagram-v2
 | `dict.db` | `DictionaryRepository` | 読み辞書・音声辞書 |
 | `soundboards.db` | `SoundboardCacheRepository` | Soundboard候補キャッシュ |
 
-- v3.5.2はテーブル名・主要カラム・主キーをv3系から変更しません。
+- v3.6.0.68はテーブル名・主要カラム・主キーをv3系から変更しません。
 - `guild_config.Language`は旧DB互換性のため残しますが、実行時には参照しません。
 - 旧DBに不足する`Greeting`、`full_match`、`trigger_user_id`は起動時に補完します。
 - Bot終了時は`ManagedDiscordClient`がHTTPセッションとSQLite接続を閉じます。
