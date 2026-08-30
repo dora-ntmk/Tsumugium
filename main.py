@@ -45,6 +45,23 @@ voicevox_client = VoicevoxClient(
   tmp_dir=TMP_DIR,
   error_notifier=error_notifier,
 )
+
+
+class VoicevoxStartupError(RuntimeError):
+  """VOICEVOX疎通失敗によってBotの起動を中止する例外。"""
+
+
+async def check_voicevox_on_startup() -> None:
+  try:
+    engine_version = await voicevox_client.check_health()
+  except Exception:
+    raise VoicevoxStartupError(
+      f"VOICEVOXへ接続できないため起動を中止します: {VOICEVOX_URL}"
+    ) from None
+  print(f"VOICEVOX接続確認完了: {engine_version}")
+
+
+client.register_startup_check(check_voicevox_on_startup)
 removed_tmp_wavs = voicevox_client.cleanup_tmp_wav_files()
 if removed_tmp_wavs:
   print(f"起動時に一時WAVファイルを{removed_tmp_wavs}件削除しました")
@@ -137,4 +154,7 @@ sound_dict_view = SoundDictView(
   error_notifier,
 )
 
-client.run(DISCORD_BOT_TOKEN)
+try:
+  client.run(DISCORD_BOT_TOKEN)
+except VoicevoxStartupError as error:
+  print(error)

@@ -22,6 +22,7 @@ VOICEVOXを利用してDiscordのテキストチャンネルを読み上げるBo
 - Discord Botトークン
 
 FFmpegはPythonパッケージではなく、`ffmpeg`コマンドを実行できる状態である必要があります。
+Bot起動時にVOICEVOXへのHTTP疎通確認を行うため、先にVOICEVOX ENGINEを起動してください。疎通できない場合、Botは起動しません。
 
 ## セットアップ
 

@@ -9,6 +9,7 @@ class ManagedDiscordClient(discord.Client):
   def __init__(self, *args, error_notifier=None, **kwargs):
     super().__init__(*args, **kwargs)
     self._closeables = []
+    self._startup_checks = []
     self.error_notifier = error_notifier
 
   def set_error_notifier(self, error_notifier) -> None:
@@ -16,6 +17,15 @@ class ManagedDiscordClient(discord.Client):
 
   def register_closeable(self, closeable) -> None:
     self._closeables.append(closeable)
+
+  def register_startup_check(self, startup_check) -> None:
+    """Discord Gateway接続前に実行する非同期チェックを登録する。"""
+    self._startup_checks.append(startup_check)
+
+  async def setup_hook(self) -> None:
+    await super().setup_hook()
+    for startup_check in self._startup_checks:
+      await startup_check()
 
   async def close(self) -> None:
     try:

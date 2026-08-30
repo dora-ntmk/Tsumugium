@@ -113,6 +113,7 @@ sequenceDiagram
 
 ### 音声生成・再生の一時障害
 
+- 起動時はDiscord Gatewayへ接続する前にVOICEVOXの`/version`へHTTP疎通確認します。応答が得られない、2xx以外、または空の応答の場合は、起動中止理由をCLIへ1行で表示して終了します。
 - `VoicevoxClient`はタイムアウト・接続切断などの一時的な通信障害に限り、短いバックオフを挟んで最大3回生成を試行します。HTTP 4xxなどの恒久エラーは再試行しません。
 - `VoiceService`は再生中のTTSファイルを`GuildSession`で追跡します。`s`または`/clear instant`による意図的なFFmpeg停止はエラー通知せず、意図しない終了だけを通知します。
 

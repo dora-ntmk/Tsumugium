@@ -43,6 +43,8 @@ python -m unittest discover -s tests -v
 
 ## 4. Discord実機確認
 
+- [ ] VOICEVOX停止中は疎通エラーを出してBotが起動しない
+- [ ] VOICEVOX起動中はエンジンバージョンを出力してBotが起動する
 - [ ] Botが起動し、コマンド同期が完了する
 - [ ] `/version`がv3.6.0.68と更新日を表示する
 - [ ] `/join`・`/leave`が成功する

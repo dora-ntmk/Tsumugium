@@ -66,6 +66,21 @@ class VoicevoxClient:
       self._owns_session = True
     return self._session
 
+  async def check_health(self) -> str:
+    """VOICEVOXへ疎通できることを確認し、エンジンのバージョンを返す。"""
+    import aiohttp
+
+    session = await self._get_session()
+    async with session.get(
+        f"{self.url}/version",
+        timeout=aiohttp.ClientTimeout(total=10),
+    ) as response:
+      response.raise_for_status()
+      version = (await response.text()).strip()
+    if not version:
+      raise RuntimeError("VOICEVOX /version returned an empty response")
+    return version
+
   async def generate(
       self,
       msg: str,
