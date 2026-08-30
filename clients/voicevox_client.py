@@ -1,5 +1,6 @@
 """VOICEVOX HTTP APIへの非同期アクセスを担当する。"""
 
+import asyncio
 import json
 import os
 from typing import Any
@@ -84,27 +85,9 @@ class VoicevoxClient:
       if msgid is None:
         raise ValueError("msgid cannot be None")
 
-      session = await self._get_session()
-      async with session.post(
-          f"{self.url}/audio_query",
-          params={"text": msg, "speaker": speaker},
-      ) as response:
-        response.raise_for_status()
-        query = await response.json()
-
-      query["speedScale"] = speed
-      query["pitchScale"] = pitch
-      query["intonationScale"] = intonation
-      query["volumeScale"] = volume
-
-      async with session.post(
-          f"{self.url}/synthesis",
-          headers={"Content-Type": "application/json"},
-          params={"speaker": speaker},
-          data=json.dumps(query),
-      ) as response:
-        response.raise_for_status()
-        wav = await response.read()
+      wav = await self._generate_with_retry(
+        msg, speaker, speed, pitch, intonation, volume
+      )
 
       os.makedirs(self.tmp_dir, exist_ok=True)
       path = os.path.join(self.tmp_dir, f"{guildid}-{msgid}.wav")
@@ -122,6 +105,47 @@ class VoicevoxClient:
         },
       )
       return None
+
+  async def _generate_with_retry(
+      self, msg, speaker, speed, pitch, intonation, volume
+  ) -> bytes:
+    """VOICEVOXの一時的な切断だけを短い間隔で再試行する。"""
+    import aiohttp
+
+    attempts = 3
+    for attempt in range(attempts):
+      try:
+        session = await self._get_session()
+        async with session.post(
+            f"{self.url}/audio_query",
+            params={"text": msg, "speaker": speaker},
+        ) as response:
+          response.raise_for_status()
+          query = await response.json()
+
+        query["speedScale"] = speed
+        query["pitchScale"] = pitch
+        query["intonationScale"] = intonation
+        query["volumeScale"] = volume
+
+        async with session.post(
+            f"{self.url}/synthesis",
+            headers={"Content-Type": "application/json"},
+            params={"speaker": speaker},
+            data=json.dumps(query),
+        ) as response:
+          response.raise_for_status()
+          return await response.read()
+      except (
+          asyncio.TimeoutError,
+          aiohttp.ServerDisconnectedError,
+          aiohttp.ClientConnectionError,
+      ):
+        if attempt == attempts - 1:
+          raise
+        await asyncio.sleep(0.5 * (2 ** attempt))
+
+    raise RuntimeError("VOICEVOX retry loop ended unexpectedly")
 
   async def close(self) -> None:
     if (

@@ -52,6 +52,8 @@ class VoiceService:
         break
     session.skipping = True
     if instant and guild.voice_client and guild.voice_client.is_playing():
+      if session.current_tts_path is not None:
+        session.expected_stop_paths.add(session.current_tts_path)
       guild.voice_client.stop()
     session.clearing = True
     return cleared, pending_files
@@ -68,6 +70,9 @@ class VoiceService:
 
   def skip_current(self, guild) -> None:
     if guild.voice_client and guild.voice_client.is_playing():
+      session = self.get_session(guild.id)
+      if session.current_tts_path is not None:
+        session.expected_stop_paths.add(session.current_tts_path)
       guild.voice_client.stop()
 
   def connection_context(self, guild) -> dict[str, object]:
@@ -245,6 +250,7 @@ class VoiceService:
         return
       if not voice_client.is_connected():
         return
+      session.current_tts_path = path
       voice_client.play(
         voice,
         after=lambda error: asyncio.run_coroutine_threadsafe(
@@ -263,11 +269,19 @@ class VoiceService:
         )
     finally:
       if not playback_started:
+        session = self.get_session(guild.id)
+        if session.current_tts_path == path:
+          session.current_tts_path = None
         await self.safe_remove(path)
 
   async def _finish_playback(self, guild, path: str, error) -> None:
+    session = self.get_session(guild.id)
+    expected_stop = path in session.expected_stop_paths
+    session.expected_stop_paths.discard(path)
+    if session.current_tts_path == path:
+      session.current_tts_path = None
     await self.safe_remove(path)
-    if error is not None:
+    if error is not None and not expected_stop:
       voice_client = guild.voice_client
       disconnected = (
         voice_client is None or not voice_client.is_connected()

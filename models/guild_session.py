@@ -15,3 +15,5 @@ class GuildSession:
   pending_text_channel_id: int | None = None
   skipping: bool = False
   clearing: bool = False
+  current_tts_path: str | None = None
+  expected_stop_paths: set[str] = field(default_factory=set)
