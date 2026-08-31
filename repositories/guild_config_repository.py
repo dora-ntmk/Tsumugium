@@ -9,6 +9,8 @@ from config import BACKUP_DIR, DEFAULT_SPEAKER
 from services.error_notification_service import ensure_error_notifier
 
 
+DEFAULT_SPACED_SPEED = 75
+
 DEFAULTS = {
   "TextTarget": None,
   "VoiceTarget": None,
@@ -262,8 +264,11 @@ class GuildConfigRepository:
     speed = self.get(guild_id, "Speed")
     if spaced_out:
       spaced_speed = self.get(guild_id, "SpacedSpeed")
-      if spaced_speed is not None:
-        speed = spaced_speed
+      speed = (
+        DEFAULT_SPACED_SPEED
+        if spaced_speed is None
+        else spaced_speed
+      )
     return speed / 100.0
 
   def close(self) -> None:

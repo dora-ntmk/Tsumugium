@@ -71,8 +71,54 @@ def _is_single_unit(value: str, emoji_ja: dict) -> bool:
   return len(value) == 1 or value in emoji_ja
 
 
+def _join_spaced_unit_runs(text: str, emoji_ja: dict) -> str:
+  """文中にある異なる3文字以上の単一スペース区切り部分を連結する。"""
+  if '\t' in text or '\n' in text or '\r' in text:
+    return text
+
+  parts = _SPACE_RUN_RE.split(text)
+  start = 0
+  while start < len(parts):
+    end = start
+    while (
+        end + 2 < len(parts)
+        and len(parts[end + 1]) == 1
+        and parts[end + 1] in (' ', '\u3000')
+    ):
+      end += 2
+
+    if end > start:
+      preceded_by_multiple_spaces = (
+        start >= 2
+        and parts[start - 2]
+        and len(parts[start - 1]) > 1
+      )
+      followed_by_multiple_spaces = (
+        end + 2 < len(parts)
+        and parts[end + 2]
+        and len(parts[end + 1]) > 1
+      )
+      units = [
+        parts[index]
+        for index in range(start, end + 1, 2)
+        if _is_single_unit(parts[index], emoji_ja)
+      ]
+      if (
+          not preceded_by_multiple_spaces
+          and not followed_by_multiple_spaces
+          and len(units) >= 3
+          and len(set(units)) > 1
+      ):
+        for index in range(start + 1, end, 2):
+          parts[index] = ''
+
+    start = end + 2 if end > start else start + 2
+
+  return ''.join(parts)
+
+
 def _normalize_spaced_text(text: str, emoji_ja: dict) -> tuple[str, bool]:
-  """全文型を優先し、それ以外では同一文字反復だけを連結する。"""
+  """全文型を優先し、文中の空白区切り部分は通常速度のまま連結する。"""
   units = _SINGLE_SPACE_RE.split(text)
   if (
       len(units) >= 3
@@ -82,6 +128,7 @@ def _normalize_spaced_text(text: str, emoji_ja: dict) -> tuple[str, bool]:
   ):
     return ''.join(units), True
 
+  text = _join_spaced_unit_runs(text, emoji_ja)
   parts = _SPACE_RUN_RE.split(text)
   for index in range(1, len(parts) - 1, 2):
     separator = parts[index]

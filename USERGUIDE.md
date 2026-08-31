@@ -130,8 +130,8 @@ Discordサーバーへ登録済みのSoundboard音声を、特定のメッセー
 | `/setting speaker <speaker>` | VOICEVOX話者 | Botのデフォルト |
 | `/setting volume <volume>` | 音量 | 0〜100、初期値100 |
 | `/setting speed <speed>` | 読み上げ速度 | 50〜200、初期値100 |
-| `/setting spaced-speed <speed>` | 空白区切り文章の読み上げ速度 | 50〜200、未設定時は通常速度を継承 |
-| `/setting spaced-speed-reset` | 空白区切り文章の速度を通常速度の継承へ戻す | — |
+| `/setting spaced-speed <speed>` | 空白区切り文章の読み上げ速度 | 50〜200、未設定時は75 |
+| `/setting spaced-speed-reset` | 空白区切り文章の速度をデフォルトの75へ戻す | — |
 | `/setting max-char <chars>` | 最大読み上げ文字数 | 30〜200、`0`で50へ戻す |
 | `/setting auto-join <enabled>` | 対象VCへの自動接続 | 初期値False |
 | `/setting access-notice <enabled>` | VC入退室を音声で通知 | 初期値False |
@@ -153,7 +153,7 @@ Discordサーバーへ登録済みのSoundboard音声を、特定のメッセー
 9. 添付ファイルの説明
 10. 最大文字数の省略
 
-同一文字の空白区切り反復は文中でも連結します。異なる3文字以上を1文字ずつ空白で区切ったメッセージは、`SpacedSpeed`で読み上げます。未設定時は通常の`Speed`を継承します。
+同一文字の空白区切り反復は文中でも連結します。異なる3文字以上を1文字ずつ空白で区切ったメッセージは、`SpacedSpeed`で読み上げます。未設定時と`/setting spaced-speed-reset`実行後は、デフォルト速度75を使用します。「おはようお　は　よ　う」のように通常文と混在する場合は、空白だけを取り除いて通常の`Speed`で読み上げます。
 
 優先辞書はURLやメンションなどの標準変換より先に適用されます。
 

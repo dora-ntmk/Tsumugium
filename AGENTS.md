@@ -61,7 +61,7 @@ CREATE TABLE guild_config (
     Speaker       INTEGER,                      -- VOICEVOX話者ID（NULL=DEFAULT_SPEAKER使用）
     Volume        INTEGER NOT NULL DEFAULT 100, -- 音量 0〜100
     Speed         INTEGER NOT NULL DEFAULT 100, -- 速度 50〜200
-    SpacedSpeed   INTEGER DEFAULT NULL,         -- 空白区切り文章の速度 50〜200（NULL=Speed継承）
+    SpacedSpeed   INTEGER DEFAULT NULL,         -- 空白区切り文章の速度 50〜200（NULL=デフォルト75）
     MaxChar       INTEGER NOT NULL DEFAULT 50,  -- 最大文字数 30〜200
     AutoJoin      INTEGER NOT NULL DEFAULT 0,   -- 自動入室 0/1
     AccessNotice  INTEGER NOT NULL DEFAULT 0,   -- 入退室通知 0/1
@@ -71,7 +71,7 @@ CREATE TABLE guild_config (
 ```
 
 `Speaker` が NULL のとき `_to_python()` は環境変数 `DEFAULT_SPEAKER`（デフォルト8）を返す。  
-`SpacedSpeed` が NULL のとき、空白区切り文章も現在の `Speed` を継承する。`AutoJoin`/`AccessNotice`/`Greeting` はSQLite上は 0/1、Python上は bool で扱う（`_BOOL_KEYS` で変換）。
+`SpacedSpeed` が NULL のとき、空白区切り文章はデフォルト速度75を使用する。`/setting spaced-speed-reset`も値をNULLへ戻すため、実効速度は75になる。`AutoJoin`/`AccessNotice`/`Greeting` はSQLite上は 0/1、Python上は bool で扱う（`_BOOL_KEYS` で変換）。
 既存DBに`SpacedSpeed`を追加する直前に、`BACKUP_DIR`へ`backup_config_YYYYMMDD_HHMMSS_v3-latest.db`を作成する。バックアップ失敗時はスキーマ変更せず起動を中止し、この移行前バックアップは定時バックアップのローテーション対象外とする。
 `Language` は既存DBとの互換性のためカラムのみ維持し、v3.5の設定API・コマンドからは参照しない。Botの表示言語は日本語固定。
 
@@ -139,7 +139,7 @@ CREATE TABLE user_dictionary (
 
 処理順は以下の通り（**順番変更はバグの原因になるため注意**）:
 
-0. 空白区切り文字列を正規化。同一文字反復は文中でも連結し、異なる3文字以上の全文は `spaced_out=True` にする
+0. 空白区切り文字列を正規化。同一文字反復と異なる3文字以上の部分列は文中でも連結し、メッセージ全文が異なる3文字以上の空白区切りなら `spaced_out=True` にする。通常文との混在時はフラグを立てない
 1a. 正規化後のメッセージ全文が `sound_id` 付き辞書エントリと**完全一致**（`full_match=1`）かつ `trigger_user_id` 条件を満たす → サウンドボード再生してスキップ
 1b. `sound_id` 付き辞書エントリのうち `full_match=0` のもので正規化後のメッセージ中に**部分一致**し `trigger_user_id` 条件を満たす → サウンドボード再生してスキップ（1a より後に評価）
 2. 優先辞書（`is_priority=1`）を適用

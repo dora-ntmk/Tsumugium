@@ -69,7 +69,7 @@ class Setting:
         embed.add_field(name="速さ", value=str(cfg["Speed"]), inline=True)
         spaced_speed = cfg["SpacedSpeed"]
         spaced_speed_display = (
-          f"通常速度を継承 ({cfg['Speed']})"
+          "デフォルト (75)"
           if spaced_speed is None
           else str(spaced_speed)
         )
@@ -397,7 +397,7 @@ class Setting:
 
     @setting_group.command(
       name="spaced-speed-reset",
-      description="空白区切り文章の速度を通常速度の継承へ戻します",
+      description="空白区切り文章の速度をデフォルトの75へ戻します",
     )
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_spaced_speed_reset(ctx):
@@ -407,7 +407,7 @@ class Setting:
         await ctx.edit_original_response(
           embed=make_embed(
             "設定完了",
-            "SpacedSpeed を通常の読み上げ速度を継承する設定に戻しました",
+            "SpacedSpeed をデフォルトの 75 に戻しました",
             embed_type=EmbedType.SUCCESS,
           )
         )
