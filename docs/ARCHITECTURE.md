@@ -19,11 +19,13 @@ flowchart LR
     ConfigRepo["GuildConfigRepository"]
     DictRepo["DictionaryRepository"]
     SoundRepo["SoundboardCacheRepository"]
+    UserRepo["UserConfigRepository"]
     Voicevox["VoicevoxClient"]
     SoundClient["DiscordSoundboardClient"]
     ConfigDB[("config.db")]
     DictDB[("dict.db")]
     SoundDB[("soundboards.db")]
+    UserDB[("users.db")]
     Engine["VOICEVOX ENGINE"]
     SoundAPI["Discord Soundboard API"]
 
@@ -47,6 +49,7 @@ flowchart LR
     ConfigRepo --> ConfigDB
     DictRepo --> DictDB
     SoundRepo --> SoundDB
+    UserRepo --> UserDB
     Voicevox --> Engine
     SoundClient --> SoundAPI
 ```
@@ -152,12 +155,14 @@ stateDiagram-v2
 | `config.db` | `GuildConfigRepository` | サーバー設定 |
 | `dict.db` | `DictionaryRepository` | 読み辞書・音声辞書 |
 | `soundboards.db` | `SoundboardCacheRepository` | Soundboard候補キャッシュ |
+| `users.db` | `UserConfigRepository` | サーバー横断のユーザー読み・ユーザー別個人辞書（準備領域） |
 
 - v4.0.0.68は`guild_config`へ`SpacedSpeed`を追加し、前処理APIを`PreprocessResult`へ変更します。v3へ戻す場合は移行前バックアップを使用してください。
 - `guild_config.Language`は旧DB互換性のため残しますが、実行時には参照しません。
 - 旧DBに不足する`Greeting`、`SpacedSpeed`、`full_match`、`trigger_user_id`は起動時に補完します。
 - `SpacedSpeed`を追加する場合は、変更前の`config.db`を`backup_config_YYYYMMDD_HHMMSS_v3-latest.db`として先に保存します。バックアップに失敗した場合はDBを変更せず起動を中止し、移行前バックアップは通常ローテーションから除外します。
 - Bot終了時は`ManagedDiscordClient`がHTTPセッションとSQLite接続を閉じます。
+- `users.db`は起動時にテーブルを作成して定時バックアップ対象に含めますが、v4.0.0.68では読み上げ処理やDiscordコマンドから参照しません。
 
 ## 変更時の注意点
 

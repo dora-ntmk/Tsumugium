@@ -18,10 +18,12 @@ from config import (
   SOUND_BOARDS_DB,
   STATUS_MESSAGE,
   TMP_DIR,
+  USER_CONFIG_DB,
   VERSION,
   VOICEVOX_URL,
 )
 from repositories.guild_config_repository import GuildConfigRepository
+from repositories.user_config_repository import UserConfigRepository
 from services.connection_service import ConnectionService
 from services.error_notification_service import ErrorNotificationService
 from services.message_service import MessageService
@@ -74,6 +76,7 @@ server_config = GuildConfigRepository(
   error_notifier=error_notifier,
 )
 dict_manager = DictManager(DICT_DB, error_notifier)
+user_config = UserConfigRepository(USER_CONFIG_DB)
 sound_dict = SoundDict(dict_manager)
 sound_boards = UpdateSoundBoards(
   SOUND_BOARDS_DB,
@@ -83,6 +86,7 @@ sound_boards = UpdateSoundBoards(
 )
 client.register_closeable(server_config)
 client.register_closeable(dict_manager)
+client.register_closeable(user_config)
 client.register_closeable(sound_boards)
 
 voice_service = VoiceService(
@@ -134,7 +138,7 @@ lifecycle_cog = LifecycleCog(
   server_config,
   dict_manager,
   sound_boards,
-  backup_databases=[SERVER_CONFIG_DB, DICT_DB],
+  backup_databases=[SERVER_CONFIG_DB, DICT_DB, USER_CONFIG_DB],
   status_service=status_service,
   error_notifier=error_notifier,
 )

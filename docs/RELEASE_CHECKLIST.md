@@ -41,6 +41,7 @@ python -m unittest discover -s tests -v
 - [ ] `dict.db`の読み辞書・音声辞書を表示できる
 - [ ] `full_match`・`trigger_user_id`が不足する旧DBはコピー上で自動補完される
 - [ ] `soundboards.db`を起動時のDiscord一覧へ同期できる
+- [ ] `users.db`に`user_settings`と`user_dictionary`が作成され、ユーザー削除時に個人辞書も削除される
 - [ ] 各コピーで`PRAGMA integrity_check`が`ok`になる
 - [ ] 検証前後で既存行が意図せず変更されていない
 
@@ -64,6 +65,7 @@ python -m unittest discover -s tests -v
 - [ ] AccessNoticeが入退室を読み上げる
 - [ ] 強制切断後の再接続で一時読み上げチャンネルが復元される
 - [ ] Bot終了時にHTTP・SQLiteのリソース終了エラーが出ない
+- [ ] 定時バックアップ対象に`users.db`が含まれる
 
 ## 5. リリース直前
 

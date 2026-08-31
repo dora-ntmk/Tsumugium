@@ -231,3 +231,4 @@ tests/
 db/config*
 db/dict*
 db/soundboards*
+db/users*

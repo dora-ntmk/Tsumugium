@@ -39,6 +39,7 @@ python -m pip install -r requirements.txt
 DISCORD_BOT_TOKEN=YOUR_DISCORD_BOT_TOKEN
 VOICEVOX_URL=http://127.0.0.1:50021
 DEFAULT_SPEAKER=8
+USER_CONFIG_DB=db/users.db
 STATUS_MESSAGE="{voice_connections}/{guilds}個のVCに接続中"
 ```
 

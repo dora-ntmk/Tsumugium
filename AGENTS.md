@@ -31,6 +31,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `repositories/guild_config_repository.py` | `config.db`のSQLite操作、設定値バリデーション、VOICEVOX値変換 |
 | `repositories/dictionary_repository.py` | `dict.db`のSQLite操作と前処理用`DictionarySnapshot`の生成 |
 | `repositories/soundboard_cache_repository.py` | `soundboards.db`のSQLite操作とサウンド一覧同期 |
+| `repositories/user_config_repository.py` | `users.db`のユーザー読み・ユーザー別個人辞書を管理する準備Repository |
 | `setting.py` | `/setting` コマンド群（サーバー管理者向け設定変更） |
 | `presentation/embeds.py` | Discord Embedの共通ひな形（色・タイトル・本文） |
 | `presentation/error_handler.py` | コマンド実行時の共通エラー応答 |
@@ -109,6 +110,26 @@ CREATE TABLE soundboards (
 ```
 
 `/sounddict add` のオートコンプリート用キャッシュ。Discordイベント（`GUILD_SOUNDBOARD_SOUND_*`）で同期。
+
+### users.db — `user_settings` / `user_dictionary`
+
+```sql
+CREATE TABLE user_settings (
+    user_id TEXT PRIMARY KEY,
+    reading TEXT DEFAULT NULL
+)
+
+CREATE TABLE user_dictionary (
+    user_id  TEXT NOT NULL,
+    word     TEXT NOT NULL,
+    reading  TEXT NOT NULL,
+    added_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+    PRIMARY KEY (user_id, word),
+    FOREIGN KEY (user_id) REFERENCES user_settings(user_id) ON DELETE CASCADE
+)
+```
+
+ユーザー設定はサーバー横断で扱う。`reading`は将来のメンション読み、`user_dictionary`はそのユーザーが発言した場合だけ適用する個人辞書の準備領域であり、v4.0.0.68時点では読み上げパイプラインやコマンドへ接続しない。
 
 ---
 
@@ -197,7 +218,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - 稼働中の音声生成は全ギルドで1件ずつ処理し、一時的なHTTP障害だけを受付から最大30秒再試行する。一時切断後はClient所有のHTTPセッションを再生成する。
 - 両Clientは`aiohttp.ClientSession`を初回通信時に生成して再利用する。通常実行経路で同期`requests`は使用しない。
 - `VoiceService`と`UpdateSoundBoards`はHTTPのURL・認証方法を知らず、Clientのメソッドだけを呼ぶ。
-- Bot終了時は`ManagedDiscordClient.close()`がHTTPセッションと3つのSQLite接続を閉じる。
+- Bot終了時は`ManagedDiscordClient.close()`がHTTPセッションと4つのSQLite接続を閉じる。
 
 ---
 
@@ -253,6 +274,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `SERVER_CONFIG_DB` | `db/config.db` | サーバー設定DB |
 | `DICT_DB` | `db/dict.db` | 辞書DB |
 | `SOUND_BOARDS_DB` | `db/soundboards.db` | サウンドボードキャッシュDB |
+| `USER_CONFIG_DB` | `db/users.db` | ユーザー読み・ユーザー別個人辞書DB |
 | `EMOJI_JA_JSON` | `db/emoji_ja.json` | 絵文字→日本語短縮名マッピング |
 | `SPEAKERS_JSON` | `db/speakers.json` | VOICEVOX話者リスト |
 | `TMP_DIR` | `tmp` | 音声ファイル一時保存先 |
