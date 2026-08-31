@@ -19,15 +19,15 @@ class SpeechService:
       return
     speaker = self.server_config.get(guild_id, "Speaker")
     volume = self.server_config.volume_to_vvtts(guild_id)
-    speed = self.server_config.speed_to_vvtts(guild_id)
     reference = getattr(message, "reference", None)
     if reference is not None and reference.type is discord.MessageReferenceType.forward:
       text = "転送済みメッセージ"
     else:
       text = message.content
     replaced_ranges = []
+    spaced_out = False
     if self.dict_manager is not None:
-      text, replaced_ranges, sound_id = self.dict_manager.preprocess_text(
+      result = self.dict_manager.preprocess_text(
         text,
         guild_id,
         message.guild,
@@ -35,8 +35,13 @@ class SpeechService:
         message.mentions,
         author_id=message.author.id,
       )
-      if sound_id is not None:
-        await self.voice_service.enqueue(message.guild, SoundboardItem(sound_id))
+      text = result.text
+      replaced_ranges = result.replaced_ranges
+      spaced_out = result.spaced_out
+      if result.sound_id is not None:
+        await self.voice_service.enqueue(
+          message.guild, SoundboardItem(result.sound_id)
+        )
         return
     if sounddict_only:
       return
@@ -48,6 +53,10 @@ class SpeechService:
           cut = end
           break
       text = text[:cut] + ",以下省略"
+    speed = self.server_config.speed_to_vvtts(
+      guild_id,
+      spaced_out=spaced_out,
+    )
     path = await self.generate(
       text,
       guild_id,

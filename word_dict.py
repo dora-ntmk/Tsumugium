@@ -17,6 +17,7 @@ from dict_view import DictViewPaginator
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error
 from repositories.dictionary_repository import DictionaryRepository
+from models.preprocess_result import PreprocessResult
 from services.error_notification_service import ensure_error_notifier
 import swap
 from swap import (
@@ -154,7 +155,7 @@ class DictManager:
     """reading と sound_id 両方を削除する（行ごと削除）。"""
     self.repository.delete_entry(guild_id, word)
 
-  def preprocess_text(self, text: str, guild_id: int, guild, attachments, mentions=None, author_id: Optional[int] = None) -> tuple[str, list[tuple[int, int]], str | None]:
+  def preprocess_text(self, text: str, guild_id: int, guild, attachments, mentions=None, author_id: Optional[int] = None) -> PreprocessResult:
     dictionary = self.repository.get_preprocessing_snapshot(guild_id)
     return swap.preprocess_text(
       text,

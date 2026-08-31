@@ -119,12 +119,13 @@ class ConnectionService:
   async def enqueue_notice(self, guild, member, joined: bool) -> None:
     action = "入室" if joined else "退室"
     notice_text = f"{member.display_name}さんが{action}しました"
-    notice_text, _, _ = self.dict_manager.preprocess_text(
+    preprocess_result = self.dict_manager.preprocess_text(
       notice_text,
       guild.id,
       guild,
       [],
     )
+    notice_text = preprocess_result.text
     speaker = self.server_config.get(guild.id, "Speaker")
     volume = self.server_config.volume_to_vvtts(guild.id)
     speed = self.server_config.speed_to_vvtts(guild.id)

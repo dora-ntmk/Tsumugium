@@ -1,6 +1,6 @@
 # Tsumugium — Discord 読み上げBot 仕様書
 
-**バージョン**: 3.6.0.68 / **最終更新**: 2026-08-31
+**バージョン**: 4.0.0.68 / **最終更新**: 2026-08-31
 VOICEVOXを使ったDiscordテキスト読み上げBot。
 
 全体の依存関係と処理フローは[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)を参照。
@@ -37,6 +37,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `models/audio_item.py` | 再生キュー要素（`TTSItem` / `SoundboardItem`）の型定義 |
 | `models/guild_session.py` | ギルド単位のキュー・タスク・一時チャンネル・スキップ状態を保持する `GuildSession` |
 | `models/dictionary_snapshot.py` | Repositoryから純粋な前処理へ渡す読み辞書・Soundboard条件のスナップショット |
+| `models/preprocess_result.py` | 前処理済みテキスト・置換範囲・Soundboard ID・空白区切り文章フラグを保持する結果型 |
 | `config.py` | `.env` から環境変数をロードし定数として公開 |
 | `backup.py` | SQLiteの定時バックアップとローテーション管理 |
 | `migration.py` | 旧worddict.db / sounddict.db → 統合 dict.db へのマイグレーションツール |
@@ -57,6 +58,7 @@ CREATE TABLE guild_config (
     Speaker       INTEGER,                      -- VOICEVOX話者ID（NULL=DEFAULT_SPEAKER使用）
     Volume        INTEGER NOT NULL DEFAULT 100, -- 音量 0〜100
     Speed         INTEGER NOT NULL DEFAULT 100, -- 速度 50〜200
+    SpacedSpeed   INTEGER DEFAULT NULL,         -- 空白区切り文章の速度 50〜200（NULL=Speed継承）
     MaxChar       INTEGER NOT NULL DEFAULT 50,  -- 最大文字数 30〜200
     AutoJoin      INTEGER NOT NULL DEFAULT 0,   -- 自動入室 0/1
     AccessNotice  INTEGER NOT NULL DEFAULT 0,   -- 入退室通知 0/1
@@ -66,7 +68,8 @@ CREATE TABLE guild_config (
 ```
 
 `Speaker` が NULL のとき `_to_python()` は環境変数 `DEFAULT_SPEAKER`（デフォルト8）を返す。  
-`AutoJoin`/`AccessNotice`/`Greeting` はSQLite上は 0/1、Python上は bool で扱う（`_BOOL_KEYS` で変換）。
+`SpacedSpeed` が NULL のとき、空白区切り文章も現在の `Speed` を継承する。`AutoJoin`/`AccessNotice`/`Greeting` はSQLite上は 0/1、Python上は bool で扱う（`_BOOL_KEYS` で変換）。
+既存DBに`SpacedSpeed`を追加する直前に、`BACKUP_DIR`へ`backup_config_YYYYMMDD_HHMMSS_v3-latest.db`を作成する。バックアップ失敗時はスキーマ変更せず起動を中止し、この移行前バックアップは定時バックアップのローテーション対象外とする。
 `Language` は既存DBとの互換性のためカラムのみ維持し、v3.5の設定API・コマンドからは参照しない。Botの表示言語は日本語固定。
 
 ### dict.db — `dict`
@@ -113,8 +116,9 @@ CREATE TABLE soundboards (
 
 処理順は以下の通り（**順番変更はバグの原因になるため注意**）:
 
-1a. メッセージ全文が `sound_id` 付き辞書エントリと**完全一致**（`full_match=1`）かつ `trigger_user_id` 条件を満たす → サウンドボード再生してスキップ
-1b. `sound_id` 付き辞書エントリのうち `full_match=0` のものでメッセージ中に**部分一致**し `trigger_user_id` 条件を満たす → サウンドボード再生してスキップ（1a より後に評価）
+0. 空白区切り文字列を正規化。同一文字反復は文中でも連結し、異なる3文字以上の全文は `spaced_out=True` にする
+1a. 正規化後のメッセージ全文が `sound_id` 付き辞書エントリと**完全一致**（`full_match=1`）かつ `trigger_user_id` 条件を満たす → サウンドボード再生してスキップ
+1b. `sound_id` 付き辞書エントリのうち `full_match=0` のもので正規化後のメッセージ中に**部分一致**し `trigger_user_id` 条件を満たす → サウンドボード再生してスキップ（1a より後に評価）
 2. 優先辞書（`is_priority=1`）を適用
 3. URLパターンをリンク説明文に変換（YouTube→ユーチューブへのリンク、等）
 4. **カスタム絵文字**（`<:name:id>` / `<a:name:id>`）をフィルタ ← **wwwより必ず前に実行**
@@ -130,7 +134,7 @@ CREATE TABLE soundboards (
 
 `_apply_regex` / `_apply_dict` は `(text, protected: bool)` のセグメントリストで動作。`protected=True` のセグメントは以降の処理でスキップされる。
 
-`swap.preprocess_text(text, dictionary, emoji_ja, guild, attachments, mentions, author_id=None)` は `(text, replaced_ranges, sound_id)` を返す。`dictionary` は`DictionaryRepository`が生成した`DictionarySnapshot`。`swap.py`はSQLite接続を受け取らない。
+`swap.preprocess_text(text, dictionary, emoji_ja, guild, attachments, mentions, author_id=None)` は `PreprocessResult(text, replaced_ranges, sound_id, spaced_out)` を返す。`dictionary` は`DictionaryRepository`が生成した`DictionarySnapshot`。`swap.py`はSQLite接続を受け取らない。
 
 `DictManager.preprocess_text(text, guild_id, guild, attachments, mentions, author_id=None)` は辞書サービスの窓口であり、内部でRepositoryからスナップショットを取得して`swap.preprocess_text`を呼ぶ。最大文字数チェック・トリミングは前処理後に`SpeechService`が行う。
 
@@ -173,6 +177,8 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/setting speaker` | `speaker` | manage_guild |
 | `/setting volume` | `volume: int (0〜100)` | manage_guild |
 | `/setting speed` | `speed: int (50〜200)` | manage_guild |
+| `/setting spaced-speed` | `speed: int (50〜200)` | manage_guild |
+| `/setting spaced-speed-reset` | — | manage_guild |
 | `/setting max-char` | `chars: int (30〜200)` | manage_guild |
 | `/setting auto-join` | `enabled: bool` | manage_guild |
 | `/setting access-notice` | `enabled: bool` | manage_guild |

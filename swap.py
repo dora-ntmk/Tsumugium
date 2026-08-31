@@ -10,6 +10,7 @@ import os
 import re
 
 from models.dictionary_snapshot import DictionarySnapshot
+from models.preprocess_result import PreprocessResult
 
 _CUSTOM_EMOJI_RE = re.compile(r'<a?:[\w/:%#$&?()~.=+\-]+:\d+>')
 _STANDARD_EMOJI_RE = re.compile(r'^:([\w/:%#$&?()~.=+\-]+):$')
@@ -61,6 +62,38 @@ _URL_PATTERNS = [
 _IMAGE_EXTS = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tiff'}
 _VIDEO_EXTS = {'.mp4', '.mov', '.avi', '.webm', '.mkv', '.flv'}
 _AUDIO_EXTS = {'.mp3', '.wav', '.ogg', '.m4a', '.flac', '.aac'}
+
+_SINGLE_SPACE_RE = re.compile(r'[ \u3000]')
+_SPACE_RUN_RE = re.compile(r'([ \u3000]+)')
+
+
+def _is_single_unit(value: str, emoji_ja: dict) -> bool:
+  return len(value) == 1 or value in emoji_ja
+
+
+def _normalize_spaced_text(text: str, emoji_ja: dict) -> tuple[str, bool]:
+  """全文型を優先し、それ以外では同一文字反復だけを連結する。"""
+  units = _SINGLE_SPACE_RE.split(text)
+  if (
+      len(units) >= 3
+      and all(units)
+      and all(_is_single_unit(unit, emoji_ja) for unit in units)
+      and len(set(units)) > 1
+  ):
+    return ''.join(units), True
+
+  parts = _SPACE_RUN_RE.split(text)
+  for index in range(1, len(parts) - 1, 2):
+    separator = parts[index]
+    before = parts[index - 1]
+    after = parts[index + 1]
+    if (
+        len(separator) == 1
+        and before == after
+        and _is_single_unit(before, emoji_ja)
+    ):
+      parts[index] = ''
+  return ''.join(parts), False
 
 
 def _apply_dict(segments: list, mapping: dict) -> list:
@@ -118,7 +151,8 @@ def preprocess_text(
     attachments,
     mentions=None,
     author_id=None,
-) -> tuple[str, list[tuple[int, int]], str | None]:
+) -> PreprocessResult:
+  text, spaced_out = _normalize_spaced_text(text, emoji_ja)
   segments = [(text, False)]
   author_str = str(author_id) if author_id is not None else None
 
@@ -130,7 +164,7 @@ def preprocess_text(
       or entry.trigger_user_id == author_str
     )
     if entry.full_match and entry.word == text and user_matches:
-      return text, [], entry.sound_id
+      return PreprocessResult(text, sound_id=entry.sound_id, spaced_out=spaced_out)
 
   # 1b. 部分一致 (full_match=0)
   for entry in dictionary.sounds:
@@ -140,7 +174,7 @@ def preprocess_text(
       or entry.trigger_user_id == author_str
     )
     if not entry.full_match and entry.word in text and user_matches:
-      return text, [], entry.sound_id
+      return PreprocessResult(text, sound_id=entry.sound_id, spaced_out=spaced_out)
 
   # 2. 優先辞書（URL処理より前に適用）
   if dictionary.priority_readings:
@@ -255,4 +289,4 @@ def preprocess_text(
     else:
       result += ',添付ファイル'
 
-  return result, replaced_ranges, None
+  return PreprocessResult(result, replaced_ranges, spaced_out=spaced_out)
