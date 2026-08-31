@@ -6,11 +6,19 @@ from models.audio_item import SoundboardItem, TTSItem
 
 
 class SpeechService:
-  def __init__(self, vvtts, server_config, dict_manager, voice_service):
+  def __init__(
+      self,
+      vvtts,
+      server_config,
+      dict_manager,
+      voice_service,
+      user_reading_service=None,
+  ):
     self.vvtts = vvtts
     self.server_config = server_config
     self.dict_manager = dict_manager
     self.voice_service = voice_service
+    self.user_reading_service = user_reading_service
 
   async def add_message(self, message, *, sounddict_only: bool = False) -> None:
     guild_id = message.guild.id
@@ -27,6 +35,12 @@ class SpeechService:
     replaced_ranges = []
     spaced_out = False
     if self.dict_manager is not None:
+      user_readings = {}
+      if self.user_reading_service is not None:
+        for user in message.mentions:
+          user_readings[str(user.id)] = (
+            self.user_reading_service.get_reading(user)
+          )
       result = self.dict_manager.preprocess_text(
         text,
         guild_id,
@@ -34,6 +48,7 @@ class SpeechService:
         message.attachments,
         message.mentions,
         author_id=message.author.id,
+        user_readings=user_readings,
       )
       text = result.text
       replaced_ranges = result.replaced_ranges

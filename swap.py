@@ -151,6 +151,7 @@ def preprocess_text(
     attachments,
     mentions=None,
     author_id=None,
+    user_readings=None,
 ) -> PreprocessResult:
   text, spaced_out = _normalize_spaced_text(text, emoji_ja)
   segments = [(text, False)]
@@ -208,9 +209,15 @@ def preprocess_text(
 
   # 4f. User mentions
   mention_map = {str(u.id): u.display_name for u in (mentions or [])}
+  user_reading_map = {
+    str(user_id): reading
+    for user_id, reading in (user_readings or {}).items()
+  }
 
   def _mention_user(m):
     uid = m.group(1)
+    if uid in user_reading_map:
+      return f'{user_reading_map[uid]}へのメンション,'
     if uid in mention_map:
       return f'{mention_map[uid]}へのメンション,'
     if guild:

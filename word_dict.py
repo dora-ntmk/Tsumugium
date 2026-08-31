@@ -155,7 +155,16 @@ class DictManager:
     """reading と sound_id 両方を削除する（行ごと削除）。"""
     self.repository.delete_entry(guild_id, word)
 
-  def preprocess_text(self, text: str, guild_id: int, guild, attachments, mentions=None, author_id: Optional[int] = None) -> PreprocessResult:
+  def preprocess_text(
+      self,
+      text: str,
+      guild_id: int,
+      guild,
+      attachments,
+      mentions=None,
+      author_id: Optional[int] = None,
+      user_readings=None,
+  ) -> PreprocessResult:
     dictionary = self.repository.get_preprocessing_snapshot(guild_id)
     return swap.preprocess_text(
       text,
@@ -165,6 +174,7 @@ class DictManager:
       attachments,
       mentions,
       author_id=author_id,
+      user_readings=user_readings,
     )
 
 

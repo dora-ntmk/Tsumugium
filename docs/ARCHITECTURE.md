@@ -61,8 +61,8 @@ flowchart LR
 | レイヤー | 主な場所 | 責務 |
 |---|---|---|
 | Composition Root | `main.py` | オブジェクト生成、依存注入、Bot起動 |
-| Discord登録層 | `cogs/`、`setting.py`、`word_dict.py`、`sound_dict.py` | コマンド・イベントを登録しServiceへ渡す |
-| Service | `services/` | 接続、対象判定、音声生成判断、再生キュー管理 |
+| Discord登録層 | `cogs/`、`setting.py`、`word_dict.py`、`sound_dict.py` | コマンド・イベントを登録しService／Repositoryへ渡す |
+| Service | `services/` | 接続、対象判定、音声生成判断、ユーザー読み方の解決、再生キュー管理 |
 | Runtime Model | `models/` | キュー要素、ギルド単位状態、辞書スナップショット |
 | Presentation | `presentation/` | 日本語Embedの共通ひな形とエラー応答 |
 | Repository | `repositories/` | SQLiteの読み書きと既存スキーマ補完 |
@@ -155,14 +155,14 @@ stateDiagram-v2
 | `config.db` | `GuildConfigRepository` | サーバー設定 |
 | `dict.db` | `DictionaryRepository` | 読み辞書・音声辞書 |
 | `soundboards.db` | `SoundboardCacheRepository` | Soundboard候補キャッシュ |
-| `users.db` | `UserConfigRepository` | サーバー横断のユーザー読み・ユーザー別個人辞書（準備領域） |
+| `users.db` | `UserConfigRepository` | サーバー横断のユーザー読みと、準備領域であるユーザー別個人辞書 |
 
 - v4.0.0.68は`guild_config`へ`SpacedSpeed`を追加し、前処理APIを`PreprocessResult`へ変更します。v3へ戻す場合は移行前バックアップを使用してください。
 - `guild_config.Language`は旧DB互換性のため残しますが、実行時には参照しません。
 - 旧DBに不足する`Greeting`、`SpacedSpeed`、`full_match`、`trigger_user_id`は起動時に補完します。
 - `SpacedSpeed`を追加する場合は、変更前の`config.db`を`backup_config_YYYYMMDD_HHMMSS_v3-latest.db`として先に保存します。バックアップに失敗した場合はDBを変更せず起動を中止し、移行前バックアップは通常ローテーションから除外します。
 - Bot終了時は`ManagedDiscordClient`がHTTPセッションとSQLite接続を閉じます。
-- `users.db`は起動時にテーブルを作成して定時バックアップ対象に含めますが、v4.0.0.68では読み上げ処理やDiscordコマンドから参照しません。
+- `users.db`は起動時にテーブルを作成して定時バックアップ対象に含めます。`/user-reading`はギルドとDMの両方から本人の`reading`を更新し、常にephemeralで応答します。`UserReadingService`が保存済みの読み方をDiscordの表示名より優先する共通名前解決を提供し、メンションと入退室通知の双方から利用します。
 
 ## 変更時の注意点
 

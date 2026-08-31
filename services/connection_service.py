@@ -19,12 +19,14 @@ class ConnectionService:
       speech_service,
       voice_service,
       error_notifier=None,
+      user_reading_service=None,
   ):
     self.server_config = server_config
     self.dict_manager = dict_manager
     self.speech_service = speech_service
     self.voice_service = voice_service
     self.error_notifier = ensure_error_notifier(error_notifier)
+    self.user_reading_service = user_reading_service
     self.voluntary_disconnects: set[int] = set()
     self._connection_locks: dict[int, asyncio.Lock] = {}
     self._voice_state_stages: dict[int, str] = {}
@@ -118,7 +120,10 @@ class ConnectionService:
 
   async def enqueue_notice(self, guild, member, joined: bool) -> None:
     action = "入室" if joined else "退室"
-    notice_text = f"{member.display_name}さんが{action}しました"
+    member_reading = member.display_name
+    if self.user_reading_service is not None:
+      member_reading = self.user_reading_service.get_reading(member)
+    notice_text = f"{member_reading}さんが{action}しました"
     preprocess_result = self.dict_manager.preprocess_text(
       notice_text,
       guild.id,

@@ -18,10 +18,12 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `services/voice_service.py` | ギルド別キュー、再生、スキップ、クリア、キープアライブを担当。外部API通信はClientへ委譲 |
 | `services/error_notification_service.py` | エラーのCLI出力と、任意設定された運営者へのDiscord Embed形式DM通知を担当 |
 | `services/status_service.py` | STATUS_MESSAGEの検証・変数展開と、接続状態に応じたDiscordステータス更新を担当 |
+| `services/user_reading_service.py` | ユーザー設定の読み方を優先し、未設定時はDiscord表示名へ戻す共通名前解決を担当 |
 | `cogs/connection_cog.py` | `/join`・`/leave`とVC状態イベントを`ConnectionService`へ接続する登録層 |
 | `cogs/playback_cog.py` | `/clear`と`on_message`を読み上げサービスへ接続する登録層 |
 | `cogs/general_cog.py` | `/version`を登録する一般コマンド層 |
 | `cogs/lifecycle_cog.py` | 起動・サーバー参加退出・Soundboard更新イベントを登録するライフサイクル層 |
+| `cogs/user_cog.py` | DMを含むユーザー単位設定コマンドを登録する層 |
 | `clients/voicevox_client.py` | 再利用可能な非同期HTTPセッションでVOICEVOX生成とWAV保存を担当 |
 | `clients/discord_soundboard_client.py` | Discord Soundboard一覧取得・再生APIを担当する非同期HTTPクライアント |
 | `clients/managed_discord_client.py` | Bot終了時に外部HTTP・SQLiteリソースを閉じるDiscord Client |
@@ -31,7 +33,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `repositories/guild_config_repository.py` | `config.db`のSQLite操作、設定値バリデーション、VOICEVOX値変換 |
 | `repositories/dictionary_repository.py` | `dict.db`のSQLite操作と前処理用`DictionarySnapshot`の生成 |
 | `repositories/soundboard_cache_repository.py` | `soundboards.db`のSQLite操作とサウンド一覧同期 |
-| `repositories/user_config_repository.py` | `users.db`のユーザー読み・ユーザー別個人辞書を管理する準備Repository |
+| `repositories/user_config_repository.py` | `users.db`のユーザー読みと、準備領域であるユーザー別個人辞書を管理するRepository |
 | `setting.py` | `/setting` コマンド群（サーバー管理者向け設定変更） |
 | `presentation/embeds.py` | Discord Embedの共通ひな形（色・タイトル・本文） |
 | `presentation/error_handler.py` | コマンド実行時の共通エラー応答 |
@@ -129,7 +131,7 @@ CREATE TABLE user_dictionary (
 )
 ```
 
-ユーザー設定はサーバー横断で扱う。`reading`は将来のメンション読み、`user_dictionary`はそのユーザーが発言した場合だけ適用する個人辞書の準備領域であり、v4.0.0.68時点では読み上げパイプラインやコマンドへ接続しない。
+ユーザー設定はサーバー横断で扱う。`reading`は`/user-reading`で本人が設定し、メンションと入退室通知の読み上げ時にDiscordの表示名より優先する。名前解決は`UserReadingService.get_reading()`へ集約し、未設定時はDiscord表示名を返す。`user_dictionary`はそのユーザーが発言した場合だけ適用する個人辞書の準備領域であり、v4.0.0.68時点では読み上げパイプラインやコマンドへ接続しない。
 
 ---
 
@@ -145,7 +147,7 @@ CREATE TABLE user_dictionary (
 4. **カスタム絵文字**（`<:name:id>` / `<a:name:id>`）をフィルタ ← **wwwより必ず前に実行**
 5. `ww`/`www` パターン → `わら` × 文字数に変換
 6. スポイラー・取り消し線・コードブロック・タイムスタンプを変換
-7. ユーザーメンション → 表示名 + "へのメンション"
+7. ユーザーメンション → ユーザー設定の読み方（未設定時は表示名）+ "へのメンション"
 8. チャンネルリンク → チャンネル名 + "へのリンク"
 9. ロールメンション → ロール名 + "へのメンション"
 10. 改行・スペースを区切りに変換
@@ -155,9 +157,9 @@ CREATE TABLE user_dictionary (
 
 `_apply_regex` / `_apply_dict` は `(text, protected: bool)` のセグメントリストで動作。`protected=True` のセグメントは以降の処理でスキップされる。
 
-`swap.preprocess_text(text, dictionary, emoji_ja, guild, attachments, mentions, author_id=None)` は `PreprocessResult(text, replaced_ranges, sound_id, spaced_out)` を返す。`dictionary` は`DictionaryRepository`が生成した`DictionarySnapshot`。`swap.py`はSQLite接続を受け取らない。
+`swap.preprocess_text(text, dictionary, emoji_ja, guild, attachments, mentions, author_id=None, user_readings=None)` は `PreprocessResult(text, replaced_ranges, sound_id, spaced_out)` を返す。`dictionary` は`DictionaryRepository`が生成した`DictionarySnapshot`、`user_readings`は`SpeechService`が`UserReadingService`で解決したユーザーIDと読み方のマッピング。`swap.py`はSQLite接続を受け取らない。
 
-`DictManager.preprocess_text(text, guild_id, guild, attachments, mentions, author_id=None)` は辞書サービスの窓口であり、内部でRepositoryからスナップショットを取得して`swap.preprocess_text`を呼ぶ。最大文字数チェック・トリミングは前処理後に`SpeechService`が行う。
+`DictManager.preprocess_text(text, guild_id, guild, attachments, mentions, author_id=None, user_readings=None)` は辞書サービスの窓口であり、内部でRepositoryからスナップショットを取得して`swap.preprocess_text`を呼ぶ。最大文字数チェック・トリミングは前処理後に`SpeechService`が行う。
 
 ---
 
@@ -184,6 +186,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/leave` | — | VCにいるユーザー |
 | `/version` | — | 全員 |
 | `/clear` | `instant: bool` | 全員 |
+| `/user-reading` | `reading: str (1〜50文字)` | 全員（DM可・ephemeral応答） |
 | `/dict add` | `word`, `read` | 全員 |
 | `/dict del` | `word`, `both: bool` | 全員 |
 | `/dict view` | `search: str`, `ephemeral: bool` | 全員 |

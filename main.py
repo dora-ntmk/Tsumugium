@@ -9,6 +9,7 @@ from cogs.connection_cog import ConnectionCog
 from cogs.general_cog import GeneralCog
 from cogs.lifecycle_cog import LifecycleCog
 from cogs.playback_cog import PlaybackCog
+from cogs.user_cog import UserCog
 from config import (
   DICT_DB,
   DISCORD_BOT_TOKEN,
@@ -29,6 +30,7 @@ from services.error_notification_service import ErrorNotificationService
 from services.message_service import MessageService
 from services.speech_service import SpeechService
 from services.status_service import StatusService
+from services.user_reading_service import UserReadingService
 from services.voice_service import VoiceService
 from setting import Setting
 from sound_dict import SoundDict, SoundDictView, UpdateSoundBoards
@@ -77,6 +79,7 @@ server_config = GuildConfigRepository(
 )
 dict_manager = DictManager(DICT_DB, error_notifier)
 user_config = UserConfigRepository(USER_CONFIG_DB)
+user_reading_service = UserReadingService(user_config)
 sound_dict = SoundDict(dict_manager)
 sound_boards = UpdateSoundBoards(
   SOUND_BOARDS_DB,
@@ -99,6 +102,7 @@ speech_service = SpeechService(
   server_config,
   dict_manager,
   voice_service,
+  user_reading_service=user_reading_service,
 )
 connection_service = ConnectionService(
   server_config,
@@ -106,6 +110,7 @@ connection_service = ConnectionService(
   speech_service,
   voice_service,
   error_notifier,
+  user_reading_service=user_reading_service,
 )
 status_service = StatusService(client, STATUS_MESSAGE, error_notifier)
 client.register_closeable(status_service)
@@ -132,6 +137,7 @@ connection_cog = ConnectionCog(
   status_service,
 )
 general_cog = GeneralCog(tree, VERSION, LAST_UPDATED, error_notifier)
+user_cog = UserCog(tree, user_config, error_notifier)
 lifecycle_cog = LifecycleCog(
   client,
   tree,
