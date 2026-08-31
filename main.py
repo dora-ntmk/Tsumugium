@@ -69,7 +69,10 @@ discord_soundboard_client = DiscordSoundboardClient(DISCORD_BOT_TOKEN)
 client.register_closeable(voicevox_client)
 client.register_closeable(discord_soundboard_client)
 
-server_config = GuildConfigRepository(SERVER_CONFIG_DB)
+server_config = GuildConfigRepository(
+  SERVER_CONFIG_DB,
+  error_notifier=error_notifier,
+)
 dict_manager = DictManager(DICT_DB, error_notifier)
 sound_dict = SoundDict(dict_manager)
 sound_boards = UpdateSoundBoards(

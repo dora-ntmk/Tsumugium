@@ -60,7 +60,13 @@ def is_backup_day(interval_days: int) -> bool:
   return elapsed % interval_days == 0
 
 
-def backup_db(db_path: str, backup_dir: str, error_notifier=None) -> str | None:
+def backup_db(
+    db_path: str,
+    backup_dir: str,
+    error_notifier=None,
+    *,
+    filename_suffix: str = "",
+) -> str | None:
   """
   SQLite データベースをバックアップし、保存先パスを返す。
   失敗時は None を返す。
@@ -76,15 +82,22 @@ def backup_db(db_path: str, backup_dir: str, error_notifier=None) -> str | None:
   dest_dir.mkdir(parents=True, exist_ok=True)
 
   timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-  dest_path = dest_dir / f"backup_{src.stem}_{timestamp}.db"
+  suffix = f"_{filename_suffix}" if filename_suffix else ""
+  dest_path = dest_dir / f"backup_{src.stem}_{timestamp}{suffix}.db"
 
   try:
-    src_conn = sqlite3.connect(str(src), timeout=30)
-    dest_conn = sqlite3.connect(str(dest_path), timeout=30)
-    with dest_conn:
-      src_conn.backup(dest_conn)
-    src_conn.close()
-    dest_conn.close()
+    src_conn = None
+    dest_conn = None
+    try:
+      src_conn = sqlite3.connect(str(src), timeout=30)
+      dest_conn = sqlite3.connect(str(dest_path), timeout=30)
+      with dest_conn:
+        src_conn.backup(dest_conn)
+    finally:
+      if dest_conn is not None:
+        dest_conn.close()
+      if src_conn is not None:
+        src_conn.close()
     return str(dest_path)
   except Exception as e:
     ensure_error_notifier(error_notifier).report(
@@ -105,7 +118,11 @@ def rotate_backups(
   """古いバックアップファイルを削除して keep 件に維持する。"""
   dest_dir = Path(backup_dir)
   pattern = f"backup_{db_name}_*.db"
-  files = sorted(dest_dir.glob(pattern))  # ファイル名のタイムスタンプ順
+  files = sorted(
+    path
+    for path in dest_dir.glob(pattern)
+    if not path.stem.endswith("_v3-latest")
+  )  # 移行前バックアップを除き、ファイル名のタイムスタンプ順
   excess = files[:max(0, len(files) - keep)]
   for f in excess:
     try:

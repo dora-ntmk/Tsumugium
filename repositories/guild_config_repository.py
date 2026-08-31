@@ -4,7 +4,9 @@ from __future__ import annotations
 
 import sqlite3
 
-from config import DEFAULT_SPEAKER
+from backup import backup_db
+from config import BACKUP_DIR, DEFAULT_SPEAKER
+from services.error_notification_service import ensure_error_notifier
 
 
 DEFAULTS = {
@@ -13,6 +15,7 @@ DEFAULTS = {
   "Speaker": None,
   "Volume": 100,
   "Speed": 100,
+  "SpacedSpeed": None,
   "MaxChar": 50,
   "AutoJoin": False,
   "AccessNotice": False,
@@ -25,6 +28,9 @@ _TYPE_VALIDATORS = {
   "Speaker": lambda value: value is None or (isinstance(value, int) and value >= 0),
   "Volume": lambda value: isinstance(value, int) and 0 <= value <= 100,
   "Speed": lambda value: isinstance(value, int) and 50 <= value <= 200,
+  "SpacedSpeed": lambda value: value is None or (
+    isinstance(value, int) and 50 <= value <= 200
+  ),
   "MaxChar": lambda value: isinstance(value, int) and 30 <= value <= 200,
   "AutoJoin": lambda value: isinstance(value, bool),
   "AccessNotice": lambda value: isinstance(value, bool),
@@ -35,7 +41,16 @@ _BOOL_KEYS = {"AutoJoin", "AccessNotice", "Greeting"}
 
 
 class GuildConfigRepository:
-  def __init__(self, db_path: str = "db/config.db"):
+  def __init__(
+      self,
+      db_path: str = "db/config.db",
+      *,
+      backup_dir: str = BACKUP_DIR,
+      error_notifier=None,
+  ):
+    self.db_path = db_path
+    self.backup_dir = backup_dir
+    self.error_notifier = ensure_error_notifier(error_notifier)
     self._conn = sqlite3.connect(
       db_path,
       check_same_thread=False,
@@ -51,6 +66,7 @@ class GuildConfigRepository:
         Speaker       INTEGER,
         Volume        INTEGER NOT NULL DEFAULT 100,
         Speed         INTEGER NOT NULL DEFAULT 100,
+        SpacedSpeed   INTEGER DEFAULT NULL,
         MaxChar       INTEGER NOT NULL DEFAULT 50,
         AutoJoin      INTEGER NOT NULL DEFAULT 0,
         AccessNotice  INTEGER NOT NULL DEFAULT 0,
@@ -60,14 +76,40 @@ class GuildConfigRepository:
       """
     )
     self._conn.commit()
-    self._ensure_compatible_schema()
+    try:
+      self._ensure_compatible_schema()
+    except Exception:
+      self._conn.close()
+      raise
 
   def _ensure_compatible_schema(self) -> None:
     info = self._conn.execute("PRAGMA table_info(guild_config)").fetchall()
     column_names = {column[1] for column in info}
+    if "SpacedSpeed" not in column_names:
+      backup_path = backup_db(
+        self.db_path,
+        self.backup_dir,
+        self.error_notifier,
+        filename_suffix="v3-latest",
+      )
+      if backup_path is None:
+        raise RuntimeError(
+          "config.dbの移行前バックアップに失敗したため、"
+          "SpacedSpeedの追加を中止しました"
+        )
+      print(f"[migration] v3最終DBバックアップ完了: {backup_path}")
+
     if "Greeting" not in column_names:
       self._conn.execute(
         "ALTER TABLE guild_config ADD COLUMN Greeting INTEGER NOT NULL DEFAULT 1"
+      )
+      self._conn.commit()
+      info = self._conn.execute("PRAGMA table_info(guild_config)").fetchall()
+      column_names = {column[1] for column in info}
+
+    if "SpacedSpeed" not in column_names:
+      self._conn.execute(
+        "ALTER TABLE guild_config ADD COLUMN SpacedSpeed INTEGER DEFAULT NULL"
       )
       self._conn.commit()
       info = self._conn.execute("PRAGMA table_info(guild_config)").fetchall()
@@ -87,13 +129,21 @@ class GuildConfigRepository:
           Speaker       INTEGER,
           Volume        INTEGER NOT NULL DEFAULT 100,
           Speed         INTEGER NOT NULL DEFAULT 100,
+          SpacedSpeed   INTEGER DEFAULT NULL,
           MaxChar       INTEGER NOT NULL DEFAULT 50,
           AutoJoin      INTEGER NOT NULL DEFAULT 0,
           AccessNotice  INTEGER NOT NULL DEFAULT 0,
           Language      TEXT NOT NULL DEFAULT 'ja',
           Greeting      INTEGER NOT NULL DEFAULT 1
         );
-        INSERT INTO guild_config_new SELECT * FROM guild_config;
+        INSERT INTO guild_config_new (
+          guild_id, TextTarget, VoiceTarget, Speaker, Volume, Speed,
+          SpacedSpeed, MaxChar, AutoJoin, AccessNotice, Language, Greeting
+        )
+        SELECT
+          guild_id, TextTarget, VoiceTarget, Speaker, Volume, Speed,
+          SpacedSpeed, MaxChar, AutoJoin, AccessNotice, Language, Greeting
+        FROM guild_config;
         DROP TABLE guild_config;
         ALTER TABLE guild_config_new RENAME TO guild_config;
         COMMIT;
@@ -152,7 +202,7 @@ class GuildConfigRepository:
   def get_all(self, guild_id: int) -> dict:
     row = self._conn.execute(
       """
-      SELECT TextTarget, VoiceTarget, Speaker, Volume, Speed, MaxChar,
+      SELECT TextTarget, VoiceTarget, Speaker, Volume, Speed, SpacedSpeed, MaxChar,
              AutoJoin, AccessNotice, Greeting
       FROM guild_config
       WHERE guild_id = ?
@@ -167,6 +217,7 @@ class GuildConfigRepository:
       "Speaker",
       "Volume",
       "Speed",
+      "SpacedSpeed",
       "MaxChar",
       "AutoJoin",
       "AccessNotice",
@@ -207,8 +258,13 @@ class GuildConfigRepository:
   def volume_to_vvtts(self, guild_id: int) -> float:
     return self.get(guild_id, "Volume") / 100.0
 
-  def speed_to_vvtts(self, guild_id: int) -> float:
-    return self.get(guild_id, "Speed") / 100.0
+  def speed_to_vvtts(self, guild_id: int, *, spaced_out: bool = False) -> float:
+    speed = self.get(guild_id, "Speed")
+    if spaced_out:
+      spaced_speed = self.get(guild_id, "SpacedSpeed")
+      if spaced_speed is not None:
+        speed = spaced_speed
+    return speed / 100.0
 
   def close(self) -> None:
     self._conn.close()

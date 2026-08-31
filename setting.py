@@ -67,6 +67,17 @@ class Setting:
         embed.add_field(name="話者", value=speaker_display, inline=True)
         embed.add_field(name="音量", value=str(cfg["Volume"]), inline=True)
         embed.add_field(name="速さ", value=str(cfg["Speed"]), inline=True)
+        spaced_speed = cfg["SpacedSpeed"]
+        spaced_speed_display = (
+          f"通常速度を継承 ({cfg['Speed']})"
+          if spaced_speed is None
+          else str(spaced_speed)
+        )
+        embed.add_field(
+          name="空白区切り文章の速さ",
+          value=spaced_speed_display,
+          inline=True,
+        )
         embed.add_field(name="最大読み上げ文字数", value=str(cfg["MaxChar"]), inline=True)
         embed.add_field(name="自動入退室", value=str(cfg["AutoJoin"]), inline=True)
         embed.add_field(name="入退室通知", value=str(cfg["AccessNotice"]), inline=True)
@@ -345,6 +356,75 @@ class Setting:
         await handle_os_error(ctx, e, "setting_speed", self.error_notifier)
       except Exception as e:
         await handle_internal_error(ctx, e, "setting_speed", self.error_notifier)
+
+    @setting_group.command(
+      name="spaced-speed",
+      description="空白区切り文章の読み上げ速度を設定します（50〜200）",
+    )
+    @discord.app_commands.describe(speed="速度（50〜200、100が等速）")
+    @discord.app_commands.checks.has_permissions(manage_guild=True)
+    async def setting_spaced_speed(ctx, speed: int):
+      try:
+        await ctx.response.defer()
+        try:
+          self.server_config.set(ctx.guild.id, "SpacedSpeed", speed)
+        except ValueError:
+          await ctx.edit_original_response(
+            embed=make_embed(
+              "設定失敗",
+              "空白区切り文章の速度は 50〜200 の整数で指定してください",
+              embed_type=EmbedType.ERROR,
+            )
+          )
+          return
+        await ctx.edit_original_response(
+          embed=make_embed(
+            "設定完了",
+            f"SpacedSpeed を {speed} に設定しました",
+            embed_type=EmbedType.SUCCESS,
+          )
+        )
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as e:
+        self.error_notifier.report(f"HTTPException in setting_spaced_speed: {e}")
+      except OSError as e:
+        await handle_os_error(ctx, e, "setting_spaced_speed", self.error_notifier)
+      except Exception as e:
+        await handle_internal_error(
+          ctx, e, "setting_spaced_speed", self.error_notifier
+        )
+
+    @setting_group.command(
+      name="spaced-speed-reset",
+      description="空白区切り文章の速度を通常速度の継承へ戻します",
+    )
+    @discord.app_commands.checks.has_permissions(manage_guild=True)
+    async def setting_spaced_speed_reset(ctx):
+      try:
+        await ctx.response.defer()
+        self.server_config.reset(ctx.guild.id, "SpacedSpeed")
+        await ctx.edit_original_response(
+          embed=make_embed(
+            "設定完了",
+            "SpacedSpeed を通常の読み上げ速度を継承する設定に戻しました",
+            embed_type=EmbedType.SUCCESS,
+          )
+        )
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as e:
+        self.error_notifier.report(
+          f"HTTPException in setting_spaced_speed_reset: {e}"
+        )
+      except OSError as e:
+        await handle_os_error(
+          ctx, e, "setting_spaced_speed_reset", self.error_notifier
+        )
+      except Exception as e:
+        await handle_internal_error(
+          ctx, e, "setting_spaced_speed_reset", self.error_notifier
+        )
 
     @setting_group.command(
       name="max-char",
