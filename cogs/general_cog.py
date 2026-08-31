@@ -34,6 +34,11 @@ class GeneralCog:
           value=self.last_updated,
           inline=False,
         )
+        embed.add_field(
+          name="更新内容",
+          value="[こちらをご覧ください](https://hackmd.io/@dora-ntmk/SkNwNSMuGe#v40068---20260831)",
+          inline=False,
+        )
         await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
