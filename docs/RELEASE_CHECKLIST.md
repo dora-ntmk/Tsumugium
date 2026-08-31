@@ -45,6 +45,8 @@ python -m unittest discover -s tests -v
 
 - [ ] VOICEVOX停止中は疎通エラーを出してBotが起動しない
 - [ ] VOICEVOX起動中はエンジンバージョンを出力してBotが起動する
+- [ ] 稼働中のVOICEVOXが一時切断しても、30秒以内に復旧すれば受付順に読み上げる
+- [ ] VOICEVOXの一時切断が30秒を超えた場合は、試行回数・経過時間・最終原因を1回だけ通知する
 - [ ] Botが起動し、コマンド同期が完了する
 - [ ] `/version`がv3.6.0.68と更新日を表示する
 - [ ] `/join`・`/leave`が成功する
