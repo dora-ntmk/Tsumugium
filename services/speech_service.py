@@ -32,6 +32,9 @@ class SpeechService:
       text = "転送済みメッセージ"
     else:
       text = message.content
+    if message.stickers:
+      for i in range(len(message.stickers)):
+        text += f" {message.stickers[i].name}"
     replaced_ranges = []
     spaced_out = False
     if self.dict_manager is not None:
