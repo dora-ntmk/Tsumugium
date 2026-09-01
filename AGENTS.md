@@ -1,6 +1,6 @@
 # Tsumugium — Discord 読み上げBot 仕様書
 
-**バージョン**: 4.0.0.68 / **最終更新**: 2026-08-31
+**バージョン**: v4.1.0.69 / **最終更新**: 2026/09/01
 VOICEVOXを使ったDiscordテキスト読み上げBot。
 
 全体の依存関係と処理フローは[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)を参照。
@@ -132,7 +132,7 @@ CREATE TABLE user_dictionary (
 )
 ```
 
-ユーザー設定はサーバー横断で扱う。`reading`は`/user-reading`で本人が設定し、メンションと入退室通知の読み上げ時にDiscordの表示名より優先する。名前解決は`UserReadingService.get_reading()`へ集約し、未設定時はDiscord表示名を返す。`user_dictionary`はそのユーザーが発言した場合だけ適用する個人辞書の準備領域であり、v4.0.0.68時点では読み上げパイプラインやコマンドへ接続しない。
+ユーザー設定はサーバー横断で扱う。`reading`は`/user-reading`で本人が設定し、メンションと入退室通知の読み上げ時にDiscord表示名より優先する。名前解決は`UserReadingService.get_reading()`へ集約し、未設定時はDiscord表示名を返す。`user_dictionary`はそのユーザーが発言した場合だけ適用する個人辞書の準備領域であり、v4.1.0.69時点では読み上げパイプラインやコマンドへ接続しない。
 
 ---
 

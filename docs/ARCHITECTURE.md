@@ -1,6 +1,6 @@
-# Tsumugium v4.0.0.68 アーキテクチャ
+# Tsumugium v4.1.0.69 アーキテクチャ
 
-v4.0.0.68は、Discord固有の登録処理、ユースケース、状態、外部通信、DB操作を分離しています。前処理結果APIとサーバー設定スキーマに破壊的変更があり、表示言語は日本語へ固定しています。
+v4.1.0.69は、Discord固有の登録処理、ユースケース、状態、外部通信、DB操作を分離しています。前処理結果APIとサーバー設定スキーマに破壊的変更があり、表示言語は日本語へ固定しています。
 
 ## 全体構成
 
@@ -157,7 +157,7 @@ stateDiagram-v2
 | `soundboards.db` | `SoundboardCacheRepository` | Soundboard候補キャッシュ |
 | `users.db` | `UserConfigRepository` | サーバー横断のユーザー読みと、準備領域であるユーザー別個人辞書 |
 
-- v4.0.0.68は`guild_config`へ`SpacedSpeed`を追加し、前処理APIを`PreprocessResult`へ変更します。v3へ戻す場合は移行前バックアップを使用してください。
+- v4.1.0.69は`guild_config`へ`SpacedSpeed`を追加し、前処理APIを`PreprocessResult`へ変更します。v3へ戻す場合は移行前バックアップを使用してください。
 - `guild_config.Language`は旧DB互換性のため残しますが、実行時には参照しません。
 - 旧DBに不足する`Greeting`、`SpacedSpeed`、`full_match`、`trigger_user_id`は起動時に補完します。
 - `SpacedSpeed`を追加する場合は、変更前の`config.db`を`backup_config_YYYYMMDD_HHMMSS_v3-latest.db`として先に保存します。バックアップに失敗した場合はDBを変更せず起動を中止し、移行前バックアップは通常ローテーションから除外します。

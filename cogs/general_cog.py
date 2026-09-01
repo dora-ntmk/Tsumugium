@@ -36,7 +36,7 @@ class GeneralCog:
         )
         embed.add_field(
           name="更新内容",
-          value="[こちらをご覧ください](https://hackmd.io/@dora-ntmk/SkNwNSMuGe#v40068---20260831)",
+          value="[こちらをご覧ください](https://hackmd.io/@dora-ntmk/SkNwNSMuGe#v41069---20260901)",
           inline=False,
         )
         await ctx.edit_original_response(embed=embed)
