@@ -109,22 +109,17 @@ class DictionaryRepository:
   def get_reading_entries(
       self,
       guild_id: int,
-  ) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
+  ) -> list[tuple[str, str]]:
     rows = self._conn.execute(
       """
-      SELECT word, reading, is_priority
+      SELECT word, reading
       FROM dict
       WHERE guild_id = ? AND reading IS NOT NULL
       ORDER BY added_at DESC
       """,
       (str(guild_id),),
     ).fetchall()
-    normal = []
-    priority = []
-    for word, reading, is_priority in rows:
-      target = priority if is_priority else normal
-      target.append((word, reading))
-    return normal, priority
+    return rows
 
   def add_sound(
       self,
@@ -190,25 +185,19 @@ class DictionaryRepository:
     self._conn.commit()
     return sound_id
 
-  def get_sound_entries(self, guild_id: int) -> tuple[
-      list[tuple[str, str, int, Optional[str]]],
-      list[tuple[str, str, int, Optional[str]]],
-  ]:
+  def get_sound_entries(self, guild_id: int) -> list[tuple[
+      str, str, int, Optional[str]
+  ]]:
     rows = self._conn.execute(
       """
-      SELECT word, sound_id, is_priority, full_match, trigger_user_id
+      SELECT word, sound_id, full_match, trigger_user_id
       FROM dict
       WHERE guild_id = ? AND sound_id IS NOT NULL
       ORDER BY added_at DESC
       """,
       (str(guild_id),),
     ).fetchall()
-    normal = []
-    priority = []
-    for word, sound_id, is_priority, full_match, user_id in rows:
-      target = priority if is_priority else normal
-      target.append((word, sound_id, full_match, user_id))
-    return normal, priority
+    return rows
 
   def invalidate_sound(self, guild_id: int | str, sound_id: str) -> None:
     gid = str(guild_id)

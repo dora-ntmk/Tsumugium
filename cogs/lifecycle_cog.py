@@ -69,8 +69,7 @@ class LifecycleCog:
     @self.client.event
     async def on_guild_remove(guild):
       try:
-        normal_items, priority_items = self.dict_manager.get_entries(guild.id)
-        combined = dict(priority_items + normal_items)
+        combined = dict(self.dict_manager.get_entries(guild.id))
         if combined:
           data = json.dumps(
             combined,

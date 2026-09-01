@@ -78,12 +78,13 @@ def _normalize(s: str) -> str:
 
 
 def _filter_entries(entries: dict, word: str) -> list[tuple[str, str]]:
-  """キー全文一致 → キー部分一致 → よみがな部分一致（キー不一致のもの）の順で返す。"""
+  """登録・更新順を維持したまま、キーまたは値の部分一致で絞り込む。"""
   nword = _normalize(word)
-  exact_key   = [(k, v) for k, v in entries.items() if _normalize(k) == nword]
-  partial_key = [(k, v) for k, v in entries.items() if nword in _normalize(k) and _normalize(k) != nword]
-  value_match = [(k, v) for k, v in entries.items() if nword not in _normalize(k) and nword in _normalize(v)]
-  return exact_key + partial_key + value_match
+  return [
+    (key, value)
+    for key, value in entries.items()
+    if nword in _normalize(key) or nword in _normalize(value)
+  ]
 
 
 class DictManager:
@@ -118,8 +119,8 @@ class DictManager:
     """Returns the removed read string, or None if not found."""
     return self.repository.delete_reading(guild_id, word)
 
-  def get_entries(self, guild_id: int) -> tuple[list[tuple[str, str]], list[tuple[str, str]]]:
-    """Returns (normal_items, priority_items), each as list of (word, reading) in added_at DESC order."""
+  def get_entries(self, guild_id: int) -> list[tuple[str, str]]:
+    """Returns (word, reading) entries in added_at DESC order."""
     return self.repository.get_reading_entries(guild_id)
 
   def add_sound(self, guild_id: int, word: str, sound_id: str,
@@ -139,11 +140,10 @@ class DictManager:
     """Returns the removed sound_id, or None if not found."""
     return self.repository.delete_sound(guild_id, word)
 
-  def get_sound_entries(self, guild_id: int) -> tuple[
-    list[tuple[str, str, int, Optional[str]]],
-    list[tuple[str, str, int, Optional[str]]]
+  def get_sound_entries(self, guild_id: int) -> list[
+    tuple[str, str, int, Optional[str]]
   ]:
-    """Returns (normal_items, priority_items), each as list of (word, sound_id, full_match, trigger_user_id) in added_at DESC order."""
+    """Returns sound entries in added_at DESC order."""
     return self.repository.get_sound_entries(guild_id)
 
   def invalidate_sound(self, guild_id, sound_id: str):
@@ -272,8 +272,8 @@ class WordDict:
     # noinspection PyUnusedLocal
     @dict_del.autocomplete("word")
     async def dict_del_word_autocomplete(ctx, current: str):
-      normal, priority = self.dict_manager.get_entries(ctx.guild.id)
-      all_words = [word for word, _ in priority + normal]
+      entries = self.dict_manager.get_entries(ctx.guild.id)
+      all_words = [word for word, _ in entries]
       filtered = [
         discord.app_commands.Choice(name=word, value=word)
         for word in all_words
@@ -289,21 +289,19 @@ class WordDict:
     async def dict_view(ctx, search: Optional[str] = None, ephemeral: bool = False):
       try:
         await ctx.response.defer(ephemeral=ephemeral)
-        normal_entries, priority_entries = self.dict_manager.get_entries(ctx.guild.id)
+        entries = self.dict_manager.get_entries(ctx.guild.id)
 
-        if not normal_entries and not priority_entries:
+        if not entries:
           embed = make_embed('辞書一覧', '辞書に登録された単語はありません')
           await ctx.edit_original_response(embed=embed)
           return
 
         if search:
-          normal_items   = _filter_entries(dict(normal_entries),   search)
-          priority_items = _filter_entries(dict(priority_entries), search)
+          items = _filter_entries(dict(entries), search)
         else:
-          normal_items   = normal_entries
-          priority_items = priority_entries
+          items = entries
 
-        if not normal_items and not priority_items:
+        if not items:
           await ctx.edit_original_response(
             embed=make_embed(
               '見つかりませんでした',
@@ -314,8 +312,7 @@ class WordDict:
           return
 
         paginator = DictViewPaginator(
-          normal_items,
-          priority_items,
+          items,
           'dict',
           self.error_notifier,
           word_formatter=replace_word,

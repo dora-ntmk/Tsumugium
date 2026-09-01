@@ -95,6 +95,7 @@ CREATE INDEX idx_dict_guild ON dict (guild_id)
 - `guild_id = '__common__'` で全サーバー共通の辞書エントリ
 - `reading` と `sound_id` の両方を持てる（メッセージ全文一致時は sound_id 優先）
 - `is_priority = 1` はURL処理より前に適用される
+- `is_priority`は前処理順を制御する内部区分であり、`/dict view`・`/sounddict view`では区別せず登録・更新日時の降順で表示する
 - `full_match` / `trigger_user_id` は `sound_id` を持つエントリのみ有効
 - `full_match = 0` のとき、`word` がメッセージ中に含まれれば再生（部分一致）
 - `trigger_user_id` が非NULLのとき、そのユーザー/BotのメッセージID一致時のみ再生

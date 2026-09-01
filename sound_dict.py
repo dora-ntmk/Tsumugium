@@ -218,8 +218,8 @@ class SoundDictView:
     # noinspection PyUnusedLocal
     @sounddict_del.autocomplete("word")
     async def sounddict_del_word_autocomplete(ctx, current: str):
-      normal, priority = self.sound_dict.get_entries(ctx.guild.id)
-      all_words = [word for word, _, _, _ in priority + normal]
+      entries = self.sound_dict.get_entries(ctx.guild.id)
+      all_words = [word for word, _, _, _ in entries]
       filtered = [
         discord.app_commands.Choice(name=word, value=word)
         for word in all_words
@@ -235,9 +235,9 @@ class SoundDictView:
     async def sounddict_view(ctx, search: Optional[str] = None, ephemeral: bool = False):
       try:
         await ctx.response.defer(ephemeral=ephemeral)
-        normal_entries, priority_entries = self.sound_dict.get_entries(ctx.guild.id)
+        entries = self.sound_dict.get_entries(ctx.guild.id)
 
-        if not normal_entries and not priority_entries:
+        if not entries:
           embed = make_embed('音声辞書一覧', '音声辞書に登録された単語はありません')
           await ctx.edit_original_response(embed=embed)
           return
@@ -257,13 +257,11 @@ class SoundDictView:
           return [(w, sounds_map.get(sid, sid) + make_label(fm, uid)) for w, sid, fm, uid in entries]
 
         if search:
-          normal_items   = _filter_entries(dict(resolve(normal_entries)),   search)
-          priority_items = _filter_entries(dict(resolve(priority_entries)), search)
+          items = _filter_entries(dict(resolve(entries)), search)
         else:
-          normal_items   = resolve(normal_entries)
-          priority_items = resolve(priority_entries)
+          items = resolve(entries)
 
-        if not normal_items and not priority_items:
+        if not items:
           await ctx.edit_original_response(
             embed=make_embed(
               '見つかりませんでした',
@@ -274,8 +272,7 @@ class SoundDictView:
           return
 
         paginator = DictViewPaginator(
-          normal_items,
-          priority_items,
+          items,
           'sounddict',
           self.error_notifier,
         )
