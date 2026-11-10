@@ -2,7 +2,7 @@
 
 VOICEVOXを利用してDiscordのテキストチャンネルを読み上げるBotです。
 
-現在のバージョンは **v4.1.0.69** です。Botが送信するメッセージとコマンド説明は日本語固定です。
+現在のバージョンは **v4.1.0.69** です。
 
 ## 主な機能
 
@@ -91,7 +91,7 @@ Privileged Gateway Intentsは、Message Content Intentのみ有効にしてく�
 - [リリース確認手順](docs/RELEASE_CHECKLIST.md)
 - [開発者向け仕様書](AGENTS.md)
 
-v4では`config.db`へ`SpacedSpeed`カラムを、新たに`users.db`を追加しています。旧DBは起動時に自動で補完され、`config.db`の変更前には移行前バックアップを保存します。`Language`カラムは旧DBとの互換性のため残りますが、表示言語は日本語固定です。
+v4では`config.db`へ`SpacedSpeed`カラムを、新たに`users.db`を追加しています。旧DBは起動時に自動で補完され、`config.db`の変更前には移行前バックアップを保存します。
 
 ## ライセンス
 
