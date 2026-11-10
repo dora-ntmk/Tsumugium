@@ -31,7 +31,7 @@ python -m unittest discover -s tests -v
 
 ## 3. DB互換性
 
-本番相当の3DBをバックアップまたは一時ディレクトリへコピーして確認します。
+本番相当の4DB（`config.db`、`dict.db`、`soundboards.db`、`users.db`）をバックアップまたは一時ディレクトリへコピーして確認します。
 
 - [ ] `config.db`を開いて既存サーバー設定を読み取れる
 - [ ] `Language`カラムと保存済み値が維持される
