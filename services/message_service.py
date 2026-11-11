@@ -55,8 +55,15 @@ class MessageService:
       return
     if message.content.startswith(("!s ", "!skip ")) or message.flags.silent:
       return
-    if message.content.strip() == "s":
+    content = message.content.strip()
+    if content == "s":
       self.voice_service.skip_current(message.guild)
+      return
+    if content == "c":
+      self.error_notifier.create_task(
+        self.voice_service.clear(message.guild, instant=True),
+        "message clear",
+      )
       return
     self.error_notifier.create_task(
       self.speech_service.add_message(message),

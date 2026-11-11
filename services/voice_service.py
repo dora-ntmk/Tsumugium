@@ -68,12 +68,21 @@ class VoiceService:
     finally:
       session.clearing = False
 
-  def skip_current(self, guild) -> None:
+  def skip_current(self, guild) -> bool:
+    """再生中の読み上げを停止し、停止した場合はTrueを返す。"""
     if guild.voice_client and guild.voice_client.is_playing():
       session = self.get_session(guild.id)
       if session.current_tts_path is not None:
         session.expected_stop_paths.add(session.current_tts_path)
       guild.voice_client.stop()
+      return True
+    return False
+
+  async def clear(self, guild, instant: bool = True) -> int:
+    """キューをクリアし、待機中のTTSファイル削除まで完了させる。"""
+    cleared, pending_files = self.begin_clear(guild, instant)
+    await self.finish_clear(guild.id, pending_files)
+    return cleared
 
   def connection_context(self, guild) -> dict[str, object]:
     session = self.get_session(guild.id)
