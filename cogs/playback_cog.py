@@ -98,3 +98,24 @@ class PlaybackCog:
     @self.client.event
     async def on_message(message):
       await self.message_service.handle(message)
+
+    @self.client.event
+    async def on_raw_message_delete(payload):
+      self._cancel_deleted_messages(payload.guild_id, [payload.message_id])
+
+    @self.client.event
+    async def on_raw_bulk_message_delete(payload):
+      self._cancel_deleted_messages(payload.guild_id, payload.message_ids)
+
+  def _cancel_deleted_messages(self, guild_id, message_ids) -> None:
+    """削除されたメッセージの読み上げを停止・除外する。"""
+    if guild_id is None:
+      return
+    guild = self.client.get_guild(guild_id)
+    if guild is None:
+      return
+    try:
+      for message_id in message_ids:
+        self.voice_service.cancel_message(guild, message_id)
+    except Exception as e:
+      self.error_notifier.report_exception(e, "message delete cancel")

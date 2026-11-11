@@ -11,6 +11,8 @@ from services.error_notification_service import ensure_error_notifier
 
 
 class VoiceService:
+  CANCELLED_MESSAGE_LIMIT = 500
+
   def __init__(self, client, soundboard_client=None, error_notifier=None):
     self.client = client
     self.soundboard_client = soundboard_client
@@ -84,6 +86,35 @@ class VoiceService:
     await self.finish_clear(guild.id, pending_files)
     return cleared
 
+  def cancel_message(self, guild, message_id: int) -> bool:
+    """削除されたメッセージの読み上げを止め、未再生分を再生対象から外す。
+
+    再生中のメッセージを停止した場合はTrueを返す。
+    """
+    session = self.sessions.get(guild.id)
+    if session is None:
+      return False
+    if session.current_message_id == message_id:
+      return self.skip_current(guild)
+    cancelled = session.cancelled_message_ids
+    cancelled[message_id] = None
+    cancelled.move_to_end(message_id)
+    while len(cancelled) > self.CANCELLED_MESSAGE_LIMIT:
+      cancelled.popitem(last=False)
+    return False
+
+  def consume_cancelled(self, guild_id: int, message_id: int | None) -> bool:
+    """メッセージが削除済みなら記録を消してTrueを返す。"""
+    if message_id is None:
+      return False
+    session = self.sessions.get(guild_id)
+    if session is None:
+      return False
+    if message_id in session.cancelled_message_ids:
+      del session.cancelled_message_ids[message_id]
+      return True
+    return False
+
   def connection_context(self, guild) -> dict[str, object]:
     session = self.get_session(guild.id)
     voice_client = guild.voice_client
@@ -133,7 +164,10 @@ class VoiceService:
           if voice_client.is_connected():
             await self._play_soundboard(guild, item.sound_id)
         elif isinstance(item, TTSItem):
-          await self.play(guild, item.path)
+          if self.consume_cancelled(guild_id, item.message_id):
+            await self.safe_remove(item.path)
+            continue
+          await self.play(guild, item.path, item.message_id)
         else:
           raise TypeError(f"未対応の音声アイテムです: {type(item).__name__}")
       except asyncio.TimeoutError:
@@ -233,7 +267,7 @@ class VoiceService:
     finally:
       self._delayed_cleanup_paths.discard(path)
 
-  async def play(self, guild, path: str):
+  async def play(self, guild, path: str, message_id: int | None = None):
     playback_started = False
     try:
       session = self.get_session(guild.id)
@@ -259,7 +293,10 @@ class VoiceService:
         return
       if not voice_client.is_connected():
         return
+      if self.consume_cancelled(guild.id, message_id):
+        return
       session.current_tts_path = path
+      session.current_message_id = message_id
       voice_client.play(
         voice,
         after=lambda error: asyncio.run_coroutine_threadsafe(
@@ -281,6 +318,7 @@ class VoiceService:
         session = self.get_session(guild.id)
         if session.current_tts_path == path:
           session.current_tts_path = None
+          session.current_message_id = None
         await self.safe_remove(path)
 
   async def _finish_playback(self, guild, path: str, error) -> None:
@@ -289,6 +327,7 @@ class VoiceService:
     session.expected_stop_paths.discard(path)
     if session.current_tts_path == path:
       session.current_tts_path = None
+      session.current_message_id = None
     await self.safe_remove(path)
     if error is not None and not expected_stop:
       voice_client = guild.voice_client

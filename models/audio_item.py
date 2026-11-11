@@ -6,6 +6,7 @@ from dataclasses import dataclass
 @dataclass(frozen=True, slots=True)
 class TTSItem:
   path: str
+  message_id: int | None = None
 
 
 @dataclass(frozen=True, slots=True)
