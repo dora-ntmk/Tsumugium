@@ -10,6 +10,10 @@ from services.error_notification_service import ensure_error_notifier
 
 
 DEFAULT_SPACED_SPEED = 75
+LEGACY_DEFAULT_MAX_CHAR = 50
+# PRAGMA user_version で管理する config.db のデータ移行版数
+# 1: 旧デフォルトMaxChar=50を新デフォルト100へ移行（v4.2）
+SCHEMA_USER_VERSION = 1
 
 DEFAULTS = {
   "TextTarget": None,
@@ -18,7 +22,7 @@ DEFAULTS = {
   "Volume": 100,
   "Speed": 100,
   "SpacedSpeed": None,
-  "MaxChar": 50,
+  "MaxChar": 100,
   "AutoJoin": False,
   "AccessNotice": False,
   "Greeting": True,
@@ -33,7 +37,7 @@ _TYPE_VALIDATORS = {
   "SpacedSpeed": lambda value: value is None or (
     isinstance(value, int) and 50 <= value <= 200
   ),
-  "MaxChar": lambda value: isinstance(value, int) and 30 <= value <= 200,
+  "MaxChar": lambda value: isinstance(value, int) and 30 <= value <= 500,
   "AutoJoin": lambda value: isinstance(value, bool),
   "AccessNotice": lambda value: isinstance(value, bool),
   "Greeting": lambda value: isinstance(value, bool),
@@ -69,7 +73,7 @@ class GuildConfigRepository:
         Volume        INTEGER NOT NULL DEFAULT 100,
         Speed         INTEGER NOT NULL DEFAULT 100,
         SpacedSpeed   INTEGER DEFAULT NULL,
-        MaxChar       INTEGER NOT NULL DEFAULT 50,
+        MaxChar       INTEGER NOT NULL DEFAULT 100,
         AutoJoin      INTEGER NOT NULL DEFAULT 0,
         AccessNotice  INTEGER NOT NULL DEFAULT 0,
         Language      TEXT NOT NULL DEFAULT 'ja',
@@ -132,7 +136,7 @@ class GuildConfigRepository:
           Volume        INTEGER NOT NULL DEFAULT 100,
           Speed         INTEGER NOT NULL DEFAULT 100,
           SpacedSpeed   INTEGER DEFAULT NULL,
-          MaxChar       INTEGER NOT NULL DEFAULT 50,
+          MaxChar       INTEGER NOT NULL DEFAULT 100,
           AutoJoin      INTEGER NOT NULL DEFAULT 0,
           AccessNotice  INTEGER NOT NULL DEFAULT 0,
           Language      TEXT NOT NULL DEFAULT 'ja',
@@ -152,6 +156,37 @@ class GuildConfigRepository:
         """
       )
 
+    self._migrate_max_char_default()
+
+  def _migrate_max_char_default(self) -> None:
+    """旧デフォルトのMaxChar=50を、新デフォルトへ一度だけ移行する。"""
+    user_version = self._conn.execute("PRAGMA user_version").fetchone()[0]
+    if user_version >= SCHEMA_USER_VERSION:
+      return
+    has_target = self._conn.execute(
+      "SELECT 1 FROM guild_config WHERE MaxChar = ? LIMIT 1",
+      (LEGACY_DEFAULT_MAX_CHAR,),
+    ).fetchone()
+    if has_target is not None:
+      backup_path = backup_db(
+        self.db_path,
+        self.backup_dir,
+        self.error_notifier,
+        filename_suffix="v4.1-latest",
+      )
+      if backup_path is None:
+        raise RuntimeError(
+          "config.dbの移行前バックアップに失敗したため、"
+          "MaxCharの初期値移行を中止しました"
+        )
+      print(f"[migration] v4.1最終DBバックアップ完了: {backup_path}")
+    self._conn.execute(
+      "UPDATE guild_config SET MaxChar = ? WHERE MaxChar = ?",
+      (DEFAULTS["MaxChar"], LEGACY_DEFAULT_MAX_CHAR),
+    )
+    self._conn.execute(f"PRAGMA user_version = {SCHEMA_USER_VERSION}")
+    self._conn.commit()
+
   def _to_python(self, key: str, value):
     if value is None:
       if key == "Speaker":
@@ -169,8 +204,8 @@ class GuildConfigRepository:
 
   def init_guild(self, guild_id: int) -> None:
     self._conn.execute(
-      "INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)",
-      (str(guild_id),),
+      "INSERT OR IGNORE INTO guild_config (guild_id, MaxChar) VALUES (?, ?)",
+      (str(guild_id), DEFAULTS["MaxChar"]),
     )
     self._conn.commit()
 
@@ -192,8 +227,8 @@ class GuildConfigRepository:
       raise ValueError(f"{key} に無効な値です: {value!r}")
     gid = str(guild_id)
     self._conn.execute(
-      "INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)",
-      (gid,),
+      "INSERT OR IGNORE INTO guild_config (guild_id, MaxChar) VALUES (?, ?)",
+      (gid, DEFAULTS["MaxChar"]),
     )
     self._conn.execute(
       f"UPDATE guild_config SET {key} = ? WHERE guild_id = ?",

@@ -14,7 +14,10 @@ import discord
 from config import SPEAKERS_JSON
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error, handle_os_error
+from repositories.guild_config_repository import DEFAULTS as GUILD_CONFIG_DEFAULTS
 from services.error_notification_service import ensure_error_notifier
+
+DEFAULT_MAX_CHAR = GUILD_CONFIG_DEFAULTS["MaxChar"]
 
 
 with open(SPEAKERS_JSON, encoding="utf-8") as _f:
@@ -428,24 +431,24 @@ class Setting:
 
     @setting_group.command(
       name="max-char",
-      description="読み上げ最大文字数を設定します（30〜200、0でデフォルトの50に戻す）",
+      description="読み上げ最大文字数を設定します（30〜500、0でデフォルトの100に戻す）",
     )
     @discord.app_commands.describe(
-      chars="読み上げ最大文字数（30〜200、0でデフォルトの50に戻す）"
+      chars="読み上げ最大文字数（30〜500、0でデフォルトの100に戻す）"
     )
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def setting_max_char(ctx, chars: int):
       try:
         await ctx.response.defer()
         if chars == 0:
-          chars = 50
+          chars = DEFAULT_MAX_CHAR
         try:
           self.server_config.set(ctx.guild.id, "MaxChar", chars)
         except ValueError:
           await ctx.edit_original_response(
             embed=make_embed(
               "設定失敗",
-              "最大文字数は 30〜200 の整数で指定してください（0でデフォルトの50に戻す）",
+              "最大文字数は 30〜500 の整数で指定してください（0でデフォルトの100に戻す）",
               embed_type=EmbedType.ERROR,
             )
           )

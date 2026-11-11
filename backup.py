@@ -121,7 +121,7 @@ def rotate_backups(
   files = sorted(
     path
     for path in dest_dir.glob(pattern)
-    if not path.stem.endswith("_v3-latest")
+    if not path.stem.endswith("-latest")
   )  # 移行前バックアップを除き、ファイル名のタイムスタンプ順
   excess = files[:max(0, len(files) - keep)]
   for f in excess:
