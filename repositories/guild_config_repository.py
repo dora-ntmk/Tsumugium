@@ -10,10 +10,6 @@ from services.error_notification_service import ensure_error_notifier
 
 
 DEFAULT_SPACED_SPEED = 75
-LEGACY_DEFAULT_MAX_CHAR = 50
-# PRAGMA user_version で管理する config.db のデータ移行版数
-# 1: 旧デフォルトMaxChar=50を新デフォルト100へ移行（v4.2）
-SCHEMA_USER_VERSION = 1
 
 DEFAULTS = {
   "TextTarget": None,
@@ -155,37 +151,6 @@ class GuildConfigRepository:
         COMMIT;
         """
       )
-
-    self._migrate_max_char_default()
-
-  def _migrate_max_char_default(self) -> None:
-    """旧デフォルトのMaxChar=50を、新デフォルトへ一度だけ移行する。"""
-    user_version = self._conn.execute("PRAGMA user_version").fetchone()[0]
-    if user_version >= SCHEMA_USER_VERSION:
-      return
-    has_target = self._conn.execute(
-      "SELECT 1 FROM guild_config WHERE MaxChar = ? LIMIT 1",
-      (LEGACY_DEFAULT_MAX_CHAR,),
-    ).fetchone()
-    if has_target is not None:
-      backup_path = backup_db(
-        self.db_path,
-        self.backup_dir,
-        self.error_notifier,
-        filename_suffix="v4.1-latest",
-      )
-      if backup_path is None:
-        raise RuntimeError(
-          "config.dbの移行前バックアップに失敗したため、"
-          "MaxCharの初期値移行を中止しました"
-        )
-      print(f"[migration] v4.1最終DBバックアップ完了: {backup_path}")
-    self._conn.execute(
-      "UPDATE guild_config SET MaxChar = ? WHERE MaxChar = ?",
-      (DEFAULTS["MaxChar"], LEGACY_DEFAULT_MAX_CHAR),
-    )
-    self._conn.execute(f"PRAGMA user_version = {SCHEMA_USER_VERSION}")
-    self._conn.commit()
 
   def _to_python(self, key: str, value):
     if value is None:
