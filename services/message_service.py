@@ -53,7 +53,7 @@ class MessageService:
       return
     if not self.is_target_channel(message):
       return
-    if message.content.startswith("!s ") or message.flags.silent:
+    if message.content.startswith(("!s ", "!skip ")) or message.flags.silent:
       return
     if message.content.strip() == "s":
       self.voice_service.skip_current(message.guild)
