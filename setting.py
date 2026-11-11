@@ -7,7 +7,6 @@
       AutoJoin・AccessNoticeをサーバー管理者向けに提供する。
 依存関係：discord.py
 """
-import json
 
 import discord
 
@@ -16,22 +15,29 @@ from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error, handle_os_error
 from repositories.guild_config_repository import DEFAULTS as GUILD_CONFIG_DEFAULTS
 from services.error_notification_service import ensure_error_notifier
+from services.speaker_service import SpeakerService
 
 DEFAULT_MAX_CHAR = GUILD_CONFIG_DEFAULTS["MaxChar"]
-
-
-with open(SPEAKERS_JSON, encoding="utf-8") as _f:
-  VOICEVOX_SPEAKERS = [(s["id"], s["name"]) for s in json.load(_f)]
 
 BOT_DEFAULT_LABEL = "Botのデフォルト"
 
 
 class Setting:
-  def __init__(self, client, tree, server_config, error_notifier=None):
+  def __init__(
+      self,
+      client,
+      tree,
+      server_config,
+      error_notifier=None,
+      speaker_service=None,
+  ):
     self.client = client
     self.tree = tree
     self.server_config = server_config
     self.error_notifier = ensure_error_notifier(error_notifier)
+    if speaker_service is None:
+      speaker_service = SpeakerService(SPEAKERS_JSON, self.error_notifier)
+    self.speaker_service = speaker_service
     self._register()
 
   def _register(self):
@@ -63,9 +69,8 @@ class Setting:
         if raw_speaker is None:
           speaker_display = BOT_DEFAULT_LABEL
         else:
-          speaker_display = next(
-            (name for sid, name in VOICEVOX_SPEAKERS if sid == raw_speaker),
-            str(raw_speaker),
+          speaker_display = (
+            self.speaker_service.name_of(raw_speaker) or str(raw_speaker)
           )
         embed.add_field(name="話者", value=speaker_display, inline=True)
         embed.add_field(name="音量", value=str(cfg["Volume"]), inline=True)
@@ -248,9 +253,7 @@ class Setting:
             )
           )
           return
-        speaker_id = next(
-          (sid for sid, name in VOICEVOX_SPEAKERS if name == speaker), None
-        )
+        speaker_id = self.speaker_service.id_of(speaker)
         if speaker_id is None:
           await ctx.edit_original_response(
             embed=make_embed(
@@ -286,8 +289,7 @@ class Setting:
         )
       filtered = [
         discord.app_commands.Choice(name=name, value=name)
-        for _, name in VOICEVOX_SPEAKERS
-        if current in name
+        for name in self.speaker_service.search(current)
       ]
       return (choices + filtered)[:25]
 
