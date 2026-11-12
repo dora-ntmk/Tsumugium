@@ -20,6 +20,7 @@ from config import (
   SPEAKERS_JSON,
   STATUS_MESSAGE,
   TMP_DIR,
+  UPDATE_STATE_DIR,
   USER_CONFIG_DB,
   VERSION,
   VOICEVOX_URL,
@@ -29,6 +30,7 @@ from repositories.user_config_repository import UserConfigRepository
 from services.connection_service import ConnectionService
 from services.error_notification_service import ErrorNotificationService
 from services.message_service import MessageService
+from services.ready_state_service import ReadyStateService
 from services.speaker_service import SpeakerService
 from services.speech_service import SpeechService
 from services.status_service import StatusService
@@ -124,6 +126,8 @@ connection_service = ConnectionService(
 )
 status_service = StatusService(client, STATUS_MESSAGE, error_notifier)
 client.register_closeable(status_service)
+ready_state = ReadyStateService(UPDATE_STATE_DIR, VERSION)
+client.register_closeable(ready_state)
 message_service = MessageService(
   client,
   server_config,
@@ -157,6 +161,7 @@ lifecycle_cog = LifecycleCog(
   backup_databases=[SERVER_CONFIG_DB, DICT_DB, USER_CONFIG_DB],
   status_service=status_service,
   error_notifier=error_notifier,
+  ready_state=ready_state,
 )
 
 setting = Setting(

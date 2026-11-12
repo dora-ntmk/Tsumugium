@@ -30,26 +30,33 @@ Bot起動時にVOICEVOXへのHTTP疎通確認を行うため、先にVOICEVOX EN
 
 ## セットアップ
 
+入れ方は2つあります。
+
+- **インストーラーで入れる（Ubuntu 22.04以上・Debian 12以上）**: 専用ユーザー・専用のvenv・systemdのサービスを作り、更新と1つ前のバージョンへの戻し方もそろえます。サーバーで動かすときは、こちらを使ってください。手順は[インストールと運用の手引き](docs/INSTALL.md)にあります。
+- **手で動かす**: 開発するときや、ほかのOSで動かすときの方法です。以下に手順を書きます。
+
+### 手で動かす
+
 依存パッケージをインストールします。
 
 ```bash
 python -m pip install -r requirements.txt
 ```
 
-`.env.template`を`.env`へコピーし、最低限`DISCORD_BOT_TOKEN`を設定します。
+`.env.template`を`.env`へコピーし、最低限`DISCORD_BOT_TOKEN`を設定します。ほかの項目の意味は`.env.template`に書いてあります。
 
 ```dotenv
 DISCORD_BOT_TOKEN=YOUR_DISCORD_BOT_TOKEN
 OPERATOR_USER_ID=
-VOICEVOX_URL=http://127.0.0.1:50021
 DEFAULT_SPEAKER=8
-USER_CONFIG_DB=db/users.db
 STATUS_MESSAGE="{voice_connections}/{guilds}個のVCに接続中"
 ```
 
 `STATUS_MESSAGE`では、`{voice_connections}`（Botの接続VC数）、`{voice_users}`（接続先VCにいる人間ユーザー数）、`{guilds}`（参加サーバー数）を利用できます。波括弧自体を表示する場合は`{{`または`}}`と記述します。未知の変数や不正な構文がある場合、設定エラーとしてBotは起動しません。
 
 `OPERATOR_USER_ID`へDiscordユーザーIDを設定すると、Botで発生したエラーをそのユーザーへDMで通知します。空欄の場合は通知しません。
+
+DBのバックアップは既定で毎日12:00に`BACKUP_DIR`へ取ります。時刻は`BACKUP_TIMES`で変えられ、空欄にするとバックアップを取りません。
 
 VOICEVOX ENGINEを起動してからBotを起動します。
 
@@ -85,6 +92,7 @@ Privileged Gateway Intentsは、Message Content Intentのみ有効にしてく�
 ## ドキュメント
 
 - [ユーザーガイド](USERGUIDE.md)
+- [インストールと運用の手引き](docs/INSTALL.md)
 - [アーキテクチャと処理フロー](docs/ARCHITECTURE.md)
 - [リリース確認手順](docs/RELEASE_CHECKLIST.md)
 - [開発者向け仕様書](AGENTS.md)

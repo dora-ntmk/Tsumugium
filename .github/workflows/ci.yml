@@ -1,0 +1,200 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "feature/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: テスト (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.x"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: 依存をインストール
+        run: python -m pip install -r requirements.txt
+
+      - name: 構文を確かめる
+        run: python -m compileall -q .
+
+      - name: テストを実行
+        run: python -m unittest discover -s tests -v
+
+  static-checks:
+    name: 静的チェック
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 変更分の空白を確かめる (git diff --check)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$PR_BASE_SHA"
+          elif [ -n "$PUSH_BEFORE_SHA" ] && ! printf '%s' "$PUSH_BEFORE_SHA" | grep -qE '^0+$'; then
+            base="$PUSH_BEFORE_SHA"
+          else
+            git fetch --no-tags origin main
+            base="$(git merge-base origin/main HEAD)"
+          fi
+          echo "比較の基準: $base"
+          git diff --check "$base" HEAD
+
+      - name: 削除済み要素が残っていないかを確かめる
+        run: |
+          status=0
+          if grep -rnE '^\s*(import requests|from requests( |\.))' --include='*.py' .; then
+            echo "::error::requests のimportが残っています"
+            status=1
+          fi
+          if git ls-files --error-unmatch messages.py >/dev/null 2>&1; then
+            echo "::error::messages.py が残っています"
+            status=1
+          fi
+          if grep -rnE 'name=["'"'"']language["'"'"']' --include='*.py' .; then
+            echo "::error::/setting language のコマンド定義が残っています"
+            status=1
+          fi
+          exit $status
+
+      - name: 入れてはいけないファイルがないかを確かめる
+        run: |
+          forbidden="$(git ls-files | grep -E '^\.env$|^db/.*\.db$|^tmp/|^backup/' || true)"
+          if [ -n "$forbidden" ]; then
+            echo "::error::コミットしてはいけないファイルがあります"
+            echo "$forbidden"
+            exit 1
+          fi
+
+  build:
+    name: 配布物の作成
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: pip-toolsをインストール
+        run: python -m pip install pip-tools
+
+      - name: requirements.lockを作る（ハッシュ値つき、Python 3.10向け）
+        run: |
+          python -m piptools compile \
+            --generate-hashes \
+            --strip-extras \
+            --no-header \
+            --output-file requirements.lock \
+            requirements.txt
+
+      - name: requirements.lockから入れられるかを確かめる
+        run: |
+          python -m venv /tmp/lock-check
+          /tmp/lock-check/bin/python -m pip install --require-hashes -r requirements.lock
+
+      - name: zipとSHA256値を作る
+        id: build
+        run: python scripts/build_release.py --lock requirements.lock --out dist
+
+      - name: 成果物として保存する
+        uses: actions/upload-artifact@v4
+        with:
+          name: tsumugium-${{ steps.build.outputs.tag }}
+          path: dist/
+          if-no-files-found: error
+
+  installer-e2e:
+    name: インストーラーの結合テスト
+    runs-on: ubuntu-24.04
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 対象の変更があるかを確かめる
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          # 手動の実行と、main へのPRでは必ず走らせる
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || { [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_BASE_REF" = "main" ]; }; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$PR_BASE_SHA"
+          elif [ -n "$PUSH_BEFORE_SHA" ] && ! printf '%s' "$PUSH_BEFORE_SHA" | grep -qE '^0+$'; then
+            base="$PUSH_BEFORE_SHA"
+          else
+            git fetch --no-tags origin main
+            base="$(git merge-base origin/main HEAD)"
+          fi
+          pattern='^(installer/|install\.sh$|config\.py$|services/ready_state_service\.py$|scripts/(build_release|ci_installer_e2e)\.py$|\.github/workflows/ci\.yml$)'
+          if git diff --name-only "$base" HEAD | grep -qE "$pattern"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "インストーラーに関わる変更がないため、結合テストは省きます"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.changes.outputs.run == 'true'
+        with:
+          # ubuntu-24.04 の /usr/bin/python3 と同じ版で、偽のBot用の依存を固める
+          python-version: "3.12"
+
+      - name: 偽のBot用のrequirements.lockを作る
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          python -m pip install pip-tools
+          grep -E '^python-dotenv' requirements.txt > /tmp/requirements-e2e.in
+          python -m piptools compile \
+            --generate-hashes \
+            --strip-extras \
+            --no-header \
+            --output-file requirements-e2e.lock \
+            /tmp/requirements-e2e.in
+
+      - name: install から uninstall までを通しで動かす
+        if: steps.changes.outputs.run == 'true'
+        run: python scripts/ci_installer_e2e.py --lock requirements-e2e.lock
+
+  secret-scan:
+    name: 秘密情報のスキャン
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

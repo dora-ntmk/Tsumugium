@@ -164,6 +164,52 @@ stateDiagram-v2
 - Bot終了時は`ManagedDiscordClient`がHTTPセッションとSQLite接続を閉じます。
 - `users.db`は起動時にテーブルを作成して定時バックアップ対象に含めます。`/user-reading`はギルドとDMの両方から本人の`reading`を更新し、常にephemeralで応答します。`UserReadingService`が保存済みの読み方をDiscordの表示名より優先する共通名前解決を提供し、メンションと入退室通知の双方から利用します。
 
+## インストーラーと更新
+
+サーバーへの導入と更新は`tsumugium-setup`（`installer/`）が行います。利用者向けの手順は[インストールと運用の手引き](INSTALL.md)、モジュールの一覧と決まりは[`AGENTS.md`](../AGENTS.md)にあります。
+
+### 置き場所
+
+```text
+/opt/<インスタンス名>/
+  .env          設定（root:<グループ>、640）
+  app/          コードと専用のvenv（root。更新のたびに作り直す）
+  app.prev/     1つ前のバージョン（rollbackで使う）
+  data/         db/・backup/・tmp/・state/（専用ユーザー。Botが書き込めるのはここだけ）
+/etc/tsumugium/<インスタンス名>.json   インストールで選んだ値の記録
+/etc/systemd/system/<サービス名>.service
+/usr/local/sbin/tsumugium-setup         入口（対象のインスタンスのapp/にあるインストーラーを呼ぶ）
+```
+
+DBの場所などはunitの`Environment=`で渡し、`.env`は`TSUMUGIUM_ENV_FILE`で指定してBotの`load_dotenv()`が読みます。`load_dotenv()`はすでにある環境変数を上書きしないので、unitの値が優先されます。`EnvironmentFile=`は使いません。systemdでは`EnvironmentFile=`の値が`Environment=`より優先され、`.env`に古いパスが残っているとunitの値が使われなくなるためです。
+
+### 更新の流れ
+
+```mermaid
+sequenceDiagram
+    participant Old as 今のバージョンのインストーラー（app/）
+    participant New as 新しいバージョンのインストーラー（app.new/）
+    participant Bot as Bot（systemd）
+    Old->>Old: ロック、バージョンの選択、zipと.sha256の取得・照合、app.new/へ展開
+    Old->>New: data/state/handoff.json（handoff: 1）で引き継ぐ
+    New->>New: venvの作成、VOICEVOXの確認、.envへの書き足し
+    New->>Bot: 停止
+    New->>New: 記録に「更新中」、DBのバックアップ、app/→app.prev/、app.new/→app/、unitの書き換え
+    New->>Bot: 起動
+    Bot-->>New: data/state/ready.json（バージョンとプロセスID）
+    New->>New: 記録のバージョンを書き換え、「更新中」を消す
+```
+
+- 今のバージョンは取得までしか行わず、それ以降は新しいバージョンのコードで行います。そのため、unitの形や記録の形式を変える更新も、新しいバージョンの知識で行えます。引き継ぐ形式には番号を付け、知らない番号を受け取ったバージョンは何も変えずに止まります。
+- 停止より前（venvの作成、VOICEVOXの確認、`.env`の必須項目の確認）で止まったときは、`app.new/`を消すだけで、動いているBotには触れません。
+- 停止のあとで失敗したとき（起動を60秒以内に確認できなかったときを含む）は、コード・venv・DB・unit・`app.prev/`を更新の前に戻し、前のバージョンで起動し直します。`.env`に書き足した項目は残します。
+- 途中でプロセスが止まると、記録に「更新中」が残ります。次に実行したときに、`repair`か`rollback`で直すように求めます。
+
+### repairとrollback
+
+- `repair`は、記録のバージョンを取得し直し、`upgrade`と同じ流れで入れ直します。`app.prev/`は残し、元の`app/`は成功するまで`app.repair-old/`に置いておきます。
+- `rollback`は、入口が`app.prev/`にある1つ前のバージョンのインストーラーで動かします。`app/`と`app.prev/`を入れ替え、そのバージョンから更新したときのDBのバックアップに戻すかを聞きます（既定は戻す）。unitは戻す先のバージョンの形で書き直します。
+
 ## 変更時の注意点
 
 - `swap.py`の前処理順序を変更する場合は、優先辞書・URL・カスタム絵文字・`www`の回帰テストを必ず実行してください。

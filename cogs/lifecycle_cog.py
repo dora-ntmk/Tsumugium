@@ -21,6 +21,7 @@ class LifecycleCog:
       backup_databases,
       status_service,
       error_notifier=None,
+      ready_state=None,
   ):
     self.client = client
     self.tree = tree
@@ -30,6 +31,7 @@ class LifecycleCog:
     self.backup_databases = backup_databases
     self.status_service = status_service
     self.error_notifier = ensure_error_notifier(error_notifier)
+    self.ready_state = ready_state
     self.backup_task = None
     self._register()
 
@@ -60,6 +62,9 @@ class LifecycleCog:
       )
       await self.status_service.update()
       print(discord.__version__)
+      # 起動の準備がすべて終わってから、インストーラーへ知らせる
+      if self.ready_state is not None:
+        self.ready_state.mark_ready()
 
     @self.client.event
     async def on_guild_join(guild):
