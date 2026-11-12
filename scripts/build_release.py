@@ -95,10 +95,16 @@ def current_commit(root: Path) -> str:
   ).stdout.strip()
 
 
-def _write_entry(archive: zipfile.ZipFile, name: str, data: bytes) -> None:
+def _write_entry(
+    archive: zipfile.ZipFile,
+    name: str,
+    data: bytes,
+    *,
+    executable: bool = False,
+) -> None:
   info = zipfile.ZipInfo(name, date_time=FIXED_DATE_TIME)
   info.compress_type = zipfile.ZIP_DEFLATED
-  info.external_attr = 0o644 << 16
+  info.external_attr = (0o755 if executable else 0o644) << 16
   archive.writestr(info, data)
 
 
@@ -129,7 +135,13 @@ def build(
 
   with zipfile.ZipFile(zip_path, "w") as archive:
     for path in distributed:
-      _write_entry(archive, f"{prefix}/{path}", (root / path).read_bytes())
+      source = root / path
+      _write_entry(
+        archive,
+        f"{prefix}/{path}",
+        source.read_bytes(),
+        executable=os.access(source, os.X_OK),
+      )
     _write_entry(archive, f"{prefix}/requirements.lock", lock_path.read_bytes())
     build_info = json.dumps(info, ensure_ascii=False, indent=2) + "\n"
     _write_entry(archive, f"{prefix}/build-info.json", build_info.encode("utf-8"))

@@ -133,6 +133,21 @@ class BuildTest(TempDirTestCase):
     second, _, _ = self.build()
     self.assertEqual(second.read_bytes(), first_bytes)
 
+  def test_executable_bit_is_kept(self):
+    script = self.root / "install.sh"
+    script.write_text("#!/bin/sh\n", encoding="utf-8")
+    script.chmod(0o755)
+    self.files = sorted(self.files + ["install.sh"])
+    zip_path, _, _ = self.build()
+    prefix = "tsumugium-v4.2.0.70-beta.3/"
+    with zipfile.ZipFile(zip_path) as archive:
+      modes = {
+        info.filename: (info.external_attr >> 16) & 0o777
+        for info in archive.infolist()
+      }
+    self.assertEqual(modes[prefix + "install.sh"], 0o755)
+    self.assertEqual(modes[prefix + "main.py"], 0o644)
+
   def test_missing_lock_file_is_an_error(self):
     os.remove(self.lock)
     with self.assertRaises(FileNotFoundError):
