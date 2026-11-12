@@ -232,6 +232,41 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ---
 
+## インストーラー（`installer/`）
+
+サーバーへの導入・更新・管理を行う`tsumugium-setup`の本体。標準ライブラリだけで動き、Python 3.10以上を前提にする。利用者向けの手順は[`docs/INSTALL.md`](docs/INSTALL.md)、更新の流れは[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)を参照。
+
+| ファイル | 役割 |
+|---|---|
+| `install.sh` | 展開したzipから最初に実行する入口。Python 3.10以上かを確かめ、隣の`installer/`を呼ぶ |
+| `installer/cli.py` | 8つのモードの振り分け。想定している失敗は理由を表示して終了コード1で終える |
+| `installer/install.py` | `install`モード |
+| `installer/upgrade.py` | `upgrade`・`repair`モード。取得・照合・展開までを今のバージョンが行い、そのあとを新しいバージョンに引き継ぐ |
+| `installer/handoff.py` | 引き継ぎを受ける新しいバージョンの入口 |
+| `installer/rollback.py` | `rollback`モード。`app.prev/`にある1つ前のバージョンのインストーラーで動く |
+| `installer/manage.py` | `status`・`start`・`stop`・`uninstall`モード |
+| `installer/entry.py` | `/usr/local/sbin/tsumugium-setup`の中身と、置き方・消し方 |
+| `installer/release.py` | GitHub Releasesからのバージョンの選択・取得、SHA256値の照合、zipの安全な展開、バージョンの比較 |
+| `installer/checks.py` | OS・systemd・Python・必要なパッケージ・VOICEVOXの事前チェック |
+| `installer/envfile.py` | `.env`の確認と、更新時に足りない項目を書き足す処理 |
+| `installer/service.py` | 専用ユーザー、ディレクトリの持ち主と権限、systemd unit |
+| `installer/readiness.py` | `ready.json`による起動の確認 |
+| `installer/deploy.py` | venvの作成と、`requirements.lock`からの依存の導入 |
+| `installer/instance.py` | 名前の検証、置き場所の構成、記録（`/etc/tsumugium/<インスタンス名>.json`）、インスタンスごとのロック |
+| `installer/system.py`・`installer/ui.py` | コマンドの実行とパスの組み立て、端末での表示と質問。テストでは偽物に差し替える |
+| `scripts/build_release.py` | 配布用のzipと`.sha256`を作る（CIで使う） |
+| `scripts/ci_installer_e2e.py` | CIの結合テスト。本物のsystemdでinstallからuninstallまでを動かす |
+| `scripts/migrate_legacy.py` | 旧環境から`.env`と`data/`を作る移行ツール。配布用のzipには入れず、移行する人に直接渡す |
+
+- 新しいバージョンへ引き継ぐ形式には番号（`installer/__init__.py`の`HANDOFF_VERSION`）を付ける。引き継ぐ項目の意味を変えるときは番号を上げる。知らない番号を受け取ったバージョンは、何も変えずに止まる。
+- インストーラーを別のプロセスで動かすときは、`python -m installer`を使わず、`installer.python_command()`（`python -I`で起動する）を使う。`-m`は今いるディレクトリの`installer/`を先に読むので、展開したzipやリポジトリの中で実行すると、違うバージョンが動くため。
+- インストーラーが作るunitと入口には`# Managed by tsumugium-setup`の印を付ける。印のない同じ名前のファイルは、上書きも削除もしない。
+- 配布用のzipには`.claude/`・`.github/`・`docs/`・`scripts/`・`tests/`・`.gitignore`・`AGENTS.md`を入れず、`build-info.json`と`requirements.lock`を加える。
+- `requirements.lock`は、CIで`pip-tools`を使ってハッシュ値つきで作る。インストーラーは`pip install --require-hashes`で入れる。
+- 記録の形式を変えるときは、`installer/instance.py`の`RECORD_FORMAT`を上げる。知らない項目は読み飛ばすので、項目を足すだけなら上げなくてよい。
+
+---
+
 ## 音声再生アーキテクチャ（`services/voice_service.py`）
 
 `VoiceService.sessions: dict[int, GuildSession]` でギルドごとの実行状態を保持する。`GuildSession.queue` に音声アイテムを積み、`play_loop` が順次消費する。キュー投入は `VoiceService.enqueue()` に集約する。
@@ -279,11 +314,12 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - `tests/` はリポジトリに含めて公開する。
 - テストには実在するDiscordのID・トークン・サーバー名・ユーザー名と、実際の辞書の登録内容を使わない。IDは `111111111111111111` のような明らかなダミーにする。
 - DBはテストごとに一時ディレクトリへ作り、本番DBのコピーは使わない。
-- テストはネットワークに接続しない。VOICEVOXとDiscordとのHTTP通信は、テスト内で立てるローカルのサーバーかモックで確かめる。
+- テストはネットワークに接続しない。VOICEVOX・Discord・GitHubとのHTTP通信は、テスト内で立てるローカルのサーバーかモックで確かめる。
 - テストには標準ライブラリの `unittest` だけを使い、依存を増やさない。
 - 全テストはプロジェクトルートで `python -m unittest discover -s tests -v` を実行する。
 - 特定モジュールだけ実行する場合は、例として `python -m unittest tests.test_http_clients -v` を使用する。
 - リリース・コミット前にも必要な回帰テストを実行する。
+- インストーラーの結合テストは、CIの`installer-e2e`ジョブが`scripts/ci_installer_e2e.py`で行う。本物の`sudo`・`useradd`・systemdを使い、`/opt/tsumugium`などを作って消すので、手元のマシンでは実行しない。
 
 ---
 

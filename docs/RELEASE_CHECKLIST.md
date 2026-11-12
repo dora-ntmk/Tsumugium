@@ -9,6 +9,7 @@
 - [ ] `git diff --check`が成功する（CIで確認）
 - [ ] `requests`、`messages.py`、`/setting language`など削除済み要素の実行コード参照がない（CIで確認）
 - [ ] `.env`、`db/*.db`、`tmp/`、`backup/`が公開コミットへ含まれていない（CIで確認）
+- [ ] `.env.template`と`config.py`の項目・既定値がそろっている（CIで確認）
 - [ ] `tests/`に実在するDiscordのID・トークン・サーバー名・ユーザー名と、実際の辞書の登録内容が含まれていない
 
 ## 2. 開発用テスト
@@ -26,8 +27,17 @@ python -m unittest discover -s tests -v
 - [ ] Repositoryと旧DBカラム補完
 - [ ] Embed共通ひな形
 - [ ] VOICEVOX・Soundboard HTTP Client
+- [ ] インストーラー（各モード、`.env`、unit、版の取得と照合）
+- [ ] 移行ツール
 
-## 3. DB互換性
+## 3. インストーラーと配布物
+
+- [ ] インストーラーの結合テスト（`installer-e2e`）が成功している（CIで確認。`main`へのPRでは必ず実行する）
+- [ ] 配布物の作成（`build`）が成功し、成果物にzipと`.sha256`がある（CIで確認）
+- [ ] ベータ環境で、成果物のzipを使った`sudo tsumugium-setup upgrade --from-file <zipのパス>`が成功し、`status`が稼働中を表示する
+- [ ] ベータ環境で、`rollback`で1つ前のバージョンに戻り、もう一度`upgrade`で元に戻せる
+
+## 4. DB互換性
 
 本番相当の4DB（`config.db`、`dict.db`、`soundboards.db`、`users.db`）をバックアップまたは一時ディレクトリへコピーして確認します。
 
@@ -43,7 +53,7 @@ python -m unittest discover -s tests -v
 - [ ] 各コピーで`PRAGMA integrity_check`が`ok`になる
 - [ ] 検証前後で既存行が意図せず変更されていない
 
-## 4. Discord実機確認
+## 5. Discord実機確認
 
 - [ ] VOICEVOX停止中は疎通エラーを出してBotが起動しない
 - [ ] VOICEVOX起動中はエンジンバージョンを出力してBotが起動する
@@ -69,7 +79,7 @@ python -m unittest discover -s tests -v
 - [ ] Bot終了時にHTTP・SQLiteのリソース終了エラーが出ない
 - [ ] 定時バックアップ対象に`users.db`が含まれる
 
-## 5. リリース直前
+## 6. リリース直前
 
 - [ ] SQLiteのバックアップを取得した
 - [ ] `git status`で意図しないDB・一時音声・秘密情報がない
@@ -77,6 +87,23 @@ python -m unittest discover -s tests -v
 - [ ] リリース対象ブランチとコミットを確認した
 - [ ] ロールバック用に直前バージョンのコードとDBバックアップを保持した
 
+## 7. リリースの公開
+
+GitHub Releasesは、当面は手で作ります。インストーラーの`upgrade`はここに添付したzipを取得します。
+
+1. `config.py`の`VERSION`から`(beta X)`を外して`vX.X.X.XX`にし、`LAST_UPDATED`を更新して`main`へマージする
+2. CIの「配布物の作成」ジョブの成果物（`tsumugium-<タグ名>`）から、zipと`.sha256`をダウンロードする
+3. `sha256sum -c tsumugium-<タグ名>.zip.sha256`で照合する
+4. タグ`vX.X.X.XX`でGitHub Releaseを作り、zipと`.sha256`を添付する。ベータを出すときは、タグを`vX.X.X.XX-beta.X`にして「プレリリース」にする
+5. 添付したファイルの名前が`tsumugium-<タグ名>.zip`と`tsumugium-<タグ名>.zip.sha256`であることを確かめる（インストーラーはこの名前で探す）
+6. ベータ環境で`sudo tsumugium-setup upgrade`を実行し、Releaseから取得して更新できることを確かめる
+7. 本番環境の管理者に、更新が出たことを知らせる
+
+- [ ] 上の手順をすべて終えた
+
 ## ロールバック
+
+インストーラーで入れた環境は、`sudo tsumugium-setup rollback`で1つ前のバージョンに戻せます。DBも更新の直前の状態に戻すかを聞かれます。
+
 
 v4には破壊的変更があるため、v3へロールバックする場合はコードを戻すだけでなく、`backup_config_*_v3-latest.db`を`config.db`として復元します。復元前のv4 DBも別名で保全してください。
