@@ -289,6 +289,8 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ## 環境変数（`.env`）
 
+インストーラーで入れた場合、`SERVER_CONFIG_DB`・`DICT_DB`・`SOUND_BOARDS_DB`・`USER_CONFIG_DB`・`TMP_DIR`・`BACKUP_DIR`・`VOICEVOX_URL`・`UPDATE_STATE_DIR`・`TSUMUGIUM_ENV_FILE`はsystemd unitの`Environment=`で渡すので、`.env`に書いても使われない。`.env.template`では、これらを手で動かすとき用の`#`付きの例として載せ、インストーラーが更新のときに`.env`へ書き足さないようにする。行がない項目は既定値を使うが、行があって空欄の項目は空文字として扱う。
+
 | 変数 | デフォルト | 説明 |
 |---|---|---|
 | `DISCORD_BOT_TOKEN` | 必須 | Discordボットトークン |
@@ -303,7 +305,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `SPEAKERS_JSON` | `db/speakers.json` | VOICEVOX話者リスト |
 | `TMP_DIR` | `tmp` | 音声ファイル一時保存先 |
 | `BACKUP_DIR` | `backup` | バックアップ保存先 |
-| `BACKUP_TIMES` | `""` | バックアップ実行時刻（カンマ区切り、例: `03:00,15:00`） |
+| `BACKUP_TIMES` | `12:00` | バックアップ実行時刻（カンマ区切り、例: `03:00,15:00`）。空欄にするとバックアップを取らない |
 | `BACKUP_INTERVAL_DAYS` | `1` | バックアップ実行間隔（日） |
 | `BACKUP_KEEP` | `7` | バックアップ保持世代数 |
 | `STATUS_MESSAGE` | `""` | Botのステータスメッセージ。`{voice_connections}`（接続VC数）、`{voice_users}`（同席中の人間ユーザー数）、`{guilds}`（参加サーバー数）を利用可能 |

@@ -43,10 +43,10 @@ VOICEVOX_URL      = os.getenv("VOICEVOX_URL", "http://127.0.0.1:50021")
 BACKUP_DIR           = os.getenv("BACKUP_DIR", "backup")
 # インストーラーへ起動の準備完了を知らせる ready.json の置き場所（空欄なら書かない）
 UPDATE_STATE_DIR     = os.getenv("UPDATE_STATE_DIR", "")
-BACKUP_TIMES         = os.getenv("BACKUP_TIMES", "")
+BACKUP_TIMES         = os.getenv("BACKUP_TIMES", "12:00")
 BACKUP_INTERVAL_DAYS = os.getenv("BACKUP_INTERVAL_DAYS", "1")
 BACKUP_KEEP          = os.getenv("BACKUP_KEEP", "7")
 
 # バージョン情報
-VERSION      = "v4.2.0.70 (beta 16)"
+VERSION      = "v4.2.0.70 (beta 17)"
 LAST_UPDATED = "2026/11/12"
