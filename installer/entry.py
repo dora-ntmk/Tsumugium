@@ -89,13 +89,23 @@ def main(argv=None, *, record_dir=RECORD_DIR, execute=os.execve):
   except (OSError, ValueError, KeyError, TypeError) as error:
     print(f"エラー: インスタンス {name} の記録を読めません: {error}", file=sys.stderr)
     return 1
-  # rollback は、1つ前の版のインストーラー（app.prev/）で行う
-  app = os.path.join(prefix, "app.prev" if mode == "rollback" else "app")
-  if not os.path.isdir(os.path.join(app, "installer")):
+  # rollback は、1つ前の版のインストーラー（app.prev/）で行う。
+  # ほかのモードは app/ のものを使い、更新が途中で止まって app/ がないときは app.prev/ を使う
+  if mode == "rollback":
+    candidates = ["app.prev"]
+  else:
+    candidates = ["app", "app.prev"]
+  app = next(
+    (os.path.join(prefix, name) for name in candidates
+     if os.path.isdir(os.path.join(prefix, name, "installer"))),
+    None,
+  )
+  if app is None:
     if mode == "rollback":
       print("エラー: 戻せる1つ前の版がありません", file=sys.stderr)
     else:
-      print(f"エラー: {app} にインストーラーがありません。repair で入れ直してください", file=sys.stderr)
+      print(f"エラー: {prefix} にインストーラーがありません。展開したzipの install.sh で入れ直してください",
+            file=sys.stderr)
     return 1
   env = dict(os.environ, PYTHONPATH=app)
   execute(sys.executable, [sys.executable, "-m", "installer", *args], env)

@@ -7,7 +7,7 @@ import sys
 from typing import Callable
 
 from installer.checks import CheckError
-from installer import install, manage, upgrade
+from installer import install, manage, rollback, upgrade
 from installer.envfile import EnvError
 from installer.instance import InstanceError
 from installer.readiness import ReadyError
@@ -63,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
       install.add_arguments(sub)
     if mode == "upgrade":
       upgrade.add_arguments(sub)
+    if mode == "repair":
+      upgrade.add_repair_arguments(sub)
     if mode == "stop":
       manage.add_stop_arguments(sub)
     if mode == "uninstall":
@@ -70,24 +72,17 @@ def build_parser() -> argparse.ArgumentParser:
   return parser
 
 
-def _not_implemented(mode: str) -> Callable[[argparse.Namespace, System, UI], int]:
-  def handler(args: argparse.Namespace, system: System, ui: UI) -> int:
-    ui.error(f"{mode} モードはまだ実装されていません")
-    return EXIT_ERROR
-
-  return handler
-
-
-# モード名 → 処理。実装した段階で差し替える。
+# モード名 → 処理
 HANDLERS: dict[str, Callable[[argparse.Namespace, System, UI], int]] = {
-  mode: _not_implemented(mode) for mode in MODES
+  "install": install.handle,
+  "upgrade": upgrade.run_upgrade,
+  "repair": upgrade.run_repair,
+  "rollback": rollback.run_rollback,
+  "uninstall": manage.uninstall,
+  "status": manage.show_status,
+  "start": manage.start,
+  "stop": manage.stop,
 }
-HANDLERS["install"] = install.handle
-HANDLERS["upgrade"] = upgrade.run_upgrade
-HANDLERS["status"] = manage.show_status
-HANDLERS["start"] = manage.start
-HANDLERS["stop"] = manage.stop
-HANDLERS["uninstall"] = manage.uninstall
 
 
 def main(

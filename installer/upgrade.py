@@ -60,8 +60,8 @@ UPGRADE_BACKUP_PREFIX = "upgrade-"
 UPGRADE_BACKUP_KEEP = 5
 
 
-class UpgradeFailed(RuntimeError):
-  """切り替えのあとで失敗し、前の版に戻したことを表す。"""
+def add_repair_arguments(parser: argparse.ArgumentParser) -> None:
+  parser.add_argument("--from-file", help="GitHubから取得せず、手元のzipを使う（隣に .sha256 が必要）")
 
 
 def add_arguments(parser: argparse.ArgumentParser) -> None:
@@ -95,7 +95,50 @@ def launch_new_installer(system: System, ui: UI, app_new: Path, handoff: Path) -
   return completed.returncode
 
 
+def launch_rollback(system: System, ui: UI, record: InstanceRecord) -> int:
+  """1つ前の版（app.prev/）のインストーラーで rollback を動かす。"""
+  app_prev = system.path(str(record.layout.app_prev))
+  if not (app_prev / "installer").is_dir():
+    raise InstanceError("戻せる1つ前の版がありません。repair を使ってください")
+  env = {**os.environ, "PYTHONPATH": str(app_prev)}
+  args = [sys.executable, "-m", "installer", "rollback", "--instance", record.instance]
+  return subprocess.run(args, cwd=str(app_prev), env=env).returncode
+
+
+def _resolve_unfinished(system: System, ui: UI, record: InstanceRecord) -> str:
+  """更新中の印が残っていたら、repair と rollback のどちらにするかを聞く。"""
+  updating = record.updating
+  message = f"前回の更新（{updating.get('from')} → {updating.get('to')}）が途中で止まっています。"
+  if ui.assume_yes:
+    raise InstanceError(
+      message + "sudo tsumugium-setup repair か sudo tsumugium-setup rollback で直してください"
+    )
+  ui.warn(message)
+  ui.info(f"  repair  : 記録の版（{record.version}）を入れ直す")
+  ui.info("  rollback: 1つ前の版（app.prev/）に戻す")
+  return ui.choose("どちらで直しますか", ["repair", "rollback"], "repair")
+
+
 def run_upgrade(
+    args: argparse.Namespace,
+    system: System,
+    ui: UI,
+    *,
+    client: GitHubClient | None = None,
+    launch: Callable[[System, UI, Path, Path], int] = launch_new_installer,
+    rollback: Callable[[System, UI, InstanceRecord], int] = launch_rollback,
+) -> int:
+  instance = select_instance(system, ui, args.instance)
+  record = load_record(system, instance)
+  if record.updating:
+    choice = _resolve_unfinished(system, ui, record)
+    if choice == "rollback":
+      return rollback(system, ui, record)
+    return _fetch_and_hand_off(args, system, ui, instance, "repair", client, launch)
+  return _fetch_and_hand_off(args, system, ui, instance, "upgrade", client, launch)
+
+
+def run_repair(
     args: argparse.Namespace,
     system: System,
     ui: UI,
@@ -104,27 +147,43 @@ def run_upgrade(
     launch: Callable[[System, UI, Path, Path], int] = launch_new_installer,
 ) -> int:
   instance = select_instance(system, ui, args.instance)
+  return _fetch_and_hand_off(args, system, ui, instance, "repair", client, launch)
+
+
+def _fetch_and_hand_off(args, system, ui, instance, mode, client, launch) -> int:
+  repair = mode == "repair"
   with InstanceLock(system, instance):
     record = load_record(system, instance)
-    if record.updating:
-      raise InstanceError(
-        f"前回の更新（{record.updating.get('from')} → {record.updating.get('to')}）が途中で止まっています。"
-        "sudo tsumugium-setup repair か sudo tsumugium-setup rollback で直してください"
-      )
+    if record.updating and not repair:
+      raise InstanceError("前回の更新が途中で止まっています。repair か rollback で直してください")
     layout = record.layout
     ui.info(f"インスタンス {instance}（今の版 {record.version}、{record.channel}）")
     ui.step("取得")
-    if args.from_file:
-      fetched = extract_from_file(system, ui, layout, Path(args.from_file))
-      direction = check_direction(record.version, fetched.version, allow_downgrade=args.allow_downgrade)
+    from_file = getattr(args, "from_file", None)
+    if from_file:
+      fetched = extract_from_file(system, ui, layout, Path(from_file))
+      if repair:
+        if fetched.version != Version.parse(record.version):
+          shutil.rmtree(fetched.path, ignore_errors=True)
+          raise ReleaseError(
+            f"zipの版（{fetched.version}）が記録の版（{record.version}）と違います。"
+            "repair には同じ版のzipを使ってください"
+          )
+        direction = "repair"
+      else:
+        direction = check_direction(record.version, fetched.version, allow_downgrade=args.allow_downgrade)
     else:
       client = client or GitHubClient()
-      release = select_release(client, record.repo, record.channel, requested=args.target_version)
-      direction = check_direction(record.version, release.version, allow_downgrade=args.allow_downgrade)
+      requested = record.version if repair else args.target_version
+      release = select_release(client, record.repo, record.channel, requested=requested)
+      if repair:
+        direction = "repair"
+      else:
+        direction = check_direction(record.version, release.version, allow_downgrade=args.allow_downgrade)
       if direction != "same":
         fetched = fetch_release(system, ui, layout, client, release)
     if direction == "same":
-      if args.from_file:
+      if from_file:
         shutil.rmtree(fetched.path, ignore_errors=True)
       ui.info(f"すでに {record.version} です。入れ直すときは sudo tsumugium-setup repair を使ってください")
       return EXIT_OK
@@ -132,13 +191,18 @@ def run_upgrade(
     if not (fetched.path / "installer" / "handoff.py").is_file():
       shutil.rmtree(fetched.path, ignore_errors=True)
       raise ReleaseError(f"{fetched.version} には、この方法で更新できるインストーラーがありません")
-    word = "戻します" if direction == "older" else "更新します"
-    if not ui.confirm(f"{record.version} から {fetched.version} に{word}。よろしいですか？", default=True):
+    if repair:
+      question = f"{fetched.version} を入れ直します。よろしいですか？"
+    else:
+      word = "戻します" if direction == "older" else "更新します"
+      question = f"{record.version} から {fetched.version} に{word}。よろしいですか？"
+    if not ui.confirm(question, default=True):
       shutil.rmtree(fetched.path, ignore_errors=True)
-      raise UserAbort("更新を中止しました")
+      raise UserAbort("中止しました")
 
     handoff = write_handoff(system, layout, {
       "handoff": HANDOFF_VERSION,
+      "mode": mode,
       "instance": instance,
       "from_version": record.version,
       "to_version": fetched.build["version"],
@@ -204,6 +268,8 @@ class _Switch:
   backup: Path | None = None
   stopped: bool = False
   switched: bool = False
+  # repair で、壊れているかもしれない app/ を脇に置いたか
+  aside: bool = False
 
 
 class Continuation:
@@ -218,6 +284,9 @@ class Continuation:
     self.systemctl = Systemctl(system)
     self.from_version = data["from_version"]
     self.to_version = data["to_version"]
+    # repair は記録の版を入れ直す。app.prev/（本当の1つ前の版）は残す
+    self.repair = data.get("mode", "upgrade") == "repair"
+    self.app_aside = self.layout.prefix / "app.repair-old"
 
   def path(self, absolute) -> Path:
     return self.system.path(str(absolute))
@@ -240,7 +309,10 @@ class Continuation:
     service = self.record.service
     start_after = True
     if not self.systemctl.is_active(service):
-      if ui.assume_yes:
+      if self.repair and ui.assume_yes:
+        # 入れ直しは、止まった（壊れた）Botを直すために使うことが多いので、起動して確かめる
+        ui.info(f"{unit_name(service)} は止まっています。入れ直したあとで起動して確かめます")
+      elif ui.assume_yes:
         ui.warn(f"{unit_name(service)} が止まっているため、更新しません。起動してから、もう一度実行してください")
         return None
       start_after = ui.confirm(
@@ -284,12 +356,22 @@ class Continuation:
     ui.info(f"DBを {self.layout.backup / state.backup.name} にコピーしました")
 
     app, app_prev, app_new = (self.path(p) for p in (self.layout.app, self.layout.app_prev, self.layout.app_new))
-    if app_prev.exists():
-      shutil.rmtree(app_prev)
-    os.rename(app, app_prev)
-    os.rename(app_new, app)
-    state.switched = True
-    ui.info(f"{self.layout.app} を {self.to_version} に切り替えました（前の版は {self.layout.app_prev}）")
+    if self.repair:
+      aside = self.path(self.app_aside)
+      shutil.rmtree(aside, ignore_errors=True)
+      if app.exists():
+        os.rename(app, aside)
+        state.aside = True
+      os.rename(app_new, app)
+      state.switched = True
+      ui.info(f"{self.layout.app} を入れ直しました（{self.layout.app_prev} はそのまま残します）")
+    else:
+      if app_prev.exists():
+        shutil.rmtree(app_prev)
+      os.rename(app, app_prev)
+      os.rename(app_new, app)
+      state.switched = True
+      ui.info(f"{self.layout.app} を {self.to_version} に切り替えました（前の版は {self.layout.app_prev}）")
 
     unit = unit_path(self.system, record.service)
     state.unit_text = unit.read_text(encoding="utf-8") if unit.is_file() else None
@@ -310,7 +392,13 @@ class Continuation:
     ui.error(reason)
     ui.step("ロールバック")
     self.systemctl.stop(record.service, check=False)
-    if state.switched:
+    if state.switched and self.repair:
+      app = self.path(self.layout.app)
+      shutil.rmtree(app, ignore_errors=True)
+      if state.aside:
+        os.rename(self.path(self.app_aside), app)
+      ui.info(f"{self.layout.app} を入れ直す前の状態に戻しました")
+    elif state.switched:
       app, app_prev = self.path(self.layout.app), self.path(self.layout.app_prev)
       failed = self.path(self.layout.prefix / "app.failed")
       shutil.rmtree(failed, ignore_errors=True)
@@ -339,7 +427,10 @@ class Continuation:
 
   def run(self) -> int:
     ui = self.ui
-    ui.info(f"{self.from_version} → {self.to_version} の更新を続けます（新しい版のインストーラー）")
+    if self.repair:
+      ui.info(f"{self.to_version} の入れ直しを続けます（取得した版のインストーラー）")
+    else:
+      ui.info(f"{self.from_version} → {self.to_version} の更新を続けます（新しい版のインストーラー）")
     try:
       start_after = self.prepare()
     except BaseException:
@@ -365,10 +456,12 @@ class Continuation:
       self.rollback(state, f"更新の途中で失敗しました: {error}")
       return EXIT_ERROR
 
+    if state.aside:
+      shutil.rmtree(self.path(self.app_aside), ignore_errors=True)
     # 入口のスクリプトも新しい版のものに置き直す
     install_entry(self.system)
     if start_after:
-      ui.info(f"{self.to_version} に更新しました")
+      ui.info(f"{self.to_version} を入れ直しました" if self.repair else f"{self.to_version} に更新しました")
     else:
       ui.info(f"{self.to_version} に入れ替えました。Botは止めたままです")
       ui.info("次に起動したときに、Botが ready.json を書くかで更新を確かめます")

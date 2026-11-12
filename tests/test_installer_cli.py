@@ -36,11 +36,11 @@ class CliTest(TempDirTestCase):
     )
     self.assertEqual(set(cli.HANDLERS), set(cli.MODES))
 
-  def test_unimplemented_mode_reports_error(self):
-    ui = make_ui()
-    code = cli.main(["repair"], system=self.make_system(), ui=ui)
-    self.assertEqual(code, cli.EXIT_ERROR)
-    self.assertIn("まだ実装されていません", ui.stderr.getvalue())
+  def test_every_mode_has_a_handler(self):
+    for mode, handler in cli.HANDLERS.items():
+      with self.subTest(mode=mode):
+        self.assertTrue(callable(handler))
+        self.assertNotIn("not_implemented", getattr(handler, "__qualname__", ""))
 
   def test_root_is_required(self):
     ui = make_ui()
