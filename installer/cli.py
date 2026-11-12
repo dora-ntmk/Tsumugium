@@ -11,6 +11,7 @@ from installer import install
 from installer.envfile import EnvError
 from installer.instance import InstanceError
 from installer.readiness import ReadyError
+from installer.release import ReleaseError
 from installer.service import ServiceError
 from installer.system import CommandError, System
 from installer.ui import UI, UserAbort
@@ -96,6 +97,7 @@ def main(
       EnvError,
       InstanceError,
       ReadyError,
+      ReleaseError,
       ServiceError,
   ) as error:
     ui.error(str(error))
