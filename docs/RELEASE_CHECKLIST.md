@@ -1,11 +1,10 @@
-# v4.2.0.70 (beta 8) リリース確認手順
+# リリース確認手順
 
 本番DBを直接使った破壊的な検証は行わず、必要な場合は必ずコピーへ対して実行します。
 
 ## 1. 静的確認
 
 - [ ] `config.py`の`VERSION`と`LAST_UPDATED`がリリース内容と一致している
-- [ ] `README.md`、`USERGUIDE.md`、`AGENTS.md`のバージョンが一致している
 - [ ] `python -m compileall -q .`が成功する
 - [ ] `git diff --check`が成功する
 - [ ] `requests`、`messages.py`、`/setting language`など削除済み要素の実行コード参照がない
@@ -52,7 +51,7 @@ python -m unittest discover -s tests -v
 - [ ] 稼働中のVOICEVOXが一時切断しても、30秒以内に復旧すれば受付順に読み上げる
 - [ ] VOICEVOXの一時切断が30秒を超えた場合は、試行回数・経過時間・最終原因を1回だけ通知する
 - [ ] Botが起動し、コマンド同期が完了する
-- [ ] `/version`がv4.2.0.70 (beta 8)と更新日を表示する
+- [ ] `/version`が`config.py`の`VERSION`と`LAST_UPDATED`を表示する
 - [ ] `/user-reading`がサーバー内とDMの両方で実行でき、本人のIDへ保存してephemeralで応答する
 - [ ] 設定済みユーザーへのメンションは保存した読み方を使い、未設定ユーザーはDiscordの表示名で読み上げる
 - [ ] 入退室通知も保存したユーザーの読み方を使い、未設定ユーザーはDiscordの表示名で読み上げる
@@ -81,4 +80,4 @@ python -m unittest discover -s tests -v
 
 ## ロールバック
 
-v4.1.0.69には破壊的変更があるため、v3へロールバックする場合はコードを戻すだけでなく、`backup_config_*_v3-latest.db`を`config.db`として復元します。復元前のv4 DBも別名で保全してください。
+v4には破壊的変更があるため、v3へロールバックする場合はコードを戻すだけでなく、`backup_config_*_v3-latest.db`を`config.db`として復元します。復元前のv4 DBも別名で保全してください。
