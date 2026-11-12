@@ -18,6 +18,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `services/error_notification_service.py` | エラーのCLI出力と、任意設定された運営者へのDiscord Embed形式DM通知を担当 |
 | `services/status_service.py` | STATUS_MESSAGEの検証・変数展開と、接続状態に応じたDiscordステータス更新を担当 |
 | `services/user_reading_service.py` | ユーザー設定の読み方を優先し、未設定時はDiscord表示名へ戻す共通名前解決を担当 |
+| `services/ready_state_service.py` | 起動の準備が終わったことを、インストーラーへ`ready.json`で知らせる。`UPDATE_STATE_DIR`が空欄なら何もしない |
 | `cogs/connection_cog.py` | `/join`・`/leave`とVC状態イベントを`ConnectionService`へ接続する登録層 |
 | `cogs/playback_cog.py` | `/clear`と`on_message`を読み上げサービスへ接続する登録層 |
 | `cogs/general_cog.py` | `/version`を登録する一般コマンド層 |
@@ -225,6 +226,12 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ---
 
+## 起動の準備完了の知らせ
+
+`on_ready`の処理（コマンドの同期、ギルドの整理、Soundboardの更新、バックアップの開始、ステータスの更新）がすべて終わったあとに、`ReadyStateService.mark_ready()`が`UPDATE_STATE_DIR/ready.json`へバージョン・プロセスID・時刻を書く。一時ファイルから置き換えるので、書きかけを読まれることはない。Botの終了時には`ManagedDiscordClient.close()`の中でこのファイルを消す。書き込みに失敗してもBotは止めない。インストーラーは起動前にこのファイルを消し、サービスの今のプロセスIDと期待するバージョンが書かれるまで最大60秒待つ。
+
+---
+
 ## 音声再生アーキテクチャ（`services/voice_service.py`）
 
 `VoiceService.sessions: dict[int, GuildSession]` でギルドごとの実行状態を保持する。`GuildSession.queue` に音声アイテムを積み、`play_loop` が順次消費する。キュー投入は `VoiceService.enqueue()` に集約する。
@@ -300,3 +307,4 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `BACKUP_INTERVAL_DAYS` | `1` | バックアップ実行間隔（日） |
 | `BACKUP_KEEP` | `7` | バックアップ保持世代数 |
 | `STATUS_MESSAGE` | `""` | Botのステータスメッセージ。`{voice_connections}`（接続VC数）、`{voice_users}`（同席中の人間ユーザー数）、`{guilds}`（参加サーバー数）を利用可能 |
+| `UPDATE_STATE_DIR` | `""` | `ready.json`の置き場所。インストーラーがsystemd unitで渡す。空欄なら書かない |

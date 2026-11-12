@@ -24,6 +24,7 @@ MODULES = [
   "cogs.connection_cog",
   "cogs.general_cog",
   "cogs.lifecycle_cog",
+  "services.ready_state_service",
   "cogs.playback_cog",
   "cogs.user_cog",
   "models.audio_item",
