@@ -107,6 +107,7 @@ class RenderUnitTest(unittest.TestCase):
         "WorkingDirectory=/opt/tsumugium-beta/app",
         "ExecStart=/opt/tsumugium-beta/app/.venv/bin/python main.py",
         'Environment="PYTHONUNBUFFERED=1"',
+        'Environment="TSUMUGIUM_ENV_FILE=/opt/tsumugium-beta/.env"',
         'Environment="SERVER_CONFIG_DB=/opt/tsumugium-beta/data/db/config.db"',
         'Environment="UPDATE_STATE_DIR=/opt/tsumugium-beta/data/state"',
         'Environment="VOICEVOX_URL=http://192.0.2.10:50021"',
@@ -132,7 +133,7 @@ class RenderUnitTest(unittest.TestCase):
     env = EnvFile.parse("".join(f"{key}=x\n" for key in environment))
     self.assertEqual(
       set(managed_keys_in(env, record.layout)),
-      set(environment) - {"PYTHONUNBUFFERED"},
+      set(environment) - {"PYTHONUNBUFFERED", "TSUMUGIUM_ENV_FILE"},
     )
 
 

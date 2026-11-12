@@ -308,3 +308,4 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `BACKUP_KEEP` | `7` | バックアップ保持世代数 |
 | `STATUS_MESSAGE` | `""` | Botのステータスメッセージ。`{voice_connections}`（接続VC数）、`{voice_users}`（同席中の人間ユーザー数）、`{guilds}`（参加サーバー数）を利用可能 |
 | `UPDATE_STATE_DIR` | `""` | `ready.json`の置き場所。インストーラーがsystemd unitで渡す。空欄なら書かない |
+| `TSUMUGIUM_ENV_FILE` | `""` | 読み込む`.env`の場所。インストーラーがsystemd unitで渡す。空欄なら、今までどおり`.env`を探して読む。どちらの場合も、すでにある環境変数は上書きしない |

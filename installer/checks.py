@@ -210,10 +210,23 @@ def confirm_voicevox(
     default_url: str,
     *,
     timeout: float = VOICEVOX_TIMEOUT,
+    ask_url: bool = True,
+    title: str = "VOICEVOX",
 ) -> VoicevoxResult:
-  """VOICEVOXのURLを聞き、実際に接続して確かめる。"""
-  ui.step("VOICEVOX")
-  url = ui.ask("VOICEVOXのURL", default_url, validate=check_voicevox_url).rstrip("/")
+  """VOICEVOXのURLを聞き、実際に接続して確かめる。
+
+  ask_url が False のとき（オプションで指定されたとき）は、URLを聞かずに確かめる。
+  """
+  ui.step(title)
+  if ask_url:
+    url = ui.ask("VOICEVOXのURL", default_url, validate=check_voicevox_url)
+  else:
+    problem = check_voicevox_url(default_url)
+    if problem:
+      raise CheckError(problem)
+    url = default_url
+    ui.info(f"VOICEVOXのURL: {url}（オプションで指定）")
+  url = url.rstrip("/")
   while True:
     try:
       version = probe_voicevox(url, timeout)

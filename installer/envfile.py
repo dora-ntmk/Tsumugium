@@ -24,6 +24,8 @@ TOKEN_PLACEHOLDER = "YOUR_DISCORD_BOT_TOKEN"
 REQUIRED_MARK = "# 必須"
 # テンプレートに印がなくても必須として扱う項目
 ALWAYS_REQUIRED = (TOKEN_KEY,)
+# .env と .env.bak の権限（root:<グループ> の 640。編集は sudo で行う）
+ENV_MODE = 0o640
 
 _ASSIGN_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
@@ -158,8 +160,8 @@ def managed_keys_in(env: EnvFile, layout: Layout) -> list[str]:
   return [key for key in managed if values.get(key)]
 
 
-def _write_private(system: System, path: Path, text: str, user: str) -> None:
-  """権限600で書き、持ち主を専用ユーザーにする。一時ファイルから置き換えるので途中で壊れない。"""
+def _write_protected(system: System, path: Path, text: str, group: str) -> None:
+  """root:<グループ> の 640 で書く。一時ファイルから置き換えるので途中で壊れない。"""
   path.parent.mkdir(parents=True, exist_ok=True)
   fd, temp = tempfile.mkstemp(dir=path.parent, prefix=".tmp-env-")
   try:
@@ -167,7 +169,7 @@ def _write_private(system: System, path: Path, text: str, user: str) -> None:
       file.write(text)
       file.flush()
       os.fsync(file.fileno())
-    os.chmod(temp, 0o600)
+    os.chmod(temp, ENV_MODE)
     os.replace(temp, path)
   except BaseException:
     try:
@@ -175,12 +177,17 @@ def _write_private(system: System, path: Path, text: str, user: str) -> None:
     except FileNotFoundError:
       pass
     raise
-  _chown(system, path, user)
+  _protect(system, path, group)
 
 
-def _chown(system: System, path: Path, user: str) -> None:
+def _protect(system: System, path: Path, group: str) -> None:
+  """持ち主を root、グループを専用ユーザーのグループにし、権限を 640 にする。
+
+  Bot（グループに入っている）は読めるが、書き換えられるのは root だけにする。
+  """
+  os.chmod(path, ENV_MODE)
   absolute = "/" + str(path.relative_to(system.root))
-  system.run(["chown", f"{user}:{user}", absolute])
+  system.run(["chown", f"root:{group}", absolute])
 
 
 def _edit_steps(layout: Layout, template_hint: str) -> str:
@@ -192,10 +199,10 @@ def _edit_steps(layout: Layout, template_hint: str) -> str:
   ])
 
 
-def _report_problems(problems: list[str], layout: Layout, action: str) -> EnvError:
+def _report_problems(problems: list[str], env_path, action: str) -> EnvError:
   lines = [f".env に問題があるため、{action}を止めます。"]
   lines += [f"  - {problem}" for problem in problems]
-  lines.append(f"{layout.env_file} を直してから、もう一度実行してください。")
+  lines.append(f"{env_path} を直してから、もう一度実行してください。")
   return EnvError("\n".join(lines))
 
 
@@ -207,41 +214,55 @@ def _warn_managed(ui: UI, env: EnvFile, layout: Layout) -> None:
     )
 
 
-def install_env(
-    system: System,
-    ui: UI,
-    layout: Layout,
-    extracted: Path,
-    user: str,
-) -> EnvFile:
-  """インストール時: `.env` を探して確かめ、入れる場所に置く。
+def _read_template(extracted: Path) -> list[TemplateEntry]:
+  template_path = extracted / ".env.template"
+  if not template_path.is_file():
+    return []
+  return parse_template(template_path.read_text(encoding="utf-8"))
+
+
+def find_env(system: System, extracted: Path, layout: Layout) -> Path:
+  """インストール時: `.env` を探して確かめ、見つけた場所を返す。
 
   探す順番は、入れる場所の `.env`、展開したディレクトリの `.env`。
+  入れる場所を決める前にも呼べるよう、ここでは何も書き換えない。
   """
-  ui.step(".env")
   target = system.path(str(layout.env_file))
-  candidates = [target, extracted / ".env"]
-  source = next((path for path in candidates if path.is_file()), None)
+  source = next((path for path in (target, extracted / ".env") if path.is_file()), None)
   if source is None:
     raise EnvError(
       ".env が見つかりません。\n"
       + _edit_steps(layout, str(extracted / ".env.template"))
     )
-  env = EnvFile.read(source)
-  template_path = extracted / ".env.template"
-  template = parse_template(template_path.read_text(encoding="utf-8")) if template_path.is_file() else []
-  problems = required_problems(env, template)
+  problems = required_problems(EnvFile.read(source), _read_template(extracted))
   if problems:
-    if source != target:
-      ui.info(f"見つけた .env: {source}")
-    raise _report_problems(problems, layout, "インストール")
+    raise _report_problems(problems, source, "インストール")
+  return source
+
+
+def install_env(
+    system: System,
+    ui: UI,
+    layout: Layout,
+    extracted: Path,
+    group: str,
+    *,
+    source: Path | None = None,
+) -> EnvFile:
+  """インストール時: `.env` を入れる場所に置き、root:<グループ> の 640 にする。
+
+  入れる場所にすでに `.env` があれば、それを使う。
+  """
+  target = system.path(str(layout.env_file))
+  if target.is_file() or source is None:
+    source = find_env(system, extracted, layout)
+  env = EnvFile.read(source)
   if source != target:
-    _write_private(system, target, env.text(), user)
-    ui.info(f"{source} を {layout.env_file} に置きました")
+    _write_protected(system, target, env.text(), group)
+    ui.info(f".env を {layout.env_file} に置きました（権限 640）")
   else:
-    os.chmod(target, 0o600)
-    _chown(system, target, user)
-    ui.info(f"{layout.env_file} を使います")
+    _protect(system, target, group)
+    ui.info(f"{layout.env_file} を使います（権限 640）")
   _warn_managed(ui, env, layout)
   return env
 
@@ -251,14 +272,13 @@ def upgrade_env(
     ui: UI,
     layout: Layout,
     template_path: Path,
-    user: str,
+    group: str,
     version: str,
 ) -> list[str]:
   """更新時: テンプレートにあって `.env` にない項目を足し、必須の項目を確かめる。
 
   足した項目の名前を返す。足す前に `.env.bak` を作る。
   """
-  ui.step(".env")
   target = system.path(str(layout.env_file))
   if not target.is_file():
     raise EnvError(f"{layout.env_file} が見つかりません")
@@ -269,13 +289,12 @@ def upgrade_env(
   if missing:
     backup = system.path(str(layout.env_backup))
     shutil.copy2(target, backup)
-    os.chmod(backup, 0o600)
-    _chown(system, backup, user)
+    _protect(system, backup, group)
     env.append(
       [list(entry.block) for entry in missing],
       f"# ↓ tsumugium-setup が {version} への更新で追加した項目",
     )
-    _write_private(system, target, env.text(), user)
+    _write_protected(system, target, env.text(), group)
     ui.info(f"{layout.env_file} に次の項目を足しました（元のものは {layout.env_backup}）:")
     for entry in missing:
       ui.info(f"  {entry.key}" + ("（必須）" if entry.required else ""))
@@ -283,6 +302,6 @@ def upgrade_env(
     ui.info(".env: 足りない項目はありません")
   problems = required_problems(env, template)
   if problems:
-    raise _report_problems(problems, layout, "更新")
+    raise _report_problems(problems, layout.env_file, "更新")
   _warn_managed(ui, env, layout)
   return [entry.key for entry in missing]

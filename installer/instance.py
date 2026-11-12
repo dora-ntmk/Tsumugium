@@ -43,6 +43,8 @@ class LockBusy(InstanceError):
 
 # unit の Environment= で渡し、.env に書いても使われない項目
 VOICEVOX_URL_KEY = "VOICEVOX_URL"
+# Bot が読む .env の場所を unit で渡すための変数
+ENV_FILE_KEY = "TSUMUGIUM_ENV_FILE"
 
 
 # 名前の検証。問題がなければ None、あればエラーの文を返す（UI.ask の validate に渡せる形）。

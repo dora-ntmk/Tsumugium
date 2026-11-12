@@ -6,7 +6,7 @@ import os
 import tempfile
 from pathlib import Path
 
-from installer.instance import VOICEVOX_URL_KEY, InstanceRecord, Layout
+from installer.instance import ENV_FILE_KEY, VOICEVOX_URL_KEY, InstanceRecord, Layout
 from installer.system import System
 
 
@@ -85,6 +85,7 @@ def unit_environment(record: InstanceRecord) -> dict[str, str]:
   """unit で Bot に渡す環境変数。これらは .env より優先される。"""
   return {
     "PYTHONUNBUFFERED": "1",
+    ENV_FILE_KEY: str(record.layout.env_file),
     **record.layout.bot_environment(),
     VOICEVOX_URL_KEY: record.voicevox_url,
   }

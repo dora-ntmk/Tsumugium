@@ -7,6 +7,7 @@ import sys
 from typing import Callable
 
 from installer.checks import CheckError
+from installer import install
 from installer.envfile import EnvError
 from installer.instance import InstanceError
 from installer.readiness import ReadyError
@@ -45,6 +46,8 @@ def build_parser() -> argparse.ArgumentParser:
       action="store_true",
       help="質問をせず、既定値で進める",
     )
+    if mode == "install":
+      install.add_arguments(sub)
   return parser
 
 
@@ -60,6 +63,7 @@ def _not_implemented(mode: str) -> Callable[[argparse.Namespace, System, UI], in
 HANDLERS: dict[str, Callable[[argparse.Namespace, System, UI], int]] = {
   mode: _not_implemented(mode) for mode in MODES
 }
+HANDLERS["install"] = install.handle
 
 
 def main(

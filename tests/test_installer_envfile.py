@@ -11,6 +11,7 @@ from installer.envfile import (
   EnvError,
   EnvFile,
   check_token,
+  find_env,
   install_env,
   managed_keys_in,
   parse_template,
@@ -166,24 +167,47 @@ class EnvTestCase(TempDirTestCase):
 
 
 class InstallEnvTest(EnvTestCase):
-  def install(self, ui=None):
-    return install_env(self.system, ui or make_ui(), self.layout, self.extracted, "tsumugium")
+  def install(self, ui=None, source=None):
+    return install_env(
+      self.system, ui or make_ui(), self.layout, self.extracted, "tsumugium", source=source
+    )
+
+  def assert_protected(self, path):
+    self.assertEqual(oct(os.stat(path).st_mode & 0o777), "0o640")
 
   def test_missing_env_shows_steps(self):
     with self.assertRaises(EnvError) as context:
-      self.install()
+      find_env(self.system, self.extracted, self.layout)
     message = str(context.exception)
     self.assertIn("見つかりません", message)
     self.assertIn(f"sudo cp {self.extracted}/.env.template /opt/tsumugium/.env", message)
     self.assertFalse(self.target.exists())
 
+  def test_find_env_order(self):
+    extracted_env = self.extracted / ".env"
+    extracted_env.write_text(f"DISCORD_BOT_TOKEN={SHAPED_TOKEN}\n", encoding="utf-8")
+    self.assertEqual(find_env(self.system, self.extracted, self.layout), extracted_env)
+    self.target.parent.mkdir(parents=True)
+    self.target.write_text(f"DISCORD_BOT_TOKEN={SHAPED_TOKEN}\n", encoding="utf-8")
+    self.assertEqual(find_env(self.system, self.extracted, self.layout), self.target)
+    self.assertEqual(self.runner.calls, [])
+
+  def test_invalid_token_is_found_before_anything_changes(self):
+    (self.extracted / ".env").write_text("DISCORD_BOT_TOKEN=YOUR_DISCORD_BOT_TOKEN\n", encoding="utf-8")
+    with self.assertRaisesRegex(EnvError, "テンプレートのまま") as context:
+      find_env(self.system, self.extracted, self.layout)
+    self.assertIn(str(self.extracted / ".env"), str(context.exception))
+    self.assertFalse(self.target.exists())
+    self.assertEqual(self.runner.calls, [])
+
   def test_env_in_extracted_directory_is_copied(self):
-    (self.extracted / ".env").write_text(f"DISCORD_BOT_TOKEN={SHAPED_TOKEN}\n", encoding="utf-8")
-    env = self.install()
+    source = self.extracted / ".env"
+    source.write_text(f"DISCORD_BOT_TOKEN={SHAPED_TOKEN}\n", encoding="utf-8")
+    env = self.install(source=source)
     self.assertEqual(env.get("DISCORD_BOT_TOKEN"), SHAPED_TOKEN)
     self.assertEqual(self.target.read_text(encoding="utf-8"), f"DISCORD_BOT_TOKEN={SHAPED_TOKEN}\n")
-    self.assertEqual(oct(os.stat(self.target).st_mode & 0o777), "0o600")
-    self.assertEqual(self.chowns(), [["chown", "tsumugium:tsumugium", "/opt/tsumugium/.env"]])
+    self.assert_protected(self.target)
+    self.assertEqual(self.chowns(), [["chown", "root:tsumugium", "/opt/tsumugium/.env"]])
     self.assertEqual(os.listdir(self.target.parent), [".env"])
 
   def test_env_in_prefix_comes_first(self):
@@ -191,16 +215,10 @@ class InstallEnvTest(EnvTestCase):
     self.target.write_text(f"DISCORD_BOT_TOKEN={SHAPED_TOKEN}\n", encoding="utf-8")
     os.chmod(self.target, 0o644)
     (self.extracted / ".env").write_text("DISCORD_BOT_TOKEN=\n", encoding="utf-8")
-    self.install()
-    self.assertEqual(oct(os.stat(self.target).st_mode & 0o777), "0o600")
-    self.assertEqual(self.chowns(), [["chown", "tsumugium:tsumugium", "/opt/tsumugium/.env"]])
-
-  def test_invalid_token_stops_without_copying(self):
-    (self.extracted / ".env").write_text("DISCORD_BOT_TOKEN=YOUR_DISCORD_BOT_TOKEN\n", encoding="utf-8")
-    with self.assertRaisesRegex(EnvError, "テンプレートのまま"):
-      self.install()
-    self.assertFalse(self.target.exists())
-    self.assertEqual(self.chowns(), [])
+    self.install(source=self.extracted / ".env")
+    self.assertEqual(self.target.read_text(encoding="utf-8"), f"DISCORD_BOT_TOKEN={SHAPED_TOKEN}\n")
+    self.assert_protected(self.target)
+    self.assertEqual(self.chowns(), [["chown", "root:tsumugium", "/opt/tsumugium/.env"]])
 
   def test_values_are_not_printed(self):
     (self.extracted / ".env").write_text(
@@ -227,7 +245,7 @@ class UpgradeEnvTest(EnvTestCase):
 
   def write_env(self, text):
     self.target.write_text(text, encoding="utf-8")
-    os.chmod(self.target, 0o600)
+    os.chmod(self.target, 0o640)
 
   def test_missing_keys_are_appended(self):
     original = f"# 自分のメモ\nDISCORD_BOT_TOKEN={SHAPED_TOKEN}\nSTATUS_MESSAGE=custom\n"
@@ -244,8 +262,11 @@ class UpgradeEnvTest(EnvTestCase):
     )
     self.assertEqual(self.backup.read_text(encoding="utf-8"), original)
     for path in (self.target, self.backup):
-      self.assertEqual(oct(os.stat(path).st_mode & 0o777), "0o600")
-    self.assertEqual(len(self.chowns()), 2)
+      self.assertEqual(oct(os.stat(path).st_mode & 0o777), "0o640")
+    self.assertEqual(self.chowns(), [
+      ["chown", "root:tsumugium", "/opt/tsumugium/.env.bak"],
+      ["chown", "root:tsumugium", "/opt/tsumugium/.env"],
+    ])
     self.assertIn("VOICEVOX_URL", ui.stdout.getvalue())
 
   def test_nothing_to_add(self):
