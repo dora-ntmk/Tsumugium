@@ -147,6 +147,7 @@ class UpgradeSuccessTest(UpgradeTestCase):
     venv = [call for call in self.runner.calls if call[:3] == [PYTHON, "-m", "venv"]]
     self.assertEqual(venv, [[PYTHON, "-m", "venv", "--clear", "/opt/tsumugium/app.new/.venv"]])
     self.assertIn(f"{NEW} に更新しました", self.output())
+    self.assertTrue(self.exists("/usr/local/sbin/tsumugium-setup"))
 
   def test_venv_and_env_are_prepared_while_bot_runs(self):
     order = []
@@ -210,6 +211,7 @@ class UpgradeRollbackTest(UpgradeTestCase):
     self.assertEqual(self.waits, [NEW, OLD])
     self.assertEqual(self.systemctl().count(["start", "tsumugium.service"]), 2)
     self.assertIn(f"{OLD} で起動し直しました", self.output())
+    self.assertFalse(self.exists("/usr/local/sbin/tsumugium-setup"))
 
   def test_failure_while_switching_rolls_back(self):
     with unittest.mock.patch("installer.upgrade.write_unit", side_effect=OSError("disk full")):

@@ -141,6 +141,8 @@ class InstallFlowTest(InstallTestCase):
     self.assertEqual(self.waits, [("/opt/tsumugium", "tsumugium", VERSION)])
     self.assertIn("インストールが完了しました", self.output())
     self.assertNotIn(SHAPED_TOKEN, self.output())
+    entry = self.system.path("/usr/local/sbin/tsumugium-setup")
+    self.assertEqual(oct(os.stat(entry).st_mode & 0o777), "0o755")
 
   def test_venv_is_built_before_switching(self):
     order = []

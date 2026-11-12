@@ -193,8 +193,8 @@ class Systemctl:
   def enable(self, service: str) -> None:
     self._run("enable", unit_name(service))
 
-  def disable(self, service: str) -> None:
-    self._run("disable", unit_name(service))
+  def disable(self, service: str, *, check: bool = True) -> None:
+    self._run("disable", unit_name(service), check=check)
 
   def start(self, service: str) -> None:
     self._run("start", unit_name(service))
@@ -207,6 +207,9 @@ class Systemctl:
 
   def is_active(self, service: str) -> bool:
     return self._run("is-active", "--quiet", unit_name(service), check=False).returncode == 0
+
+  def is_failed(self, service: str) -> bool:
+    return self._run("is-failed", "--quiet", unit_name(service), check=False).returncode == 0
 
   def is_enabled(self, service: str) -> bool:
     return self._run("is-enabled", "--quiet", unit_name(service), check=False).returncode == 0

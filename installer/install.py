@@ -18,6 +18,7 @@ from installer.checks import (
   run_preflight,
 )
 from installer.deploy import build_venv
+from installer.entry import ENTRY_PATH, install_entry
 from installer.envfile import find_env, install_env
 from installer.instance import (
   CHANNELS,
@@ -324,6 +325,8 @@ class Installer:
     self.ui.info(f"systemd unit を作成しました: {unit_name(record.service)}")
     save_record(self.system, record)
     self.ui.info(f"記録を作成しました: /etc/tsumugium/{record.instance}.json")
+    install_entry(self.system)
+    self.ui.info(f"tsumugium-setup を {ENTRY_PATH} に配置しました")
     return record
 
   def start(self, record: InstanceRecord, voicevox: VoicevoxResult) -> int:
@@ -354,8 +357,10 @@ class Installer:
     service = unit_name(record.service)
     self.ui.info("")
     self.ui.info("インストールが完了しました。")
+    self.ui.info("  状態を見る:   sudo tsumugium-setup status")
     self.ui.info(f"  ログを見る:   sudo journalctl -u {service} -f")
     self.ui.info(f"  設定を変える: sudo nano {record.layout.env_file} のあと sudo systemctl restart {service}")
+    self.ui.info("  更新する:     sudo tsumugium-setup upgrade")
     self.ui.info("  自動更新は既定で無効です")
 
   def run(self) -> int:

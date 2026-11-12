@@ -7,7 +7,7 @@ import sys
 from typing import Callable
 
 from installer.checks import CheckError
-from installer import install, upgrade
+from installer import install, manage, upgrade
 from installer.envfile import EnvError
 from installer.instance import InstanceError
 from installer.readiness import ReadyError
@@ -63,6 +63,10 @@ def build_parser() -> argparse.ArgumentParser:
       install.add_arguments(sub)
     if mode == "upgrade":
       upgrade.add_arguments(sub)
+    if mode == "stop":
+      manage.add_stop_arguments(sub)
+    if mode == "uninstall":
+      manage.add_uninstall_arguments(sub)
   return parser
 
 
@@ -80,6 +84,10 @@ HANDLERS: dict[str, Callable[[argparse.Namespace, System, UI], int]] = {
 }
 HANDLERS["install"] = install.handle
 HANDLERS["upgrade"] = upgrade.run_upgrade
+HANDLERS["status"] = manage.show_status
+HANDLERS["start"] = manage.start
+HANDLERS["stop"] = manage.stop
+HANDLERS["uninstall"] = manage.uninstall
 
 
 def main(

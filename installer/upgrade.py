@@ -26,6 +26,7 @@ from typing import Callable
 from installer import HANDOFF_VERSION
 from installer.checks import CheckError, probe_voicevox
 from installer.deploy import build_venv
+from installer.entry import install_entry
 from installer.envfile import upgrade_env
 from installer.instance import (
   InstanceError,
@@ -364,6 +365,8 @@ class Continuation:
       self.rollback(state, f"更新の途中で失敗しました: {error}")
       return EXIT_ERROR
 
+    # 入口のスクリプトも新しい版のものに置き直す
+    install_entry(self.system)
     if start_after:
       ui.info(f"{self.to_version} に更新しました")
     else:

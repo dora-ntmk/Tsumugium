@@ -38,7 +38,7 @@ class CliTest(TempDirTestCase):
 
   def test_unimplemented_mode_reports_error(self):
     ui = make_ui()
-    code = cli.main(["status"], system=self.make_system(), ui=ui)
+    code = cli.main(["repair"], system=self.make_system(), ui=ui)
     self.assertEqual(code, cli.EXIT_ERROR)
     self.assertIn("まだ実装されていません", ui.stderr.getvalue())
 
