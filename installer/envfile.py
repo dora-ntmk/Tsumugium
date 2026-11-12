@@ -13,7 +13,7 @@ import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from installer.instance import Layout
+from installer.instance import VOICEVOX_URL_KEY, Layout
 from installer.system import System
 from installer.ui import UI
 
@@ -153,7 +153,7 @@ def required_problems(env: EnvFile, template: list[TemplateEntry]) -> list[str]:
 
 def managed_keys_in(env: EnvFile, layout: Layout) -> list[str]:
   """unit の Environment= で渡すため、`.env` に書いても使われない項目。"""
-  managed = layout.bot_environment()
+  managed = [*layout.bot_environment(), VOICEVOX_URL_KEY]
   values = env.values()
   return [key for key in managed if values.get(key)]
 
@@ -203,7 +203,7 @@ def _warn_managed(ui: UI, env: EnvFile, layout: Layout) -> None:
   keys = managed_keys_in(env, layout)
   if keys:
     ui.warn(
-      ".env の次の項目は、インストーラーが決めた場所を使うため使われません: " + ", ".join(keys)
+      ".env の次の項目は、インストーラーが決めた値をunitで渡すため使われません: " + ", ".join(keys)
     )
 
 

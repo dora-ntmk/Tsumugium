@@ -74,6 +74,8 @@ class CheckTest(unittest.TestCase):
         "/home",
         "/root/tsumugium",
         "/tmp/tsumugium",
+        "/opt/tsumugium bot",
+        "/opt/tsumugium%i",
     ):
       with self.subTest(prefix=prefix):
         self.assertIsNotNone(check_prefix(prefix))

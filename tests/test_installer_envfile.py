@@ -143,7 +143,10 @@ class TokenTest(unittest.TestCase):
 
   def test_managed_keys(self):
     env = EnvFile.parse("SERVER_CONFIG_DB=db/config.db\nDICT_DB=\nVOICEVOX_URL=http://x\n")
-    self.assertEqual(managed_keys_in(env, Layout.of("/opt/tsumugium")), ["SERVER_CONFIG_DB"])
+    self.assertEqual(
+      managed_keys_in(env, Layout.of("/opt/tsumugium")),
+      ["SERVER_CONFIG_DB", "VOICEVOX_URL"],
+    )
 
 
 class EnvTestCase(TempDirTestCase):

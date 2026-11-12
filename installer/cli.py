@@ -9,6 +9,7 @@ from typing import Callable
 from installer.checks import CheckError
 from installer.envfile import EnvError
 from installer.instance import InstanceError
+from installer.service import ServiceError
 from installer.system import CommandError, System
 from installer.ui import UI, UserAbort
 
@@ -84,7 +85,7 @@ def main(
   except UserAbort as abort:
     ui.error(str(abort))
     return EXIT_ERROR
-  except (CheckError, CommandError, EnvError, InstanceError) as error:
+  except (CheckError, CommandError, EnvError, InstanceError, ServiceError) as error:
     ui.error(str(error))
     return EXIT_ERROR
   except KeyboardInterrupt:

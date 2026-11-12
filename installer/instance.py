@@ -29,6 +29,8 @@ _NAME_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
 _REPO_RE = re.compile(r"^[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+$")
 _FORBIDDEN_PREFIX_ROOTS = ("/home", "/root", "/tmp", "/run", "/proc", "/sys", "/dev")
 _RESERVED_NAMES = {"root", "daemon", "bin", "sys", "nobody"}
+# unitファイルにそのまま書けるよう、空白や % などを含む場所は受け付けない
+_PREFIX_CHARS_RE = re.compile(r"^[A-Za-z0-9._/-]+$")
 
 
 class InstanceError(RuntimeError):
@@ -37,6 +39,10 @@ class InstanceError(RuntimeError):
 
 class LockBusy(InstanceError):
   """同じインスタンスで、ほかの処理が実行中であることを表す。"""
+
+
+# unit の Environment= で渡し、.env に書いても使われない項目
+VOICEVOX_URL_KEY = "VOICEVOX_URL"
 
 
 # 名前の検証。問題がなければ None、あればエラーの文を返す（UI.ask の validate に渡せる形）。
@@ -58,6 +64,8 @@ def check_prefix(value: str) -> str | None:
     return "入れる場所は / から始まる絶対パスにしてください"
   if ".." in path.parts:
     return "入れる場所に .. は使えません"
+  if not _PREFIX_CHARS_RE.fullmatch(value):
+    return "入れる場所には、英数字と . _ - / だけを使ってください"
   if path == PurePosixPath("/"):
     return "/ には入れられません"
   for forbidden in _FORBIDDEN_PREFIX_ROOTS:
