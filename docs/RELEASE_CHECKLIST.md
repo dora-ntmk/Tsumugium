@@ -27,8 +27,6 @@ python -m unittest discover -s tests -v
 - [ ] Embed共通ひな形
 - [ ] VOICEVOX・Soundboard HTTP Client
 
-`tests/`は以前の消失を受けて、v4.2.0.70でリポジトリに同梱する形で作り直しています。上の項目のうち、まだテストがないものは手で確かめます。
-
 ## 3. DB互換性
 
 本番相当の4DB（`config.db`、`dict.db`、`soundboards.db`、`users.db`）をバックアップまたは一時ディレクトリへコピーして確認します。
