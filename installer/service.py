@@ -199,8 +199,8 @@ class Systemctl:
   def start(self, service: str) -> None:
     self._run("start", unit_name(service))
 
-  def stop(self, service: str) -> None:
-    self._run("stop", unit_name(service))
+  def stop(self, service: str, *, check: bool = True) -> None:
+    self._run("stop", unit_name(service), check=check)
 
   def restart(self, service: str) -> None:
     self._run("restart", unit_name(service))

@@ -174,6 +174,8 @@ class InstanceRecord:
   voicevox_url: str = DEFAULT_VOICEVOX_URL
   # 切り替えの前に書き、終わったら消す。途中で止まったことを次の実行で見つけるために使う。
   updating: dict | None = None
+  # Botを止めたまま入れ替えたとき、まだ起動を確かめていない版
+  unverified: str | None = None
   format: int = field(default=RECORD_FORMAT)
 
   @property

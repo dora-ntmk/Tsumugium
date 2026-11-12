@@ -17,6 +17,7 @@ from installer.checks import (
   confirm_voicevox,
   run_preflight,
 )
+from installer.deploy import build_venv
 from installer.envfile import find_env, install_env
 from installer.instance import (
   CHANNELS,
@@ -40,7 +41,6 @@ from installer.service import (
   ensure_user,
   is_managed_unit,
   prepare_directories,
-  secure_app,
   unit_name,
   unit_path,
   user_exists,
@@ -291,20 +291,7 @@ class Installer:
     )
     self.ui.info(f"コードを {layout.app_new} に置きました")
 
-    venv = layout.app_new / ".venv"
-    venv_python = venv / "bin" / "python"
-    self.ui.info("venv を作成し、requirements.lock から依存をインストールしています ...")
-    self.system.run([self.python, "-m", "venv", str(venv)])
-    self.system.run([
-      str(venv_python), "-m", "pip", "install",
-      "--disable-pip-version-check",
-      "--no-input",
-      "--require-hashes",
-      "-r", str(layout.app_new / "requirements.lock"),
-    ])
-    secure_app(self.system, str(layout.app_new))
-    # venv の中のパスは app.new/ を指したままになるが、使うのは .venv/bin/python と
-    # python -m pip だけで、どちらも置き場所を実行時に決めるので、名前を変えても動く
+    build_venv(self.system, self.ui, self.python, layout.app_new)
     os.rename(app_new, self.system.path(str(layout.app)))
     self.ui.info(f"コードを {layout.app} に配置しました")
 

@@ -123,7 +123,7 @@ class InstallFlowTest(InstallTestCase):
     unit = unit_path(self.system, "tsumugium").read_text(encoding="utf-8")
     self.assertIn('Environment="TSUMUGIUM_ENV_FILE=/opt/tsumugium/.env"', unit)
 
-    self.assertIn([PYTHON, "-m", "venv", "/opt/tsumugium/app.new/.venv"], self.runner.calls)
+    self.assertIn([PYTHON, "-m", "venv", "--clear", "/opt/tsumugium/app.new/.venv"], self.runner.calls)
     pip = [call for call in self.runner.calls if "pip" in call]
     self.assertEqual(len(pip), 1)
     self.assertEqual(pip[0][0], "/opt/tsumugium/app.new/.venv/bin/python")

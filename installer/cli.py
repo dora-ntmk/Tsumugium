@@ -7,7 +7,7 @@ import sys
 from typing import Callable
 
 from installer.checks import CheckError
-from installer import install
+from installer import install, upgrade
 from installer.envfile import EnvError
 from installer.instance import InstanceError
 from installer.readiness import ReadyError
@@ -33,6 +33,18 @@ MODES = {
 }
 
 
+# 想定している失敗。理由を表示して終了コード1で終わる
+KNOWN_ERRORS = (
+  CheckError,
+  CommandError,
+  EnvError,
+  InstanceError,
+  ReadyError,
+  ReleaseError,
+  ServiceError,
+)
+
+
 def build_parser() -> argparse.ArgumentParser:
   parser = argparse.ArgumentParser(
     prog="tsumugium-setup",
@@ -49,6 +61,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     if mode == "install":
       install.add_arguments(sub)
+    if mode == "upgrade":
+      upgrade.add_arguments(sub)
   return parser
 
 
@@ -65,6 +79,7 @@ HANDLERS: dict[str, Callable[[argparse.Namespace, System, UI], int]] = {
   mode: _not_implemented(mode) for mode in MODES
 }
 HANDLERS["install"] = install.handle
+HANDLERS["upgrade"] = upgrade.run_upgrade
 
 
 def main(
@@ -91,15 +106,7 @@ def main(
   except UserAbort as abort:
     ui.error(str(abort))
     return EXIT_ERROR
-  except (
-      CheckError,
-      CommandError,
-      EnvError,
-      InstanceError,
-      ReadyError,
-      ReleaseError,
-      ServiceError,
-  ) as error:
+  except KNOWN_ERRORS as error:
     ui.error(str(error))
     return EXIT_ERROR
   except KeyboardInterrupt:
