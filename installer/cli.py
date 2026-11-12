@@ -6,6 +6,7 @@ import argparse
 import sys
 from typing import Callable
 
+from installer.instance import InstanceError
 from installer.system import CommandError, System
 from installer.ui import UI, UserAbort
 
@@ -81,7 +82,7 @@ def main(
   except UserAbort as abort:
     ui.error(str(abort))
     return EXIT_ERROR
-  except CommandError as error:
+  except (CommandError, InstanceError) as error:
     ui.error(str(error))
     return EXIT_ERROR
   except KeyboardInterrupt:
