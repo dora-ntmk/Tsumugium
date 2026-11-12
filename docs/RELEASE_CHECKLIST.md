@@ -5,15 +5,15 @@
 ## 1. 静的確認
 
 - [ ] `config.py`の`VERSION`と`LAST_UPDATED`がリリース内容と一致している
-- [ ] `python -m compileall -q .`が成功する
-- [ ] `git diff --check`が成功する
-- [ ] `requests`、`messages.py`、`/setting language`など削除済み要素の実行コード参照がない
-- [ ] `.env`、`db/*.db`、`tmp/`、`backup/`が公開コミットへ含まれていない
+- [ ] `python -m compileall -q .`が成功する（CIで確認）
+- [ ] `git diff --check`が成功する（CIで確認）
+- [ ] `requests`、`messages.py`、`/setting language`など削除済み要素の実行コード参照がない（CIで確認）
+- [ ] `.env`、`db/*.db`、`tmp/`、`backup/`が公開コミットへ含まれていない（CIで確認）
 - [ ] `tests/`に実在するDiscordのID・トークン・サーバー名・ユーザー名と、実際の辞書の登録内容が含まれていない
 
 ## 2. 開発用テスト
 
-テストはリポジトリの`tests/`に置きます。プロジェクトルートで次を実行します。
+テストはリポジトリの`tests/`に置きます。PRと`main`・`feature/**`へのpushのたびに、CIがPython 3.10と最新版で実行します。手元ではプロジェクトルートで次を実行します。
 
 ```bash
 python -m unittest discover -s tests -v

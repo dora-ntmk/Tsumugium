@@ -1,0 +1,100 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "feature/**"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: テスト (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.x"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: 依存をインストール
+        run: python -m pip install -r requirements.txt
+
+      - name: 構文を確かめる
+        run: python -m compileall -q .
+
+      - name: テストを実行
+        run: python -m unittest discover -s tests -v
+
+  static-checks:
+    name: 静的チェック
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 変更分の空白を確かめる (git diff --check)
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$PR_BASE_SHA"
+          elif [ -n "$PUSH_BEFORE_SHA" ] && ! printf '%s' "$PUSH_BEFORE_SHA" | grep -qE '^0+$'; then
+            base="$PUSH_BEFORE_SHA"
+          else
+            git fetch --no-tags origin main
+            base="$(git merge-base origin/main HEAD)"
+          fi
+          echo "比較の基準: $base"
+          git diff --check "$base" HEAD
+
+      - name: 削除済み要素が残っていないかを確かめる
+        run: |
+          status=0
+          if grep -rnE '^\s*(import requests|from requests( |\.))' --include='*.py' .; then
+            echo "::error::requests のimportが残っています"
+            status=1
+          fi
+          if git ls-files --error-unmatch messages.py >/dev/null 2>&1; then
+            echo "::error::messages.py が残っています"
+            status=1
+          fi
+          if grep -rnE 'name=["'"'"']language["'"'"']' --include='*.py' .; then
+            echo "::error::/setting language のコマンド定義が残っています"
+            status=1
+          fi
+          exit $status
+
+      - name: 入れてはいけないファイルがないかを確かめる
+        run: |
+          forbidden="$(git ls-files | grep -E '^\.env$|^db/.*\.db$|^tmp/|^backup/' || true)"
+          if [ -n "$forbidden" ]; then
+            echo "::error::コミットしてはいけないファイルがあります"
+            echo "$forbidden"
+            exit 1
+          fi
+
+  secret-scan:
+    name: 秘密情報のスキャン
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
