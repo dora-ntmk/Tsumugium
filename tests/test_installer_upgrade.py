@@ -213,6 +213,20 @@ class UpgradeRollbackTest(UpgradeTestCase):
     self.assertIn(f"{OLD} で起動し直しました", self.output())
     self.assertFalse(self.exists("/usr/local/sbin/tsumugium-setup"))
 
+  def test_failed_upgrade_keeps_previous_version(self):
+    self.write("/opt/tsumugium/app.prev/main.py", "older\n")
+    self.fail_versions = {NEW}
+    self.assertEqual(self.upgrade(["--yes"]), cli.EXIT_ERROR)
+    self.assertEqual(self.read("/opt/tsumugium/app/main.py"), "old\n")
+    self.assertEqual(self.read("/opt/tsumugium/app.prev/main.py"), "older\n")
+    self.assertFalse(self.exists("/opt/tsumugium/app.prev-old"))
+
+  def test_successful_upgrade_replaces_previous_version(self):
+    self.write("/opt/tsumugium/app.prev/main.py", "older\n")
+    self.assertEqual(self.upgrade(["--yes"]), cli.EXIT_OK)
+    self.assertEqual(self.read("/opt/tsumugium/app.prev/main.py"), "old\n")
+    self.assertFalse(self.exists("/opt/tsumugium/app.prev-old"))
+
   def test_failure_while_switching_rolls_back(self):
     with unittest.mock.patch("installer.upgrade.write_unit", side_effect=OSError("disk full")):
       self.assertEqual(self.upgrade(["--yes"]), cli.EXIT_ERROR)

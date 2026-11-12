@@ -127,6 +127,66 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  installer-e2e:
+    name: インストーラーの結合テスト
+    runs-on: ubuntu-24.04
+    needs: test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 対象の変更があるかを確かめる
+        id: changes
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_REF: ${{ github.event.pull_request.base.ref }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          PUSH_BEFORE_SHA: ${{ github.event.before }}
+        run: |
+          # 手動の実行と、main へのPRでは必ず走らせる
+          if [ "$EVENT_NAME" = "workflow_dispatch" ] || { [ "$EVENT_NAME" = "pull_request" ] && [ "$PR_BASE_REF" = "main" ]; }; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            base="$PR_BASE_SHA"
+          elif [ -n "$PUSH_BEFORE_SHA" ] && ! printf '%s' "$PUSH_BEFORE_SHA" | grep -qE '^0+$'; then
+            base="$PUSH_BEFORE_SHA"
+          else
+            git fetch --no-tags origin main
+            base="$(git merge-base origin/main HEAD)"
+          fi
+          pattern='^(installer/|install\.sh$|config\.py$|services/ready_state_service\.py$|scripts/(build_release|ci_installer_e2e)\.py$|\.github/workflows/ci\.yml$)'
+          if git diff --name-only "$base" HEAD | grep -qE "$pattern"; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "インストーラーに関わる変更がないため、結合テストは省きます"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/setup-python@v5
+        if: steps.changes.outputs.run == 'true'
+        with:
+          # ubuntu-24.04 の /usr/bin/python3 と同じ版で、偽のBot用の依存を固める
+          python-version: "3.12"
+
+      - name: 偽のBot用のrequirements.lockを作る
+        if: steps.changes.outputs.run == 'true'
+        run: |
+          python -m pip install pip-tools
+          grep -E '^python-dotenv' requirements.txt > /tmp/requirements-e2e.in
+          python -m piptools compile \
+            --generate-hashes \
+            --strip-extras \
+            --no-header \
+            --output-file requirements-e2e.lock \
+            /tmp/requirements-e2e.in
+
+      - name: install から uninstall までを通しで動かす
+        if: steps.changes.outputs.run == 'true'
+        run: python scripts/ci_installer_e2e.py --lock requirements-e2e.lock
+
   secret-scan:
     name: 秘密情報のスキャン
     runs-on: ubuntu-latest

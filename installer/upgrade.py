@@ -270,6 +270,8 @@ class _Switch:
   switched: bool = False
   # repair で、壊れているかもしれない app/ を脇に置いたか
   aside: bool = False
+  # upgrade で、それまでの app.prev/ を脇に置いたか（失敗したら戻す）
+  prev_aside: bool = False
 
 
 class Continuation:
@@ -287,6 +289,7 @@ class Continuation:
     # repair は記録の版を入れ直す。app.prev/（本当の1つ前の版）は残す
     self.repair = data.get("mode", "upgrade") == "repair"
     self.app_aside = self.layout.prefix / "app.repair-old"
+    self.prev_aside = self.layout.prefix / "app.prev-old"
 
   def path(self, absolute) -> Path:
     return self.system.path(str(absolute))
@@ -366,8 +369,12 @@ class Continuation:
       state.switched = True
       ui.info(f"{self.layout.app} を入れ直しました（{self.layout.app_prev} はそのまま残します）")
     else:
+      # それまでの app.prev/ は、成功するまで消さずに脇に置く
+      prev_aside = self.path(self.prev_aside)
+      shutil.rmtree(prev_aside, ignore_errors=True)
       if app_prev.exists():
-        shutil.rmtree(app_prev)
+        os.rename(app_prev, prev_aside)
+        state.prev_aside = True
       os.rename(app, app_prev)
       os.rename(app_new, app)
       state.switched = True
@@ -406,6 +413,8 @@ class Continuation:
       os.rename(app_prev, app)
       shutil.rmtree(failed, ignore_errors=True)
       ui.info(f"{self.layout.app} を {self.from_version} に戻しました")
+    if state.prev_aside:
+      os.rename(self.path(self.prev_aside), self.path(self.layout.app_prev))
     else:
       self.discard_new()
     if state.backup is not None:
@@ -458,6 +467,8 @@ class Continuation:
 
     if state.aside:
       shutil.rmtree(self.path(self.app_aside), ignore_errors=True)
+    if state.prev_aside:
+      shutil.rmtree(self.path(self.prev_aside), ignore_errors=True)
     # 入口のスクリプトも新しい版のものに置き直す
     install_entry(self.system)
     if start_after:
