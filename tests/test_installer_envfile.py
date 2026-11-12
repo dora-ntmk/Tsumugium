@@ -113,7 +113,8 @@ class TemplateTest(unittest.TestCase):
     root = Path(__file__).resolve().parent.parent
     keys = [entry.key for entry in parse_template((root / ".env.template").read_text(encoding="utf-8"))]
     self.assertIn("DISCORD_BOT_TOKEN", keys)
-    self.assertIn("VOICEVOX_URL", keys)
+    # unit で渡す項目は「#」付きの例なので、項目として数えない
+    self.assertNotIn("VOICEVOX_URL", keys)
 
 
 class TokenTest(unittest.TestCase):
