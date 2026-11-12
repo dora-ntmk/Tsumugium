@@ -8,11 +8,12 @@
 - [ ] `python -m compileall -q .`が成功する
 - [ ] `git diff --check`が成功する
 - [ ] `requests`、`messages.py`、`/setting language`など削除済み要素の実行コード参照がない
-- [ ] `.env`、`db/*.db`、`tmp/`、`backup/`、`tests/`が公開コミットへ含まれていない
+- [ ] `.env`、`db/*.db`、`tmp/`、`backup/`が公開コミットへ含まれていない
+- [ ] `tests/`に実在するDiscordのID・トークン・サーバー名・ユーザー名と、実際の辞書の登録内容が含まれていない
 
 ## 2. 開発用テスト
 
-テストコードは別配布された`tests/`をプロジェクト直下へ配置します。
+テストはリポジトリの`tests/`に置きます。プロジェクトルートで次を実行します。
 
 ```bash
 python -m unittest discover -s tests -v
@@ -26,7 +27,7 @@ python -m unittest discover -s tests -v
 - [ ] Embed共通ひな形
 - [ ] VOICEVOX・Soundboard HTTP Client
 
-**不手際により`tests/`は消失した**ため、今後のバージョン更新で同梱可能な範囲で同内容のものを作り直します。
+`tests/`は以前の消失を受けて、v4.2.0.70でリポジトリに同梱する形で作り直しています。上の項目のうち、まだテストがないものは手で確かめます。
 
 ## 3. DB互換性
 
