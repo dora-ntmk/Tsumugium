@@ -48,5 +48,5 @@ BACKUP_INTERVAL_DAYS = os.getenv("BACKUP_INTERVAL_DAYS", "1")
 BACKUP_KEEP          = os.getenv("BACKUP_KEEP", "7")
 
 # バージョン情報
-VERSION      = "v4.2.0.70 (beta 15)"
+VERSION      = "v4.2.0.70 (beta 16)"
 LAST_UPDATED = "2026/11/12"

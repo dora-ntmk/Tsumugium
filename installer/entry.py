@@ -107,8 +107,10 @@ def main(argv=None, *, record_dir=RECORD_DIR, execute=os.execve):
       print(f"エラー: {prefix} にインストーラーがありません。展開したzipの install.sh で入れ直してください",
             file=sys.stderr)
     return 1
-  env = dict(os.environ, PYTHONPATH=app)
-  execute(sys.executable, [sys.executable, "-m", "installer", *args], env)
+  # python -m installer は今いるディレクトリの installer/ を先に読むので使わない。
+  # -I で今いるディレクトリと PYTHONPATH を見ないようにし、使う版の場所だけを先頭に足す。
+  bootstrap = "import sys; sys.path.insert(0, sys.argv.pop(1)); from installer.cli import main; sys.exit(main())"
+  execute(sys.executable, [sys.executable, "-I", "-c", bootstrap, app, *args], dict(os.environ))
   return 0
 
 

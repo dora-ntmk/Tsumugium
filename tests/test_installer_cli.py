@@ -3,6 +3,7 @@
 import io
 import unittest.mock
 import os
+import sys
 import subprocess
 import unittest
 from pathlib import Path
@@ -165,6 +166,47 @@ class InstallShTest(TempDirTestCase):
     )
     self.assertEqual(result.returncode, 0, result.stderr)
     self.assertIn("tsumugium-setup", result.stdout)
+
+  def test_install_sh_ignores_installer_in_current_directory(self):
+    # 今いるディレクトリに別の installer/ があっても、install.sh の隣のものを使う
+    decoy = Path(self.tmp_dir) / "installer"
+    decoy.mkdir()
+    (decoy / "__init__.py").write_text("", encoding="utf-8")
+    (decoy / "__main__.py").write_text("raise SystemExit('decoy')\n", encoding="utf-8")
+    (decoy / "cli.py").write_text("raise SystemExit('decoy')\n", encoding="utf-8")
+    result = subprocess.run(
+      [str(ROOT / "install.sh"), "--help"],
+      capture_output=True,
+      text=True,
+      cwd=self.tmp_dir,
+    )
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("tsumugium-setup", result.stdout)
+    self.assertNotIn("decoy", result.stderr)
+
+
+class PythonCommandTest(TempDirTestCase):
+  def test_command_uses_given_directory_only(self):
+    from installer import python_command
+
+    decoy = Path(self.tmp_dir) / "installer"
+    decoy.mkdir()
+    (decoy / "__init__.py").write_text("raise SystemExit('decoy')\n", encoding="utf-8")
+    command = python_command(sys.executable, ROOT, "installer.cli", ["--help"])
+    self.assertEqual(command[1:3], ["-I", "-c"])
+    result = subprocess.run(
+      command, capture_output=True, text=True, cwd=self.tmp_dir,
+      env={**os.environ, "PYTHONPATH": self.tmp_dir},
+    )
+    self.assertEqual(result.returncode, 0, result.stderr)
+    self.assertIn("tsumugium-setup", result.stdout)
+
+  def test_entry_script_uses_same_bootstrap(self):
+    from installer import BOOTSTRAP
+    from installer.entry import ENTRY_SCRIPT
+
+    self.assertIn(BOOTSTRAP.format(module="installer.cli"), ENTRY_SCRIPT)
+    self.assertNotIn("PYTHONPATH=", ENTRY_SCRIPT)
 
 
 if __name__ == "__main__":

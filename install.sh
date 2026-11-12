@@ -30,4 +30,6 @@ if ! "$python" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)
   exit 1
 fi
 
-PYTHONPATH="$script_dir" exec "$python" -m installer "$@"
+# python -m installer は今いるディレクトリの installer/ を先に読むので使わない。
+# -I で今いるディレクトリと PYTHONPATH を見ないようにし、このディレクトリだけを先頭に足す。
+exec "$python" -I -c 'import sys; sys.path.insert(0, sys.argv.pop(1)); from installer.cli import main; sys.exit(main())' "$script_dir" "$@"

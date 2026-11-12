@@ -211,7 +211,8 @@ class EntryTest(ManageTestCase):
     self.executed = []
 
   def execute(self, path, argv, env):
-    self.executed.append((argv[1:], env["PYTHONPATH"]))
+    self.assertEqual(argv[1:3], ["-I", "-c"])
+    self.executed.append((argv[5:], argv[4]))
 
   def run_entry(self, argv, stdin=""):
     with unittest.mock.patch("sys.stdin", io.StringIO(stdin)), \
@@ -236,13 +237,13 @@ class EntryTest(ManageTestCase):
     self.prefix_records("tsumugium")
     app = self.app_of("tsumugium")
     self.assertEqual(self.run_entry(["upgrade", "--yes"])[0], 0)
-    self.assertEqual(self.executed, [(["-m", "installer", "upgrade", "--yes", "--instance", "tsumugium"], app)])
+    self.assertEqual(self.executed, [(["upgrade", "--yes", "--instance", "tsumugium"], app)])
 
   def test_status_does_not_add_instance(self):
     self.prefix_records("tsumugium", "tsumugium-beta")
     self.app_of("tsumugium")
     self.run_entry(["status"])
-    self.assertEqual(self.executed[0][0], ["-m", "installer", "status"])
+    self.assertEqual(self.executed[0][0], ["status"])
 
   def test_multiple_instances(self):
     self.prefix_records("tsumugium", "tsumugium-beta")
@@ -251,7 +252,7 @@ class EntryTest(ManageTestCase):
     self.assertEqual(code, 1)
     self.assertIn("--instance", stderr)
     self.run_entry(["stop"], "tsumugium-beta\n")
-    self.assertEqual(self.executed, [(["-m", "installer", "stop", "--instance", "tsumugium-beta"], app)])
+    self.assertEqual(self.executed, [(["stop", "--instance", "tsumugium-beta"], app)])
 
   def test_rollback_uses_previous_installer(self):
     self.prefix_records("tsumugium")

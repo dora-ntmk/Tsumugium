@@ -23,7 +23,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable
 
-from installer import HANDOFF_VERSION
+from installer import HANDOFF_VERSION, python_command
 from installer.checks import CheckError, probe_voicevox
 from installer.deploy import build_venv
 from installer.entry import install_entry
@@ -86,11 +86,9 @@ def write_handoff(system: System, layout: Layout, data: dict) -> Path:
 
 def launch_new_installer(system: System, ui: UI, app_new: Path, handoff: Path) -> int:
   """新しい版のインストーラーを、画面の入出力をそのまま渡して動かす。"""
-  env = {**os.environ, "PYTHONPATH": str(app_new)}
   completed = subprocess.run(
-    [sys.executable, "-m", "installer.handoff", str(handoff)],
+    python_command(sys.executable, app_new, "installer.handoff", [str(handoff)]),
     cwd=str(app_new),
-    env=env,
   )
   return completed.returncode
 
@@ -100,9 +98,10 @@ def launch_rollback(system: System, ui: UI, record: InstanceRecord) -> int:
   app_prev = system.path(str(record.layout.app_prev))
   if not (app_prev / "installer").is_dir():
     raise InstanceError("戻せる1つ前の版がありません。repair を使ってください")
-  env = {**os.environ, "PYTHONPATH": str(app_prev)}
-  args = [sys.executable, "-m", "installer", "rollback", "--instance", record.instance]
-  return subprocess.run(args, cwd=str(app_prev), env=env).returncode
+  args = ["rollback", "--instance", record.instance]
+  return subprocess.run(
+    python_command(sys.executable, app_prev, "installer.cli", args), cwd=str(app_prev)
+  ).returncode
 
 
 def _resolve_unfinished(system: System, ui: UI, record: InstanceRecord) -> str:

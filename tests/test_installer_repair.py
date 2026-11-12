@@ -196,7 +196,7 @@ class EntryFallbackTest(UpgradeTestCase):
     self.system.path("/opt/tsumugium/app.prev/installer").mkdir(parents=True)
     executed = []
     module.main(["repair", "--yes"], record_dir=record_dir,
-                execute=lambda path, argv, env: executed.append(env["PYTHONPATH"]))
+                execute=lambda path, argv, env: executed.append(argv[4]))
     self.assertEqual(executed, [str(self.system.path("/opt/tsumugium/app.prev"))])
 
 
