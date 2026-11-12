@@ -1,6 +1,7 @@
 """ギルド単位で保持する一時的な実行状態。"""
 
 import asyncio
+from collections import OrderedDict
 from dataclasses import dataclass, field
 
 from models.audio_item import AudioItem
@@ -17,3 +18,6 @@ class GuildSession:
   clearing: bool = False
   current_tts_path: str | None = None
   expected_stop_paths: set[str] = field(default_factory=set)
+  current_message_id: int | None = None
+  # 削除されたメッセージID。挿入順を保持し、上限超過時は古いものから捨てる
+  cancelled_message_ids: OrderedDict[int, None] = field(default_factory=OrderedDict)

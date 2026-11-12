@@ -20,8 +20,10 @@ class DictViewPaginator(discord.ui.View):
       key_prefix: str,
       error_notifier=None,
       word_formatter: Callable[[str], str] | None = None,
+      title: str | None = None,
   ):
     super().__init__(timeout=120)
+    self.title = title
     self.items = items
     self.key_prefix = key_prefix
     self.error_notifier = ensure_error_notifier(error_notifier)
@@ -33,7 +35,8 @@ class DictViewPaginator(discord.ui.View):
 
   def build_embed(self) -> discord.Embed:
     is_sounddict = self.key_prefix == 'sounddict'
-    embed = make_embed('音声辞書一覧' if is_sounddict else '辞書一覧')
+    default_title = '音声辞書一覧' if is_sounddict else '辞書一覧'
+    embed = make_embed(self.title or default_title)
 
     start = self.page * _PAGE_SIZE
     page_items = self.items[start:start + _PAGE_SIZE]

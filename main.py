@@ -17,6 +17,7 @@ from config import (
   OPERATOR_USER_ID,
   SERVER_CONFIG_DB,
   SOUND_BOARDS_DB,
+  SPEAKERS_JSON,
   STATUS_MESSAGE,
   TMP_DIR,
   USER_CONFIG_DB,
@@ -28,6 +29,7 @@ from repositories.user_config_repository import UserConfigRepository
 from services.connection_service import ConnectionService
 from services.error_notification_service import ErrorNotificationService
 from services.message_service import MessageService
+from services.speaker_service import SpeakerService
 from services.speech_service import SpeechService
 from services.status_service import StatusService
 from services.user_reading_service import UserReadingService
@@ -49,6 +51,7 @@ voicevox_client = VoicevoxClient(
   tmp_dir=TMP_DIR,
   error_notifier=error_notifier,
 )
+speaker_service = SpeakerService(SPEAKERS_JSON, error_notifier)
 
 
 class VoicevoxStartupError(RuntimeError):
@@ -63,6 +66,13 @@ async def check_voicevox_on_startup() -> None:
       f"VOICEVOXへ接続できないため起動を中止します: {VOICEVOX_URL}"
     ) from None
   print(f"VOICEVOX接続確認完了: {engine_version}")
+  if await speaker_service.refresh(voicevox_client):
+    print(f"VOICEVOX話者一覧を取得しました: {len(speaker_service.speakers)}件")
+  else:
+    print(
+      "VOICEVOX話者一覧の取得に失敗したため、"
+      f"{SPEAKERS_JSON} の一覧を使用します"
+    )
 
 
 client.register_startup_check(check_voicevox_on_startup)
@@ -149,7 +159,13 @@ lifecycle_cog = LifecycleCog(
   error_notifier=error_notifier,
 )
 
-setting = Setting(client, tree, server_config, error_notifier)
+setting = Setting(
+  client,
+  tree,
+  server_config,
+  error_notifier,
+  speaker_service,
+)
 word_dict = WordDict(
   client,
   tree,

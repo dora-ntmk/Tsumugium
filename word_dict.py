@@ -3,7 +3,7 @@
 作者：どら
 説明：テキスト辞書モジュール。
       単語の読み方・サウンドボード ID を SQLite で管理する DictManager、
-      およびスラッシュコマンド /dict (add / del / view) を実装する WordDict を提供する。
+      およびスラッシュコマンド /dict (add / del / view / view-common) を実装する WordDict を提供する。
       テキスト前処理は swap モジュールに委譲する。
 依存関係：discord.py
 """
@@ -72,6 +72,10 @@ def _load_json(path: str) -> dict:
     return {}
 
 
+COMMON_GUILD_ID = '__common__'
+COMMON_DICT_TITLE = '共通辞書一覧'
+
+
 def _normalize(s: str) -> str:
   """大文字小文字・半角全角を統一する。"""
   return unicodedata.normalize('NFKC', s).lower()
@@ -122,6 +126,23 @@ class DictManager:
   def get_entries(self, guild_id: int) -> list[tuple[str, str]]:
     """Returns (word, reading) entries in added_at DESC order."""
     return self.repository.get_reading_entries(guild_id)
+
+  def get_common_entries(self) -> list[tuple[str, str]]:
+    """全サーバー共通辞書を (word, 表示値) の一覧で返す。
+
+    読み方を持つエントリは読み方を、音声のみのエントリは
+    「[音声] sound_id」を表示値にする。
+    """
+    readings = self.repository.get_reading_entries(COMMON_GUILD_ID)
+    reading_words = {word for word, _ in readings}
+    sounds = [
+      (word, f'[音声] {sound_id}')
+      for word, sound_id, _, _ in self.repository.get_sound_entries(
+        COMMON_GUILD_ID
+      )
+      if word not in reading_words
+    ]
+    return list(readings) + sounds
 
   def add_sound(self, guild_id: int, word: str, sound_id: str,
                full_match: bool = True,
@@ -331,6 +352,67 @@ class WordDict:
         self.error_notifier.report(f'HTTPException in dict_view: {e}')
       except Exception as e:
         await handle_internal_error(ctx, e, "dict_view", self.error_notifier)
+
+    @dict_group.command(
+      name='view-common',
+      description='全サーバー共通の辞書の内容を確認します',
+    )
+    @discord.app_commands.describe(
+      ephemeral='Trueにすると自分にだけ見える形で表示します',
+      search='検索する文字列（部分一致）'
+    )
+    async def dict_view_common(
+        ctx,
+        search: Optional[str] = None,
+        ephemeral: bool = False,
+    ):
+      try:
+        await ctx.response.defer(ephemeral=ephemeral)
+        entries = self.dict_manager.get_common_entries()
+
+        if not entries:
+          await ctx.edit_original_response(
+            embed=make_embed(
+              COMMON_DICT_TITLE,
+              '共通辞書に登録された単語はありません',
+            )
+          )
+          return
+
+        items = _filter_entries(dict(entries), search) if search else entries
+        if not items:
+          await ctx.edit_original_response(
+            embed=make_embed(
+              '見つかりませんでした',
+              f'「{search}」に一致する単語は共通辞書にありません',
+              embed_type=EmbedType.ERROR,
+            )
+          )
+          return
+
+        paginator = DictViewPaginator(
+          items,
+          'dict',
+          self.error_notifier,
+          word_formatter=replace_word,
+          title=COMMON_DICT_TITLE,
+        )
+        embed = paginator.build_embed()
+
+        if paginator.total_pages <= 1:
+          await ctx.edit_original_response(embed=embed)
+        else:
+          msg = await ctx.edit_original_response(embed=embed, view=paginator)
+          paginator.message = msg
+
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as e:
+        self.error_notifier.report(f'HTTPException in dict_view_common: {e}')
+      except Exception as e:
+        await handle_internal_error(
+          ctx, e, "dict_view_common", self.error_notifier
+        )
 
     @dict_group.error
     async def dict_error(ctx, error):

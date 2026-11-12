@@ -97,6 +97,21 @@ class VoicevoxClient:
       raise RuntimeError("VOICEVOX /version returned an empty response")
     return version
 
+  async def get_speakers(self) -> list[dict]:
+    """VOICEVOXの /speakers からキャラクターとスタイルの一覧を取得する。"""
+    import aiohttp
+
+    session = await self._get_session()
+    async with session.get(
+        f"{self.url}/speakers",
+        timeout=aiohttp.ClientTimeout(total=10),
+    ) as response:
+      response.raise_for_status()
+      payload = await response.json()
+    if not isinstance(payload, list):
+      raise RuntimeError("VOICEVOX /speakers returned an unexpected response")
+    return payload
+
   async def generate(
       self,
       msg: str,

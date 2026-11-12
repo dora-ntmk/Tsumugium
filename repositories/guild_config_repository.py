@@ -18,7 +18,7 @@ DEFAULTS = {
   "Volume": 100,
   "Speed": 100,
   "SpacedSpeed": None,
-  "MaxChar": 50,
+  "MaxChar": 100,
   "AutoJoin": False,
   "AccessNotice": False,
   "Greeting": True,
@@ -33,7 +33,7 @@ _TYPE_VALIDATORS = {
   "SpacedSpeed": lambda value: value is None or (
     isinstance(value, int) and 50 <= value <= 200
   ),
-  "MaxChar": lambda value: isinstance(value, int) and 30 <= value <= 200,
+  "MaxChar": lambda value: isinstance(value, int) and 30 <= value <= 500,
   "AutoJoin": lambda value: isinstance(value, bool),
   "AccessNotice": lambda value: isinstance(value, bool),
   "Greeting": lambda value: isinstance(value, bool),
@@ -69,7 +69,7 @@ class GuildConfigRepository:
         Volume        INTEGER NOT NULL DEFAULT 100,
         Speed         INTEGER NOT NULL DEFAULT 100,
         SpacedSpeed   INTEGER DEFAULT NULL,
-        MaxChar       INTEGER NOT NULL DEFAULT 50,
+        MaxChar       INTEGER NOT NULL DEFAULT 100,
         AutoJoin      INTEGER NOT NULL DEFAULT 0,
         AccessNotice  INTEGER NOT NULL DEFAULT 0,
         Language      TEXT NOT NULL DEFAULT 'ja',
@@ -132,7 +132,7 @@ class GuildConfigRepository:
           Volume        INTEGER NOT NULL DEFAULT 100,
           Speed         INTEGER NOT NULL DEFAULT 100,
           SpacedSpeed   INTEGER DEFAULT NULL,
-          MaxChar       INTEGER NOT NULL DEFAULT 50,
+          MaxChar       INTEGER NOT NULL DEFAULT 100,
           AutoJoin      INTEGER NOT NULL DEFAULT 0,
           AccessNotice  INTEGER NOT NULL DEFAULT 0,
           Language      TEXT NOT NULL DEFAULT 'ja',
@@ -169,8 +169,8 @@ class GuildConfigRepository:
 
   def init_guild(self, guild_id: int) -> None:
     self._conn.execute(
-      "INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)",
-      (str(guild_id),),
+      "INSERT OR IGNORE INTO guild_config (guild_id, MaxChar) VALUES (?, ?)",
+      (str(guild_id), DEFAULTS["MaxChar"]),
     )
     self._conn.commit()
 
@@ -192,8 +192,8 @@ class GuildConfigRepository:
       raise ValueError(f"{key} に無効な値です: {value!r}")
     gid = str(guild_id)
     self._conn.execute(
-      "INSERT OR IGNORE INTO guild_config (guild_id) VALUES (?)",
-      (gid,),
+      "INSERT OR IGNORE INTO guild_config (guild_id, MaxChar) VALUES (?, ?)",
+      (gid, DEFAULTS["MaxChar"]),
     )
     self._conn.execute(
       f"UPDATE guild_config SET {key} = ? WHERE guild_id = ?",

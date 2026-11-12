@@ -83,8 +83,15 @@ class SpeechService:
       speed=speed,
       volume=volume,
     )
-    if path is not None:
-      await self.voice_service.enqueue(message.guild, TTSItem(path))
+    if path is None:
+      return
+    if self.voice_service.consume_cancelled(guild_id, message.id):
+      await self.voice_service.safe_remove(path)
+      return
+    await self.voice_service.enqueue(
+      message.guild,
+      TTSItem(path, message_id=message.id),
+    )
 
   async def generate(self, message, guild_id, message_id, speaker, speed=1.0, volume=1.0):
     return await self.vvtts.generate(

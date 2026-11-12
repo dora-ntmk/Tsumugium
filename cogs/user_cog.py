@@ -65,3 +65,48 @@ class UserCog:
           "user-reading",
           self.error_notifier,
         )
+
+    @self.tree.command(
+      name="user-reading-reset",
+      description="あなたの名前の読み方の設定を削除し、表示名で読むように戻します",
+    )
+    @discord.app_commands.allowed_contexts(
+      guilds=True,
+      dms=True,
+      private_channels=True,
+    )
+    @discord.app_commands.allowed_installs(guilds=True, users=True)
+    async def user_reading_reset(ctx):
+      try:
+        await ctx.response.defer(ephemeral=True)
+        cleared = self.user_config.clear_user_reading(ctx.user.id)
+        if cleared:
+          embed = make_embed(
+            "リセット完了",
+            "読み方の設定を削除しました　今後は表示名で読み上げます",
+            embed_type=EmbedType.SUCCESS,
+          )
+        else:
+          embed = make_embed(
+            "リセット不要",
+            "読み方は設定されていません　表示名で読み上げています",
+          )
+        await ctx.edit_original_response(embed=embed)
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as error:
+        self.error_notifier.report_exception(error, "user-reading-reset HTTP")
+      except OSError as error:
+        await handle_os_error(
+          ctx,
+          error,
+          "user-reading-reset",
+          self.error_notifier,
+        )
+      except Exception as error:
+        await handle_internal_error(
+          ctx,
+          error,
+          "user-reading-reset",
+          self.error_notifier,
+        )
