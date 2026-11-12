@@ -25,6 +25,29 @@ DUMMY_SOUND_ID = "666666666666666666"
 DUMMY_TOKEN = "dummy-token-for-tests"
 
 
+class RecordingNotifier:
+  """ErrorNotificationServiceの代わりに、呼ばれた内容を記録するだけの偽物。
+
+  create_task に渡されたコルーチンは実行せずに閉じ、文脈の名前だけを残す。
+  """
+
+  def __init__(self):
+    self.tasks: list[str] = []
+    self.reports: list[str] = []
+    self.exceptions: list[tuple[BaseException, str]] = []
+
+  def create_task(self, coroutine, context):
+    self.tasks.append(context)
+    coroutine.close()
+    return None
+
+  def report(self, message):
+    self.reports.append(str(message))
+
+  def report_exception(self, error, context, metadata=None):
+    self.exceptions.append((error, context))
+
+
 class TempDirTestCase(unittest.TestCase):
   """テストごとに新しい一時ディレクトリを用意する。"""
 
