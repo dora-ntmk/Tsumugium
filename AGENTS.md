@@ -262,7 +262,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - インストーラーを別のプロセスで動かすときは、`python -m installer`を使わず、`installer.python_command()`（`python -I`で起動する）を使う。`-m`は今いるディレクトリの`installer/`を先に読むので、展開したzipやリポジトリの中で実行すると、違うバージョンが動くため。
 - インストーラーが作るunitと入口には`# Managed by tsumugium-setup`の印を付ける。印のない同じ名前のファイルは、上書きも削除もしない。
 - 配布用のzipには`.claude/`・`.github/`・`docs/`・`scripts/`・`tests/`・`.gitignore`・`AGENTS.md`を入れず、`build-info.json`と`requirements.lock`を加える。
-- `requirements.lock`は、CIで`pip-tools`を使ってハッシュ値つきで作る。インストーラーは`pip install --require-hashes`で入れる。
+- `requirements.lock`は、CIで`uv pip compile --universal`を使ってハッシュ値つきで作る。`--universal`を付けると、Python 3.13以上だけで要る依存（`audioop-lts`など）も条件付きで書き出されるので、Python 3.10以上のどのバージョンでも同じロックを使える。インストーラーは`pip install --require-hashes`で入れる。CIの`lock-check`ジョブがPython 3.10〜3.14のそれぞれで入れられることを確かめる。
 - 記録の形式を変えるときは、`installer/instance.py`の`RECORD_FORMAT`を上げる。知らない項目は読み飛ばすので、項目を足すだけなら上げなくてよい。
 
 ---
