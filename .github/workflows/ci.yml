@@ -157,7 +157,7 @@ jobs:
           /tmp/lock-check/bin/python -m pip install --disable-pip-version-check --require-hashes -r requirements.lock
 
       - name: 主な依存を読み込めるかを確かめる
-        run: /tmp/lock-check/bin/python -c "import discord, nacl, aiohttp, dotenv, davey; print('discord.py', discord.__version__)"
+        run: /tmp/lock-check/bin/python -c "import discord, nacl, aiohttp, dotenv, davey; print('discord.py', discord.__version__, 'davey', davey.__version__, 'PyNaCl', nacl.__version__)"
 
   installer-e2e:
     name: インストーラーの結合テスト

@@ -3,7 +3,10 @@ discord.py>=2.7.0
 python-dotenv>=1.2.2
 aiohttp>=3.9.0
 PyNaCl>=1.6.0
-davey>=0.1.0
+# davey 0.2 は discord.py 2.7.1 と組み合わせると、Botが話している表示になっても
+# 音声が聞こえない（2026-11 にWSLのUbuntu 26.04で確認、0.1.7では聞こえる）。
+# discord.py を上げるときは、0.2 で聞こえるかを確かめてから上限を外す。
+davey>=0.1.0,<0.2
 
 # 標準ライブラリ（インストール不要）
 # asyncio, io, json, os, re, sqlite3, unicodedata, typing,
