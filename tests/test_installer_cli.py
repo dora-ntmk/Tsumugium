@@ -154,6 +154,32 @@ class SystemTest(TempDirTestCase):
       system.run(["false"])
 
 
+class StreamRunnerTest(TempDirTestCase):
+  def test_stream_does_not_capture_output(self):
+    from installer.system import Runner
+
+    with unittest.mock.patch("subprocess.run") as run:
+      run.return_value = subprocess.CompletedProcess(["x"], 0)
+      result = Runner().run(["echo", "hi"], stream=True)
+    self.assertEqual((result.returncode, result.stdout, result.stderr), (0, "", ""))
+    self.assertNotIn("capture_output", run.call_args.kwargs)
+
+  def test_stream_failure_raises(self):
+    from installer.system import Runner
+
+    with self.assertRaises(CommandError) as context:
+      Runner().run(["sh", "-c", "exit 3"], stream=True)
+    self.assertEqual(context.exception.returncode, 3)
+    self.assertIn("上に表示されています", str(context.exception))
+
+  def test_recording_runner_remembers_streamed_commands(self):
+    runner = RecordingRunner()
+    runner.run(["a"])
+    runner.run(["b"], stream=True)
+    self.assertEqual(runner.calls, [["a"], ["b"]])
+    self.assertEqual(runner.streamed, [["b"]])
+
+
 class InstallShTest(TempDirTestCase):
   def test_install_sh_runs_installer(self):
     script = ROOT / "install.sh"

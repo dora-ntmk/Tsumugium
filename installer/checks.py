@@ -135,8 +135,9 @@ def install_packages(system: System, ui: UI, packages: list[str]) -> None:
   if not ui.confirm("入れてよいですか？", default=True):
     raise UserAbort("必要なパッケージを入れないため、中止しました")
   env = {**os.environ, "DEBIAN_FRONTEND": "noninteractive"}
-  system.run(["apt-get", "update"], env=env)
-  system.run(["apt-get", "install", "-y", "--no-install-recommends", *packages], env=env)
+  ui.info("apt でパッケージを入れています（数分かかることがあります）")
+  system.run(["apt-get", "update"], env=env, stream=True)
+  system.run(["apt-get", "install", "-y", "--no-install-recommends", *packages], env=env, stream=True)
   ui.info("入れました: " + " ".join(packages))
 
 

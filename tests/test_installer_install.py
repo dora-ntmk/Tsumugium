@@ -130,6 +130,11 @@ class InstallFlowTest(InstallTestCase):
     self.assertIn("--require-hashes", pip[0])
     self.assertEqual(pip[0][-1], "/opt/tsumugium/app.new/requirements.lock")
     self.assertIn(["chown", "-R", "root:root", "/opt/tsumugium/app.new"], self.runner.calls)
+    # 画面に出力を流すのは、時間のかかる venv の作成と pip だけ
+    self.assertEqual(
+      [call[:3] for call in self.runner.streamed],
+      [[PYTHON, "-m", "venv"], ["/opt/tsumugium/app.new/.venv/bin/python", "-m", "pip"]],
+    )
     self.assertIn(["chown", "root:tsumugium", "/opt/tsumugium/.env"], self.runner.calls)
 
     systemctl = [call[1:] for call in self.calls("systemctl")]
