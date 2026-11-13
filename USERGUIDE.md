@@ -130,7 +130,7 @@ Discordサーバーへ登録済みのSoundboard音声を、特定のメッセー
 | `/setting spaced-speed-reset` | 空白区切り文章の速度をデフォルトの75へ戻す | — |
 | `/setting max-char <chars>` | 最大読み上げ文字数 | 30〜200、`0`で50へ戻す |
 | `/setting auto-join <enabled>` | 対象VCへの自動接続 | 初期値False |
-| `/setting access-notice <enabled>` | VC入退室を音声で通知 | 初期値True（v4.2.0.70より前から使っているサーバーは、それまでの設定のまま） |
+| `/setting access-notice <enabled>` | VC入退室を音声で通知 | 初期値True |
 
 `Speaker`が「Botのデフォルト」の場合、Bot管理者が設定した`DEFAULT_SPEAKER`を使用します。
 
