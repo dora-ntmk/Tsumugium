@@ -128,7 +128,7 @@ Discordサーバーへ登録済みのSoundboard音声を、特定のメッセー
 | `/setting speed <speed>` | 読み上げ速度 | 50〜200、初期値100 |
 | `/setting spaced-speed <speed>` | 空白区切り文章の読み上げ速度 | 50〜200、未設定時は75 |
 | `/setting spaced-speed-reset` | 空白区切り文章の速度をデフォルトの75へ戻す | — |
-| `/setting max-char <chars>` | 最大読み上げ文字数 | 30〜200、`0`で50へ戻す |
+| `/setting max-char <chars>` | 最大読み上げ文字数 | 30〜500、初期値100（`0`で初期値へ戻す） |
 | `/setting auto-join <enabled>` | 対象VCへの自動接続 | 初期値False。有効にするとき対象VCが未設定なら、実行者が入っているVCを対象にする（VCに入っていなければ設定できない） |
 | `/setting access-notice <enabled>` | VC入退室を音声で通知 | 初期値True |
 
