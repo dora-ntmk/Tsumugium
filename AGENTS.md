@@ -62,7 +62,7 @@ CREATE TABLE guild_config (
     Volume        INTEGER NOT NULL DEFAULT 100, -- 音量 0〜100
     Speed         INTEGER NOT NULL DEFAULT 100, -- 速度 50〜200
     SpacedSpeed   INTEGER DEFAULT NULL,         -- 空白区切り文章の速度 50〜200（NULL=デフォルト75）
-    MaxChar       INTEGER NOT NULL DEFAULT 50,  -- 最大文字数 30〜200
+    MaxChar       INTEGER NOT NULL DEFAULT 100, -- 最大文字数 30〜500
     AutoJoin      INTEGER NOT NULL DEFAULT 0,   -- 自動入室 0/1
     AccessNotice  INTEGER NOT NULL DEFAULT 1,   -- 入退室通知 0/1
     Language      TEXT    NOT NULL DEFAULT 'ja',-- v3.4以前とのDB互換性のため残置（v3.5では未使用）
@@ -205,7 +205,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/setting speed` | `speed: int (50〜200)` | manage_guild |
 | `/setting spaced-speed` | `speed: int (50〜200)` | manage_guild |
 | `/setting spaced-speed-reset` | — | manage_guild |
-| `/setting max-char` | `chars: int (30〜200)` | manage_guild |
+| `/setting max-char` | `chars: int (30〜500、0で既定の100へ戻す)` | manage_guild |
 | `/setting auto-join` | `enabled: bool`（有効にするとき`VoiceTarget`が未設定なら、実行者が入っているVCを記録する。VCに入っていなければ断る） | manage_guild |
 | `/setting access-notice` | `enabled: bool` | manage_guild |
 
