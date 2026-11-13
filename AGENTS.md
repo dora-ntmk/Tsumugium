@@ -64,7 +64,7 @@ CREATE TABLE guild_config (
     SpacedSpeed   INTEGER DEFAULT NULL,         -- 空白区切り文章の速度 50〜200（NULL=デフォルト75）
     MaxChar       INTEGER NOT NULL DEFAULT 50,  -- 最大文字数 30〜200
     AutoJoin      INTEGER NOT NULL DEFAULT 0,   -- 自動入室 0/1
-    AccessNotice  INTEGER NOT NULL DEFAULT 0,   -- 入退室通知 0/1
+    AccessNotice  INTEGER NOT NULL DEFAULT 1,   -- 入退室通知 0/1
     Language      TEXT    NOT NULL DEFAULT 'ja',-- v3.4以前とのDB互換性のため残置（v3.5では未使用）
     Greeting      INTEGER NOT NULL DEFAULT 1    -- 起動挨拶 0/1
 )
@@ -72,6 +72,7 @@ CREATE TABLE guild_config (
 
 `Speaker` が NULL のとき `_to_python()` は環境変数 `DEFAULT_SPEAKER`（デフォルト8）を返す。  
 `SpacedSpeed` が NULL のとき、空白区切り文章はデフォルト速度75を使用する。`/setting spaced-speed-reset`も値をNULLへ戻すため、実効速度は75になる。`AutoJoin`/`AccessNotice`/`Greeting` はSQLite上は 0/1、Python上は bool で扱う（`_BOOL_KEYS` で変換）。
+新しいサーバーの行は`AccessNotice=1`を明示して作り、入退室通知を有効にする。v4.2.0.70より前に作ったDBは表の既定値が0のままだが、値を明示するので新しいサーバーでは有効になる。すでに行があるサーバーの値は変えない。
 既存DBに`SpacedSpeed`を追加する直前に、`BACKUP_DIR`へ`backup_config_YYYYMMDD_HHMMSS_v3-latest.db`を作成する。バックアップ失敗時はスキーマ変更せず起動を中止し、この移行前バックアップは定時バックアップのローテーション対象外とする。
 `Language` は既存DBとの互換性のためカラムのみ維持し、v3.5の設定API・コマンドからは参照しない。Botの表示言語は日本語固定。
 

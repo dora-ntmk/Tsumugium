@@ -138,6 +138,14 @@ class GuildConfigMigrationTest(TempDirTestCase):
     backup_path = os.path.join(self.backup_dir, backups[0])
     self.assertNotIn("SpacedSpeed", _columns(backup_path, "guild_config"))
 
+  def test_access_notice_of_existing_guild_is_kept(self):
+    # SpacedSpeed を足すために表を作り直しても、既存のサーバーの入退室通知（0）は変えない
+    repo = GuildConfigRepository(self.db_path, backup_dir=self.backup_dir)
+    self.addCleanup(repo.close)
+    self.assertIs(repo.get(DUMMY_GUILD_ID, "AccessNotice"), False)
+    repo.init_guild(DUMMY_OTHER_GUILD_ID)
+    self.assertIs(repo.get(DUMMY_OTHER_GUILD_ID, "AccessNotice"), True)
+
   def test_language_column_and_value_are_kept(self):
     repo = GuildConfigRepository(self.db_path, backup_dir=self.backup_dir)
     repo.close()
@@ -162,6 +170,78 @@ class GuildConfigMigrationTest(TempDirTestCase):
     repo = GuildConfigRepository(new_db, backup_dir=self.backup_dir)
     repo.close()
     self.assertFalse(os.path.exists(self.backup_dir))
+
+
+class AccessNoticeDefaultTest(TempDirTestCase):
+  """入退室通知は新しいサーバーでは有効にし、既存のサーバーの設定は変えない。"""
+
+  def open_repo(self, db_path):
+    repo = GuildConfigRepository(db_path, backup_dir=os.path.join(self.tmp_dir, "backup"))
+    self.addCleanup(repo.close)
+    return repo
+
+  def make_current_db(self, db_path, access_notice):
+    # 今までの版が作ったDB（表の既定値は AccessNotice = 0）
+    os.makedirs(os.path.dirname(db_path), exist_ok=True)
+    with sqlite3.connect(db_path) as connection:
+      connection.execute(
+        """
+        CREATE TABLE guild_config (
+          guild_id      TEXT PRIMARY KEY,
+          TextTarget    INTEGER,
+          VoiceTarget   INTEGER,
+          Speaker       INTEGER,
+          Volume        INTEGER NOT NULL DEFAULT 100,
+          Speed         INTEGER NOT NULL DEFAULT 100,
+          SpacedSpeed   INTEGER DEFAULT NULL,
+          MaxChar       INTEGER NOT NULL DEFAULT 100,
+          AutoJoin      INTEGER NOT NULL DEFAULT 0,
+          AccessNotice  INTEGER NOT NULL DEFAULT 0,
+          Language      TEXT NOT NULL DEFAULT 'ja',
+          Greeting      INTEGER NOT NULL DEFAULT 1
+        )
+        """
+      )
+      connection.execute(
+        "INSERT INTO guild_config (guild_id, AccessNotice) VALUES (?, ?)",
+        (str(DUMMY_GUILD_ID), access_notice),
+      )
+
+  def test_new_guild_is_enabled(self):
+    repo = self.open_repo(self.tmp_path("db", "config.db"))
+    self.assertIs(repo.get(DUMMY_GUILD_ID, "AccessNotice"), True)
+    repo.init_guild(DUMMY_GUILD_ID)
+    self.assertIs(repo.get(DUMMY_GUILD_ID, "AccessNotice"), True)
+    self.assertIs(repo.get_all(DUMMY_GUILD_ID)["AccessNotice"], True)
+
+  def test_new_guild_created_by_set_is_enabled(self):
+    repo = self.open_repo(self.tmp_path("db", "config.db"))
+    repo.set(DUMMY_GUILD_ID, "Volume", 80)
+    self.assertIs(repo.get(DUMMY_GUILD_ID, "AccessNotice"), True)
+
+  def test_existing_guild_keeps_its_setting(self):
+    db_path = self.tmp_path("db", "config.db")
+    self.make_current_db(db_path, access_notice=0)
+    repo = self.open_repo(db_path)
+    repo.init_guild(DUMMY_GUILD_ID)
+    repo.set(DUMMY_GUILD_ID, "Volume", 80)
+    self.assertIs(repo.get(DUMMY_GUILD_ID, "AccessNotice"), False)
+
+  def test_new_guild_in_existing_db_is_enabled(self):
+    # 既存のDBは表の既定値が 0 のままでも、新しいサーバーは有効になる
+    db_path = self.tmp_path("db", "config.db")
+    self.make_current_db(db_path, access_notice=0)
+    repo = self.open_repo(db_path)
+    repo.init_guild(DUMMY_OTHER_GUILD_ID)
+    self.assertIs(repo.get(DUMMY_OTHER_GUILD_ID, "AccessNotice"), True)
+    self.assertIs(repo.get(DUMMY_GUILD_ID, "AccessNotice"), False)
+
+  def test_disabled_guild_stays_disabled(self):
+    repo = self.open_repo(self.tmp_path("db", "config.db"))
+    repo.init_guild(DUMMY_GUILD_ID)
+    repo.set(DUMMY_GUILD_ID, "AccessNotice", False)
+    repo.init_guild(DUMMY_GUILD_ID)
+    self.assertIs(repo.get(DUMMY_GUILD_ID, "AccessNotice"), False)
 
 
 class DictionaryRepositoryTest(TempDirTestCase):
