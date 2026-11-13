@@ -11,6 +11,10 @@ on:
 permissions:
   contents: read
 
+env:
+  # requirements.lock を作る uv のバージョン（同じ手順で毎回同じロックを作るため固定する）
+  UV_VERSION: "0.13.8"
+
 jobs:
   test:
     name: テスト (Python ${{ matrix.python-version }})
@@ -99,22 +103,25 @@ jobs:
           python-version: "3.10"
           cache: pip
 
-      - name: pip-toolsをインストール
-        run: python -m pip install pip-tools
+      - name: uvをインストール
+        run: python -m pip install "uv==${UV_VERSION}"
 
-      - name: requirements.lockを作る（ハッシュ値つき、Python 3.10向け）
+      - name: requirements.lockを作る（ハッシュ値つき、Python 3.10以上のどのバージョンでも使える形）
+        # --universal で、Python 3.13以上だけで要る依存（audioop-lts など）も条件付きで書き出す
         run: |
-          python -m piptools compile \
+          uv pip compile requirements.txt \
+            --universal \
+            --python-version 3.10 \
             --generate-hashes \
-            --strip-extras \
             --no-header \
-            --output-file requirements.lock \
-            requirements.txt
+            --output-file requirements.lock
 
-      - name: requirements.lockから入れられるかを確かめる
-        run: |
-          python -m venv /tmp/lock-check
-          /tmp/lock-check/bin/python -m pip install --require-hashes -r requirements.lock
+      - name: requirements.lockを成果物として保存する
+        uses: actions/upload-artifact@v4
+        with:
+          name: requirements-lock
+          path: requirements.lock
+          if-no-files-found: error
 
       - name: zipとSHA256値を作る
         id: build
@@ -126,6 +133,31 @@ jobs:
           name: tsumugium-${{ steps.build.outputs.tag }}
           path: dist/
           if-no-files-found: error
+
+  lock-check:
+    name: requirements.lockの確認 (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: requirements-lock
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 配布物と同じrequirements.lockから入れる
+        run: |
+          python -m venv /tmp/lock-check
+          /tmp/lock-check/bin/python -m pip install --disable-pip-version-check --require-hashes -r requirements.lock
+
+      - name: 主な依存を読み込めるかを確かめる
+        run: /tmp/lock-check/bin/python -c "import discord, nacl, aiohttp, dotenv, davey; print('discord.py', discord.__version__)"
 
   installer-e2e:
     name: インストーラーの結合テスト
@@ -157,7 +189,7 @@ jobs:
             git fetch --no-tags origin main
             base="$(git merge-base origin/main HEAD)"
           fi
-          pattern='^(installer/|install\.sh$|config\.py$|services/ready_state_service\.py$|scripts/(build_release|ci_installer_e2e)\.py$|\.github/workflows/ci\.yml$)'
+          pattern='^(installer/|install\.sh$|config\.py$|requirements\.txt$|services/ready_state_service\.py$|scripts/(build_release|ci_installer_e2e)\.py$|\.github/workflows/ci\.yml$)'
           if git diff --name-only "$base" HEAD | grep -qE "$pattern"; then
             echo "run=true" >> "$GITHUB_OUTPUT"
           else
@@ -171,17 +203,17 @@ jobs:
           # ubuntu-24.04 の /usr/bin/python3 と同じ版で、偽のBot用の依存を固める
           python-version: "3.12"
 
-      - name: 偽のBot用のrequirements.lockを作る
+      - name: 配布物と同じ作り方でrequirements.lockを作る
         if: steps.changes.outputs.run == 'true'
+        # 偽のBotが使うのは python-dotenv だけだが、本物の依存を入れられることも確かめる
         run: |
-          python -m pip install pip-tools
-          grep -E '^python-dotenv' requirements.txt > /tmp/requirements-e2e.in
-          python -m piptools compile \
+          python -m pip install "uv==${UV_VERSION}"
+          uv pip compile requirements.txt \
+            --universal \
+            --python-version 3.10 \
             --generate-hashes \
-            --strip-extras \
             --no-header \
-            --output-file requirements-e2e.lock \
-            /tmp/requirements-e2e.in
+            --output-file requirements-e2e.lock
 
       - name: install から uninstall までを通しで動かす
         if: steps.changes.outputs.run == 'true'

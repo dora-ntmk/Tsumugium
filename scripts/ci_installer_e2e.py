@@ -7,6 +7,8 @@ install から uninstall までを通しで動かす。手元のマシンでは�
 使い方（プロジェクトルートで、sudo できる一般ユーザーとして実行）:
   python3 scripts/ci_installer_e2e.py --lock requirements-e2e.lock
 
+requirements.lock は配布物と同じ作り方で作ったものを渡す（本物の依存を入れられることも確かめる）。
+
 Bot本体は、ready.json などを書いて待つだけの偽物に差し替える（Discordには接続しない）。
 VOICEVOXの代わりに、127.0.0.1:50021 で /version だけを返すサーバーを立てる。
 """
@@ -294,7 +296,7 @@ def show_logs() -> None:
 
 def main(argv=None) -> int:
   parser = argparse.ArgumentParser(description="インストーラーの結合テスト（CI専用）")
-  parser.add_argument("--lock", required=True, help="偽のBot用の requirements.lock")
+  parser.add_argument("--lock", required=True, help="配布物と同じ作り方で作った requirements.lock")
   args = parser.parse_args(argv)
   if os.geteuid() == 0:
     print("sudo できる一般ユーザーとして実行してください", file=sys.stderr)
