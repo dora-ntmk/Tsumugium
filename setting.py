@@ -30,15 +30,49 @@ class Setting:
       server_config,
       error_notifier=None,
       speaker_service=None,
+      *,
+      voice_service=None,
   ):
     self.client = client
     self.tree = tree
     self.server_config = server_config
+    self.voice_service = voice_service
     self.error_notifier = ensure_error_notifier(error_notifier)
     if speaker_service is None:
       speaker_service = SpeakerService(SPEAKERS_JSON, self.error_notifier)
     self.speaker_service = speaker_service
     self._register()
+
+  def clear_temporary_text_target(self, guild_id: int) -> None:
+    """/join で決まった一時的な読み上げ先を消し、設定した TextTarget をすぐに効かせる。
+
+    VCのチャットは、一時的な読み上げ先や TextTarget に関係なく、いつも読む。
+    """
+    if self.voice_service is None:
+      return
+    session = self.voice_service.get_session(guild_id)
+    session.temporary_text_channel_id = None
+    session.pending_text_channel_id = None
+
+  def resolve_auto_join_target(self, guild, user):
+    """AutoJoin を有効にするときの接続先を決める。
+
+    戻り値は (新しく記録するVC, 断る理由)。VoiceTarget が設定済みなら何も記録しない。
+    未設定なら、コマンドを実行した人が入っているVCを記録する。入っていなければ断る。
+    """
+    if self.server_config.get(guild.id, "VoiceTarget") is not None:
+      return None, None
+    voice = getattr(user, "voice", None)
+    channel = getattr(voice, "channel", None)
+    if channel is None:
+      return None, (
+        "自動で接続するVC（VoiceTarget）が決まっていません。"
+        "VCに入ってから実行するか、先に /setting voice-target で決めてください"
+      )
+    perms = channel.permissions_for(guild.me)
+    if not (perms.connect and perms.speak):
+      return None, f"{channel.mention} への接続権限がありません"
+    return channel, None
 
   def _register(self):
     setting_group = discord.app_commands.Group(
@@ -122,6 +156,7 @@ class Setting:
           )
           return
         self.server_config.set(ctx.guild.id, "TextTarget", target.id)
+        self.clear_temporary_text_target(ctx.guild.id)
         await ctx.edit_original_response(
           embed=make_embed(
             "設定完了",
@@ -480,12 +515,25 @@ class Setting:
     async def setting_auto_join(ctx, enabled: bool):
       try:
         await ctx.response.defer()
+        recorded = None
+        if enabled:
+          recorded, problem = self.resolve_auto_join_target(ctx.guild, ctx.user)
+          if problem is not None:
+            await ctx.edit_original_response(
+              embed=make_embed("設定失敗", problem, embed_type=EmbedType.ERROR)
+            )
+            return
+          if recorded is not None:
+            self.server_config.set(ctx.guild.id, "VoiceTarget", recorded.id)
         self.server_config.set(ctx.guild.id, "AutoJoin", enabled)
         state = "有効" if enabled else "無効"
+        message = f"AutoJoin を {state} にしました"
+        if recorded is not None:
+          message = f"VoiceTarget を {recorded.mention} に設定し、AutoJoin を {state} にしました"
         await ctx.edit_original_response(
           embed=make_embed(
             "設定完了",
-            f"AutoJoin を {state} にしました",
+            message,
             embed_type=EmbedType.SUCCESS,
           )
         )

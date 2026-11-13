@@ -170,6 +170,7 @@ setting = Setting(
   server_config,
   error_notifier,
   speaker_service,
+  voice_service=voice_service,
 )
 word_dict = WordDict(
   client,

@@ -16,6 +16,8 @@ class GuildSession:
   pending_text_channel_id: int | None = None
   skipping: bool = False
   clearing: bool = False
+  # クリアのたびに1つ上がる。音声を作っている途中にクリアされたメッセージを捨てるために使う
+  clear_generation: int = 0
   current_tts_path: str | None = None
   expected_stop_paths: set[str] = field(default_factory=set)
   current_message_id: int | None = None
