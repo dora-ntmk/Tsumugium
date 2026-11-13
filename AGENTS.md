@@ -18,6 +18,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `services/error_notification_service.py` | エラーのCLI出力と、任意設定された運営者へのDiscord Embed形式DM通知を担当 |
 | `services/status_service.py` | STATUS_MESSAGEの検証・変数展開と、接続状態に応じたDiscordステータス更新を担当 |
 | `services/user_reading_service.py` | ユーザー設定の読み方を優先し、未設定時はDiscord表示名へ戻す共通名前解決を担当 |
+| `services/dictionary_transfer_service.py` | 読み辞書をShovel形式（1行に1件の`単語, 読み`）のテキストへ書き出し、読み込む純粋な処理。SQLiteとDiscordは扱わない |
 | `services/ready_state_service.py` | 起動の準備が終わったことを、インストーラーへ`ready.json`で知らせる。`UPDATE_STATE_DIR`が空欄なら何もしない |
 | `cogs/connection_cog.py` | `/join`・`/leave`とVC状態イベントを`ConnectionService`へ接続する登録層 |
 | `cogs/playback_cog.py` | `/clear`と`on_message`を読み上げサービスへ接続する登録層 |
@@ -165,6 +166,21 @@ CREATE TABLE user_dictionary (
 
 ---
 
+## 辞書のエクスポート・インポート（`/dict export`・`/dict import`）
+
+形式はShovelと同じで、UTF-8のテキストに1行に1件、`単語, 読み`と書く。書き出すファイルの名前は`exported_<guild_id>.dict`。
+
+- 対象はそのサーバーの読み方を持つ項目だけ。音声辞書の設定と`__common__`は扱わない。`is_priority`は保存せず、読み込むときに単語から決め直す。
+- 書き出しでは、読み方にカンマを含む項目を入れない（読み込むときに単語と読み方の境目が分からなくなるため）。
+- 読み込みでは、行の最後のカンマで単語と読み方に分ける。空の行と、`#`で始まりカンマのない行は読み飛ばす。
+- 読み込むファイルは1MBまで、登録する単語は1回に5,000件まで。超えたとき、またはUTF-8で読めないときは、ファイル全体を読み込まない。
+- すでに読み方がある単語は上書きしない。音声辞書だけがある単語には、`sound_id`を残したまま読み方を足す。
+- 書き込みは`DictionaryRepository.import_readings()`が1つのトランザクションで行い、途中で失敗したら何も登録しない。
+- 読み込まなかった行は`行番号: 元の行 — 理由`の一覧にして、実行者へDMで送る。DMを送れなかったときは、実行者にだけ見える形で送る。
+- 権限は、両方とも当面はサーバー管理者（`manage_guild`）に限る。
+
+---
+
 ## チャンネル判定ロジック（`services/message_service.py`）
 
 ```
@@ -192,6 +208,8 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/dict add` | `word`, `read` | 全員 |
 | `/dict del` | `word`, `both: bool` | 全員 |
 | `/dict view` | `search: str`, `ephemeral: bool` | 全員 |
+| `/dict export` | `ephemeral: bool` | manage_guild |
+| `/dict import` | `file: Attachment` | manage_guild |
 | `/sounddict add` | `word`, `sound`, `read: str`, `full_match: bool`, `trigger_user: Member` | 全員 |
 | `/sounddict del` | `word`, `both: bool` | 全員 |
 | `/sounddict view` | `search: str`, `ephemeral: bool` | 全員 |

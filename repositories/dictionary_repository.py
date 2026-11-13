@@ -84,6 +84,40 @@ class DictionaryRepository:
     self._conn.commit()
     return overwrite
 
+  def import_readings(
+      self,
+      guild_id: int,
+      entries: list[tuple[str, str, bool]],
+  ) -> set[str]:
+    """(単語, 読み, 優先かどうか)をまとめて登録し、すでに読みがあった単語を返す。
+
+    すでに読みがある単語は上書きしない。サウンドボードだけの単語には読みを足す。
+    1つのトランザクションで書き、途中で失敗したら何も登録しない。
+    """
+    gid = str(guild_id)
+    existing: set[str] = set()
+    with self._conn:
+      for word, reading, is_priority in entries:
+        row = self._conn.execute(
+          "SELECT reading FROM dict WHERE guild_id = ? AND word = ?",
+          (gid, word),
+        ).fetchone()
+        if row is not None and row[0] is not None:
+          existing.add(word)
+          continue
+        self._conn.execute(
+          """
+          INSERT INTO dict (guild_id, word, reading, sound_id, is_priority, added_at)
+          VALUES (?, ?, ?, NULL, ?, strftime('%s', 'now'))
+          ON CONFLICT(guild_id, word) DO UPDATE SET
+            reading     = excluded.reading,
+            is_priority = excluded.is_priority,
+            added_at    = excluded.added_at
+          """,
+          (gid, word, reading, int(is_priority)),
+        )
+    return existing
+
   def delete_reading(self, guild_id: int, word: str) -> Optional[str]:
     gid = str(guild_id)
     row = self._conn.execute(

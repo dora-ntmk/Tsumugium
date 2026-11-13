@@ -3,7 +3,7 @@
 作者：どら
 説明：テキスト辞書モジュール。
       単語の読み方・サウンドボード ID を SQLite で管理する DictManager、
-      およびスラッシュコマンド /dict (add / del / view / view-common) を実装する WordDict を提供する。
+      およびスラッシュコマンド /dict (add / del / view / view-common / export / import) を実装する WordDict を提供する。
       テキスト前処理は swap モジュールに委譲する。
 依存関係：discord.py
 """
@@ -18,7 +18,9 @@ from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error
 from repositories.dictionary_repository import DictionaryRepository
 from models.preprocess_result import PreprocessResult
+from services import dictionary_transfer_service as dict_transfer
 from services.error_notification_service import ensure_error_notifier
+import io
 import swap
 from swap import (
   _CUSTOM_EMOJI_RE, _STANDARD_EMOJI_RE,
@@ -127,6 +129,39 @@ class DictManager:
     """Returns (word, reading) entries in added_at DESC order."""
     return self.repository.get_reading_entries(guild_id)
 
+  def export_text(self, guild_id: int) -> tuple[str, int, int]:
+    """このサーバーの読み辞書を、Shovel形式の本文・書き出した件数・
+    読みにカンマがあって書き出さなかった件数で返す（古い順）。"""
+    entries = list(reversed(self.repository.get_reading_entries(guild_id)))
+    exported = sum(1 for _, reading in entries if dict_transfer.is_exportable(reading))
+    return dict_transfer.format_export(entries), exported, len(entries) - exported
+
+  def import_data(self, guild_id: int, data: bytes) -> dict_transfer.ImportResult:
+    """Shovel形式のファイルを読み込む。すでに読みがある単語は上書きしない。
+
+    ファイル全体を断るときは ImportRejected を投げる。
+    """
+    parsed = dict_transfer.parse_import(dict_transfer.decode_import(data))
+    existing = self.repository.import_readings(
+      guild_id,
+      [
+        (entry.word, entry.reading, _is_priority_word(entry.word))
+        for entry in parsed.entries
+      ],
+    )
+    failures = list(parsed.failures)
+    failures.extend(
+      dict_transfer.ImportFailure(
+        entry.line_no, entry.line, dict_transfer.REASON_ALREADY_EXISTS
+      )
+      for entry in parsed.entries
+      if entry.word in existing
+    )
+    return dict_transfer.ImportResult(
+      added=len(parsed.entries) - len(existing),
+      failures=sorted(failures, key=lambda failure: failure.line_no),
+    )
+
   def get_common_entries(self) -> list[tuple[str, str]]:
     """全サーバー共通辞書を (word, 表示値) の一覧で返す。
 
@@ -197,6 +232,35 @@ class DictManager:
       author_id=author_id,
       user_readings=user_readings,
     )
+
+
+IMPORT_REPORT_INLINE_LIMIT = 1800
+
+
+def build_import_failure_report(guild, failures):
+  """読み込まなかった行の一覧を、本文と添付ファイル（短いときはNone）にする。"""
+  header = f'**{guild.name}** の辞書に読み込まなかった行（{len(failures)}件）'
+  body = dict_transfer.format_failures(failures)
+  if len(header) + len(body) <= IMPORT_REPORT_INLINE_LIMIT:
+    return f'{header}\n```\n{body}```', None
+  report = discord.File(
+    io.BytesIO(body.encode('utf-8')),
+    filename=f'import_failures_{guild.id}.txt',
+  )
+  return f'{header}\n一覧は添付のファイルにあります', report
+
+
+async def send_import_failures(user, guild, failures) -> bool:
+  """読み込まなかった行の一覧をDMで送る。送れなかったらFalseを返す。"""
+  content, report = build_import_failure_report(guild, failures)
+  kwargs = {'content': content}
+  if report is not None:
+    kwargs['file'] = report
+  try:
+    await user.send(**kwargs)
+  except discord.errors.HTTPException:
+    return False
+  return True
 
 
 class WordDict:
@@ -413,6 +477,104 @@ class WordDict:
         await handle_internal_error(
           ctx, e, "dict_view_common", self.error_notifier
         )
+
+    @dict_group.command(
+      name='export',
+      description='このサーバーの辞書をShovel形式のファイルで書き出します（サーバー管理者のみ）',
+    )
+    @discord.app_commands.describe(
+      ephemeral='Trueにすると自分にだけ見える形で表示します',
+    )
+    @discord.app_commands.checks.has_permissions(manage_guild=True)
+    async def dict_export(ctx, ephemeral: bool = False):
+      try:
+        await ctx.response.defer(ephemeral=ephemeral)
+        text, count, skipped = self.dict_manager.export_text(ctx.guild.id)
+        if count == 0 and skipped == 0:
+          await ctx.edit_original_response(
+            embed=make_embed('辞書の書き出し', '辞書に登録された単語はありません')
+          )
+          return
+        description = f'{count}件の単語を書き出しました'
+        if skipped:
+          description += f'\n読みにカンマ（,）が入っている{skipped}件は書き出していません'
+        await ctx.edit_original_response(
+          embed=make_embed(
+            '辞書を書き出しました',
+            description,
+            embed_type=EmbedType.SUCCESS,
+          ),
+          attachments=[
+            discord.File(
+              io.BytesIO(text.encode('utf-8')),
+              filename=dict_transfer.export_filename(ctx.guild.id),
+            )
+          ],
+        )
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as e:
+        self.error_notifier.report(f'HTTPException in dict_export: {e}')
+      except Exception as e:
+        await handle_internal_error(ctx, e, "dict_export", self.error_notifier)
+
+    @dict_group.command(
+      name='import',
+      description='Shovel形式のファイルから辞書を読み込みます（サーバー管理者のみ）',
+    )
+    @discord.app_commands.describe(
+      file='「単語, 読み」を1行に1件ずつ書いたUTF-8のファイル',
+    )
+    @discord.app_commands.checks.has_permissions(manage_guild=True)
+    async def dict_import(ctx, file: discord.Attachment):
+      try:
+        await ctx.response.defer()
+        try:
+          dict_transfer.check_import_size(file.size)
+          result = self.dict_manager.import_data(ctx.guild.id, await file.read())
+        except dict_transfer.ImportRejected as e:
+          await ctx.edit_original_response(
+            embed=make_embed(
+              '辞書を読み込めませんでした',
+              str(e),
+              embed_type=EmbedType.ERROR,
+            )
+          )
+          return
+        failed = len(result.failures)
+        embed = make_embed(
+          '辞書を読み込みました',
+          f'{result.added}件の単語を追加しました',
+          embed_type=EmbedType.SUCCESS,
+        )
+        if failed:
+          delivered = await send_import_failures(
+            ctx.user, ctx.guild, result.failures
+          )
+          if delivered:
+            note = '一覧をDMで送りました'
+          else:
+            note = 'DMを送れなかったので、一覧をこのあと自分にだけ見える形で送ります'
+          embed.add_field(
+            name='読み込まなかった行',
+            value=f'{failed}件（{note}）',
+            inline=False,
+          )
+        await ctx.edit_original_response(embed=embed)
+        if failed and not delivered:
+          content, report = build_import_failure_report(
+            ctx.guild, result.failures
+          )
+          kwargs = {'content': content, 'ephemeral': True}
+          if report is not None:
+            kwargs['file'] = report
+          await ctx.followup.send(**kwargs)
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as e:
+        self.error_notifier.report(f'HTTPException in dict_import: {e}')
+      except Exception as e:
+        await handle_internal_error(ctx, e, "dict_import", self.error_notifier)
 
     @dict_group.error
     async def dict_error(ctx, error):
