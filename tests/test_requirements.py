@@ -14,6 +14,11 @@ def requirement_lines():
 
 
 class RequirementsTest(unittest.TestCase):
+  def test_discord_py_stays_below_2_8(self):
+    # davey とセットで上げるため、discord.py にも上限を付けておく
+    [line] = [line for line in requirement_lines() if re.match(r"discord\.py\b", line, re.IGNORECASE)]
+    self.assertIn("<2.8", line)
+
   def test_davey_stays_below_0_2(self):
     # davey 0.2 と discord.py 2.7.1 の組み合わせでは音声が聞こえないため、0.1.x に留める
     [line] = [line for line in requirement_lines() if re.match(r"davey\b", line, re.IGNORECASE)]
