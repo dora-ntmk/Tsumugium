@@ -117,6 +117,54 @@ def _join_spaced_unit_runs(text: str, emoji_ja: dict) -> str:
   return ''.join(parts)
 
 
+def _is_non_ascii(value: str) -> bool:
+  return all(ord(char) > 0x7F for char in value)
+
+
+def _join_word_attached_runs(text: str, emoji_ja: dict) -> str:
+  """前後の語の端にくっついた1文字ずつの区切りを連結する。
+
+  例: 「とてもよ　く　な　い天気です」は、区切られた「く」「な」に、前の語の最後の「よ」と
+  次の語の最初の「い」を合わせて4文字の区切りとみなし、「とてもよくない天気です」にする。
+  区切られた1文字が2つ以上あり、前後の端の文字と合わせて3文字以上、異なる文字を含むときだけ詰める。
+  英語の文（This is a pen など）を詰めないよう、英数字などのASCII文字は対象にしない。
+  """
+  if '\t' in text or '\n' in text or '\r' in text:
+    return text
+
+  parts = _SPACE_RUN_RE.split(text)
+
+  def single_space(index: int) -> bool:
+    return 0 <= index < len(parts) and parts[index] in (' ', '\u3000')
+
+  def spaced_unit(index: int) -> bool:
+    value = parts[index]
+    return _is_single_unit(value, emoji_ja) and _is_non_ascii(value)
+
+  index = 0
+  while index < len(parts):
+    if not (parts[index] and spaced_unit(index)):
+      index += 2
+      continue
+    end = index
+    while single_space(end + 1) and end + 2 < len(parts) and parts[end + 2] and spaced_unit(end + 2):
+      end += 2
+    singles = [parts[i] for i in range(index, end + 1, 2)]
+    left = parts[index - 2] if index >= 2 and single_space(index - 1) else ''
+    right = parts[end + 2] if end + 2 < len(parts) and single_space(end + 1) else ''
+    left_ok = len(left) > 1 and _is_non_ascii(left[-1])
+    right_ok = len(right) > 1 and _is_non_ascii(right[0])
+    units = singles + ([left[-1]] if left_ok else []) + ([right[0]] if right_ok else [])
+    if len(singles) >= 2 and (left_ok or right_ok) and len(units) >= 3 and len(set(units)) > 1:
+      first = index - 1 if left_ok else index + 1
+      last = end + 1 if right_ok else end - 1
+      for separator in range(first, last + 1, 2):
+        parts[separator] = ''
+    index = end + 2
+
+  return ''.join(parts)
+
+
 def _normalize_spaced_text(text: str, emoji_ja: dict) -> tuple[str, bool]:
   """全文型を優先し、文中の空白区切り部分は通常速度のまま連結する。"""
   units = _SINGLE_SPACE_RE.split(text)
@@ -129,6 +177,7 @@ def _normalize_spaced_text(text: str, emoji_ja: dict) -> tuple[str, bool]:
     return ''.join(units), True
 
   text = _join_spaced_unit_runs(text, emoji_ja)
+  text = _join_word_attached_runs(text, emoji_ja)
   parts = _SPACE_RUN_RE.split(text)
   for index in range(1, len(parts) - 1, 2):
     separator = parts[index]

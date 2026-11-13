@@ -25,6 +25,8 @@ class SpeechService:
     session = self.voice_service.get_session(guild_id)
     if session.clearing:
       return
+    # 音声を作っている間にクリアされたら、作り終えても読まない
+    clear_generation = session.clear_generation
     speaker = self.server_config.get(guild_id, "Speaker")
     volume = self.server_config.volume_to_vvtts(guild_id)
     reference = getattr(message, "reference", None)
@@ -84,6 +86,9 @@ class SpeechService:
       volume=volume,
     )
     if path is None:
+      return
+    if session.clear_generation != clear_generation:
+      await self.voice_service.safe_remove(path)
       return
     if self.voice_service.consume_cancelled(guild_id, message.id):
       await self.voice_service.safe_remove(path)

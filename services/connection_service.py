@@ -241,6 +241,7 @@ class ConnectionService:
         if saved is not None:
           session.temporary_text_channel_id = saved
         self.voice_service.start_keepalive(guild)
+        self.voice_service.reset_speaking_soon(guild)
       elif before.channel is not None and after.channel is None:
         self._voice_state_stages[guild.id] = "bot_disconnect_cleanup"
         if guild.id in self.voluntary_disconnects:

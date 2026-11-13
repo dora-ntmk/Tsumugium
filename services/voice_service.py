@@ -10,6 +10,10 @@ from models.guild_session import GuildSession
 from services.error_notification_service import ensure_error_notifier
 
 
+# Opus の無音1フレーム（discord.py の OPUS_SILENCE と同じ）
+OPUS_SILENCE = b'\xF8\xFF\xFE'
+
+
 class VoiceService:
   CANCELLED_MESSAGE_LIMIT = 500
 
@@ -53,6 +57,7 @@ class VoiceService:
       except asyncio.QueueEmpty:
         break
     session.skipping = True
+    session.clear_generation += 1
     if instant and guild.voice_client and guild.voice_client.is_playing():
       if session.current_tts_path is not None:
         session.expected_stop_paths.add(session.current_tts_path)
@@ -197,8 +202,31 @@ class VoiceService:
         e, "Discord Soundboard playback", self.connection_context(guild)
       )
 
+  SPEAKING_RESET_DELAY = 1.0
+
+  def reset_speaking_soon(self, guild) -> None:
+    """接続し直したあと、「話している」表示が残らないようにする（少し待ってから行う）。"""
+    self.error_notifier.create_task(
+      self._reset_speaking(guild),
+      f"reset speaking guild_id={guild.id}",
+    )
+
+  async def _reset_speaking(self, guild) -> None:
+    # 話している途中で強制切断されると、接続し直したあとも Discord 側に
+    # 「話している」表示が残ることがある。無音のデータを送ってから「話していない」を送り直す。
+    await asyncio.sleep(self.SPEAKING_RESET_DELAY)
+    voice_client = guild.voice_client
+    if voice_client is None or not voice_client.is_connected() or voice_client.is_playing():
+      return
+    try:
+      for _ in range(5):
+        voice_client.send_audio_packet(OPUS_SILENCE, encode=False)
+      await voice_client.ws.speak(discord.SpeakingState.none)
+    except Exception as e:
+      print(f"話していない状態の送信に失敗しました: {e}")
+
   async def _keepalive_loop(self, guild):
-    silence = b'\xF8\xFF\xFE'
+    silence = OPUS_SILENCE
     while True:
       await asyncio.sleep(270)
       voice_client = guild.voice_client

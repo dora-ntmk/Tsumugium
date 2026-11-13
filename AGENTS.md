@@ -141,7 +141,7 @@ CREATE TABLE user_dictionary (
 
 処理順は以下の通り（**順番変更はバグの原因になるため注意**）:
 
-0. 空白区切り文字列を正規化。同一文字反復と異なる3文字以上の部分列は文中でも連結し、メッセージ全文が異なる3文字以上の空白区切りなら `spaced_out=True` にする。通常文との混在時はフラグを立てない
+0. 空白区切り文字列を正規化。同一文字反復と異なる3文字以上の部分列は文中でも連結し、メッセージ全文が異なる3文字以上の空白区切りなら `spaced_out=True` にする。通常文との混在時はフラグを立てない。前後の語の端にくっついた1文字ずつの区切り（例: 「とてもよ　く　な　い天気」）は、区切られた1文字が2つ以上あり、前後の語の端の文字と合わせて異なる3文字以上なら連結する。英語の文を詰めないよう、この連結はASCII以外の文字だけを対象にする
 1a. 正規化後のメッセージ全文が `sound_id` 付き辞書エントリと**完全一致**（`full_match=1`）かつ `trigger_user_id` 条件を満たす → サウンドボード再生してスキップ
 1b. `sound_id` 付き辞書エントリのうち `full_match=0` のもので正規化後のメッセージ中に**部分一致**し `trigger_user_id` 条件を満たす → サウンドボード再生してスキップ（1a より後に評価）
 2. 優先辞書（`is_priority=1`）を適用
@@ -173,7 +173,7 @@ temp_text_targets（一時設定）→ TextTarget（永続設定）の順で参�
 どちらかが設定されている場合: 設定チャンネル OR VCのテキストチャット のどちらかに一致すれば読む。
 ```
 
-`GuildSession.temporary_text_channel_id` は `/join` 実行時にコマンドチャンネルへ設定する。`ConnectionService`はBotが強制切断された場合に`pending_text_channel_id`へ退避し、再接続時に復元する。自発的な切断は`voluntary_disconnects`で識別し、一時設定を破棄する。
+`GuildSession.temporary_text_channel_id` は `/join` 実行時にコマンドチャンネルへ設定する。`/setting text-target`を実行すると一時設定を消し、設定したチャンネルをすぐに読み上げ対象にする。VCのテキストチャットは一時設定や`TextTarget`に関係なく常に読む。`ConnectionService`はBotが強制切断された場合に`pending_text_channel_id`へ退避し、再接続時に復元する。自発的な切断は`voluntary_disconnects`で識別し、一時設定を破棄する。
 
 **Botメッセージの扱い（2026-06-27 追加）:**  
 Bot からのメッセージは通常 TTS をスキップするが、sounddict に一致する場合のみサウンドボードを再生する。チャンネル判定は人間ユーザーと同じロジック（`TextTarget` / VC テキストチャット）を適用。`SpeechService.add_message(sounddict_only=True)` で呼び出される。
@@ -206,12 +206,13 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/setting spaced-speed` | `speed: int (50〜200)` | manage_guild |
 | `/setting spaced-speed-reset` | — | manage_guild |
 | `/setting max-char` | `chars: int (30〜200)` | manage_guild |
-| `/setting auto-join` | `enabled: bool` | manage_guild |
+| `/setting auto-join` | `enabled: bool`（有効にするとき`VoiceTarget`が未設定なら、実行者が入っているVCを記録する。VCに入っていなければ断る） | manage_guild |
 | `/setting access-notice` | `enabled: bool` | manage_guild |
 
 メッセージトリガー:
 - `@Bot` 単体メンション: VC接続トグル
 - `s`: 現在再生中をスキップ
+- `c`: 読み上げキューをすべてクリア（`/clear instant:True` と同じ）。クリアのたびに`GuildSession.clear_generation`を上げ、クリアの時点で音声を生成中だったメッセージも読み上げない
 - `!s ` プレフィックスまたは silent フラグ: 読み上げをスキップ
 
 ---
@@ -290,6 +291,8 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
    - `voice_client.is_playing()` が False になるまで 0.1秒ポーリングで待機（TTS 完了待ち）
    - `_play_soundboard()` で Discord API を呼び出し、即 `task_done()`
 3. `item` が `TTSItem` の場合: `play()` で FFmpeg 再生、完了後 `task_done()`
+
+Botが接続し直したときは、`VoiceService.reset_speaking_soon()`が1秒後に無音のOpusフレームを5つ送ってから「話していない」状態を送る。話している途中で強制切断されたあと、Discord上で「話している」表示が残らないようにするため。
 
 **注意:** サウンドボード同士は互いに待機しない（Discord API は再生完了イベントを返さないため）。サウンドボード再生中でも次のアイテムは即時処理される。
 
