@@ -20,7 +20,8 @@ DEFAULTS = {
   "SpacedSpeed": None,
   "MaxChar": 100,
   "AutoJoin": False,
-  "AccessNotice": False,
+  # 新しいサーバーでは入退室通知を有効にする（既存のサーバーの設定は変えない）
+  "AccessNotice": True,
   "Greeting": True,
 }
 
@@ -40,6 +41,16 @@ _TYPE_VALIDATORS = {
 }
 
 _BOOL_KEYS = {"AutoJoin", "AccessNotice", "Greeting"}
+
+# 新しいサーバーの行を作る。すでに行があるサーバーは何も変えない（INSERT OR IGNORE）。
+# 既存のDBでは表の既定値が古いまま（AccessNotice は 0）なので、既定値に頼らず値を明示する。
+_INSERT_NEW_GUILD = (
+  "INSERT OR IGNORE INTO guild_config (guild_id, MaxChar, AccessNotice) VALUES (?, ?, ?)"
+)
+
+
+def _new_guild_values(guild_id: str) -> tuple:
+  return (guild_id, DEFAULTS["MaxChar"], int(DEFAULTS["AccessNotice"]))
 
 
 class GuildConfigRepository:
@@ -71,7 +82,7 @@ class GuildConfigRepository:
         SpacedSpeed   INTEGER DEFAULT NULL,
         MaxChar       INTEGER NOT NULL DEFAULT 100,
         AutoJoin      INTEGER NOT NULL DEFAULT 0,
-        AccessNotice  INTEGER NOT NULL DEFAULT 0,
+        AccessNotice  INTEGER NOT NULL DEFAULT 1,
         Language      TEXT NOT NULL DEFAULT 'ja',
         Greeting      INTEGER NOT NULL DEFAULT 1
       )
@@ -134,7 +145,7 @@ class GuildConfigRepository:
           SpacedSpeed   INTEGER DEFAULT NULL,
           MaxChar       INTEGER NOT NULL DEFAULT 100,
           AutoJoin      INTEGER NOT NULL DEFAULT 0,
-          AccessNotice  INTEGER NOT NULL DEFAULT 0,
+          AccessNotice  INTEGER NOT NULL DEFAULT 1,
           Language      TEXT NOT NULL DEFAULT 'ja',
           Greeting      INTEGER NOT NULL DEFAULT 1
         );
@@ -169,8 +180,8 @@ class GuildConfigRepository:
 
   def init_guild(self, guild_id: int) -> None:
     self._conn.execute(
-      "INSERT OR IGNORE INTO guild_config (guild_id, MaxChar) VALUES (?, ?)",
-      (str(guild_id), DEFAULTS["MaxChar"]),
+      _INSERT_NEW_GUILD,
+      _new_guild_values(str(guild_id)),
     )
     self._conn.commit()
 
@@ -192,8 +203,8 @@ class GuildConfigRepository:
       raise ValueError(f"{key} に無効な値です: {value!r}")
     gid = str(guild_id)
     self._conn.execute(
-      "INSERT OR IGNORE INTO guild_config (guild_id, MaxChar) VALUES (?, ?)",
-      (gid, DEFAULTS["MaxChar"]),
+      _INSERT_NEW_GUILD,
+      _new_guild_values(gid),
     )
     self._conn.execute(
       f"UPDATE guild_config SET {key} = ? WHERE guild_id = ?",
