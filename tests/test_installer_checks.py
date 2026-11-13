@@ -176,6 +176,9 @@ class PreflightTest(SystemTestCase):
       if call.args[0][0] == "apt-get":
         self.assertEqual(call.kwargs["env"]["DEBIAN_FRONTEND"], "noninteractive")
     self.assertIn("入れました: python3.10-venv ffmpeg", ui.stdout.getvalue())
+    # 時間のかかる apt は、進み具合が見えるように出力を画面に流す
+    self.assertEqual(self.runner.streamed, self.apt_calls())
+    self.assertIn("数分かかることがあります", ui.stdout.getvalue())
 
   def test_yes_installs_without_asking(self):
     self.packages_missing()

@@ -16,13 +16,13 @@ def build_venv(system: System, ui: UI, python: str, app_dir: PurePosixPath) -> N
   python -m pip だけで、どちらも置き場所を実行時に決めるので、あとで名前を変えても動く。
   """
   venv = app_dir / ".venv"
-  ui.info("venv を作成し、requirements.lock から依存をインストールしています ...")
-  system.run([python, "-m", "venv", "--clear", str(venv)])
+  ui.info("venv を作成し、requirements.lock から依存をインストールしています（1分ほどかかることがあります）")
+  system.run([python, "-m", "venv", "--clear", str(venv)], stream=True)
   system.run([
     str(venv / "bin" / "python"), "-m", "pip", "install",
     "--disable-pip-version-check",
     "--no-input",
     "--require-hashes",
     "-r", str(app_dir / "requirements.lock"),
-  ])
+  ], stream=True)
   secure_app(system, str(app_dir))

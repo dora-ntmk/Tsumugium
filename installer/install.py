@@ -361,7 +361,7 @@ class Installer:
     self.ui.info(f"  ログを見る:   sudo journalctl -u {service} -f")
     self.ui.info(f"  設定を変える: sudo nano {record.layout.env_file} のあと sudo systemctl restart {service}")
     self.ui.info("  更新する:     sudo tsumugium-setup upgrade")
-    self.ui.info("  自動更新は既定で無効です")
+    self.ui.info("  自動更新はまだありません（次のバージョンで追加予定）")
 
   def run(self) -> int:
     build = read_build_info(self.source)

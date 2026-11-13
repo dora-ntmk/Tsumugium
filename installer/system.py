@@ -42,7 +42,18 @@ class Runner:
       check: bool = True,
       env: dict[str, str] | None = None,
       cwd: str | None = None,
+      stream: bool = False,
   ) -> CommandResult:
+    """コマンドを実行する。
+
+    stream が True のときは出力を取り込まず、そのまま画面に流す（apt や pip のように
+    時間がかかり、進み具合を見せたいコマンドに使う）。このとき結果の stdout・stderr は空になる。
+    """
+    if stream:
+      completed = subprocess.run(args, env=env, cwd=cwd)
+      if check and completed.returncode != 0:
+        raise CommandError(args, completed.returncode, "（出力は上に表示されています）")
+      return CommandResult(completed.returncode)
     completed = subprocess.run(
       args,
       capture_output=True,
@@ -66,9 +77,13 @@ class RecordingRunner(Runner):
 
   calls: list[list[str]] = field(default_factory=list)
   responses: dict[tuple[str, ...], CommandResult] = field(default_factory=dict)
+  # stream=True で呼ばれたコマンド（出力を画面に流したもの）
+  streamed: list[list[str]] = field(default_factory=list)
 
-  def run(self, args, *, check=True, env=None, cwd=None):
+  def run(self, args, *, check=True, env=None, cwd=None, stream=False):
     self.calls.append(list(args))
+    if stream:
+      self.streamed.append(list(args))
     result = CommandResult(0)
     for length in range(len(args), 0, -1):
       key = tuple(args[:length])

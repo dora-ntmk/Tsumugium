@@ -69,7 +69,7 @@ def show_status(args: argparse.Namespace, system: System, ui: UI) -> int:
     ui.info(f"  状態        {service_state(system, record.service)}")
     ui.info(f"  サービス名  {unit_name(record.service)}")
     ui.info(f"  入れる場所  {record.prefix}")
-    ui.info("  自動更新    無効")
+    ui.info("  自動更新    なし（次のバージョンで追加予定）")
     if record.unverified:
       ui.info(f"  注意        未確認の更新あり（{record.unverified}。start で起動すると確かめます）")
     if record.updating:
