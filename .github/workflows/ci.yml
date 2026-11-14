@@ -236,9 +236,11 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   release:
-    name: Releaseの下書き
+    name: Releaseの作成
     runs-on: ubuntu-latest
     # mainに入ったときだけ動く。すべての確認が通った配布物を、作り直さずにそのまま使う。
+    #   正式版（VERSIONに (beta X) がない）: Releaseの下書きを作る。公開は人が本文を書いてから行う
+    #   ベータ版（VERSIONが (beta X)）: プレリリースをすぐ公開する。ベータのチャンネルの環境はこれを取りに行く
     needs: [test, static-checks, build, lock-check, installer-e2e, secret-scan]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     permissions:
@@ -252,6 +254,8 @@ jobs:
       CHANNEL: ${{ needs.build.outputs.channel }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
+      # 残すプレリリースの数
+      KEEP_PRERELEASES: "5"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -261,12 +265,14 @@ jobs:
       - name: 作るかどうかを決める
         id: decide
         run: |
-          if [ "$CHANNEL" != "stable" ]; then
-            echo "VERSIONがベータ（$TAG）なので、正式版の下書きは作りません"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
+            echo "タグ $TAG はもうあるので、Releaseは作りません"
             echo "create=false" >> "$GITHUB_OUTPUT"
-          elif git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
-            echo "タグ $TAG はもうあるので、下書きは作りません"
-            echo "create=false" >> "$GITHUB_OUTPUT"
+            # コードが変わったのにVERSIONが同じなら、(beta X) を上げ忘れている
+            changed="$(python3 scripts/release_notes.py --changed-code-since "$TAG")"
+            if [ -n "$changed" ]; then
+              echo "::warning::$TAG のあとでコードが変わっていますが、VERSIONが $TAG のままなので、新しい版を出せませんでした。VERSIONの (beta X) を上げてください。変わったファイル: $(echo "$changed" | paste -sd ' ')"
+            fi
           elif gh release list --limit 100 --json tagName --jq '.[].tagName' | grep -qxF "$TAG"; then
             echo "$TAG の下書きはもうあるので、作りません"
             echo "create=false" >> "$GITHUB_OUTPUT"
@@ -280,11 +286,14 @@ jobs:
           name: release-assets-tsumugium-${{ needs.build.outputs.tag }}
           path: dist
 
-      - name: 下書きを作り、zipと.sha256を添付する
+      - name: 本文を作る
         if: steps.decide.outputs.create == 'true'
+        run: python3 scripts/release_notes.py --tag "$TAG" --out "$RUNNER_TEMP/notes.md"
+
+      - name: 正式版の下書きを作り、zipと.sha256を添付する
+        if: steps.decide.outputs.create == 'true' && needs.build.outputs.channel == 'stable'
         # 下書きのあいだはタグを作らない。公開したときに、GitHubがこのコミットにタグを付ける。
         run: |
-          python3 scripts/release_notes.py --tag "$TAG" --out "$RUNNER_TEMP/notes.md"
           gh release create "$TAG" \
             "dist/tsumugium-$TAG.zip" \
             "dist/tsumugium-$TAG.zip.sha256" \
@@ -293,3 +302,28 @@ jobs:
             --title "$TAG" \
             --notes-file "$RUNNER_TEMP/notes.md"
           echo "### Releaseの下書きを作りました: $TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: ベータ版のプレリリースを公開し、zipと.sha256を添付する
+        if: steps.decide.outputs.create == 'true' && needs.build.outputs.channel == 'beta'
+        # 公開と同時に、このコミットにタグを付ける
+        run: |
+          gh release create "$TAG" \
+            "dist/tsumugium-$TAG.zip" \
+            "dist/tsumugium-$TAG.zip.sha256" \
+            --prerelease \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/notes.md"
+          echo "### ベータ版を公開しました: $TAG" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: 古いプレリリースを消す
+        if: steps.decide.outputs.create == 'true' && needs.build.outputs.channel == 'beta'
+        # 新しいほうから KEEP_PRERELEASES 件だけ残し、残りはReleaseとタグを消す。下書きと正式版は消さない。
+        run: |
+          old="$(gh release list --limit 100 --json tagName,isPrerelease,isDraft,createdAt \
+            --jq "[.[] | select(.isPrerelease and (.isDraft | not))] | sort_by(.createdAt) | reverse | .[${KEEP_PRERELEASES}:] | .[].tagName")"
+          for tag in $old; do
+            echo "古いプレリリースを消します: $tag"
+            gh release delete "$tag" --cleanup-tag --yes
+            echo "- 古いプレリリースを消しました: $tag" >> "$GITHUB_STEP_SUMMARY"
+          done
