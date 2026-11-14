@@ -1,7 +1,8 @@
 """インストーラーが data/state/ に置くファイルを見張り、更新の様子を知らせる。
 
 - updating.json があるあいだは、Botのステータスを「取り込み中」と「アップデート中」の表示にする。
-- 起動したときに last-update.json（更新・入れ直し・戻したときの結果）を読み、運営者へDMで知らせる。
+- last-update.json（更新・入れ直し・戻したときの結果）を読み、まだ知らせていなければ運営者へDMで知らせる。
+  インストーラーは新しい版のBotの起動を確かめてから結果を書くので、起動したときだけでなく見張りのたびに読む。
 - 自動更新が人の手を要る状態（前回の更新が途中で止まっているなど）になったら、運営者へDMで知らせる。
 
 UPDATE_STATE_DIR が空欄（インストーラーを使わずに動かしている）なら何もしない。
@@ -116,7 +117,6 @@ class UpdateWatchService:
     await asyncio.gather(self._task, return_exceptions=True)
 
   async def _run(self) -> None:
-    await self.notify_last_update()
     while True:
       try:
         await self.check()
@@ -126,6 +126,7 @@ class UpdateWatchService:
 
   async def check(self) -> None:
     await self.check_updating()
+    await self.notify_last_update()
     await self.check_auto_update()
 
   # ファイル
