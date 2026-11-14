@@ -266,3 +266,27 @@ class ResultWrittenAfterStartTest(WatchTestCase):
     asyncio.run(self.watch.check())
     self.assertEqual(len(self.sent()), 2)
     self.assertIn("v4.3.0.71 (beta 3) に更新しました（自動更新）", self.sent()[-1].description)
+
+
+class StatusActivityTypeTest(unittest.TestCase):
+  def test_normal_and_updating_status_use_the_same_kind(self):
+    # ふだんの表示も更新中の表示も、アイコンの横の吹き出し（カスタムステータス）に出す
+    activities = []
+
+    class Client(FakeClient):
+      async def change_presence(self, *, status, activity):
+        activities.append(activity)
+
+    service = StatusService(Client(), "{voice_connections}/{guilds}個のVCに接続中", RecordingNotifier())
+
+    async def scenario():
+      await service.update()
+      await service.set_override(discord.Status.dnd, UPDATING_TEXT)
+      await service.clear_override()
+
+    asyncio.run(scenario())
+    self.assertEqual(len(activities), 3)
+    for activity in activities:
+      self.assertIsInstance(activity, discord.CustomActivity)
+      self.assertEqual(activity.type, discord.ActivityType.custom)
+    self.assertEqual(activities[0].name, "0/0個のVCに接続中")
