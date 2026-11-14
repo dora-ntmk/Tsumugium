@@ -137,7 +137,7 @@ class VersionTest(unittest.TestCase):
 
   def test_tags(self):
     self.assertEqual(Version.parse("v4.3.0.71").tags, ("v4.3.0.71",))
-    self.assertEqual(Version.parse("v4.3.0.71 (beta 11)").tags, ("v4.3.0.71-beta.11", "v4.3.0.71-beta.011"))
+    self.assertEqual(Version.parse("v4.3.0.71 (beta 11)").tags, ("v4.3.0.71-beta.011", "v4.3.0.71-beta.11"))
     self.assertEqual(Version.parse("v4.3.0.71 (beta 123)").tags, ("v4.3.0.71-beta.123",))
 
   def test_ordering(self):
@@ -209,7 +209,7 @@ class SelectReleaseTest(unittest.TestCase):
       latest = select_release(client, REPO, "beta")
       self.assertEqual(latest.tag, "v4.3.0.71-beta.011")
       self.assertTrue(latest.zip_url.endswith("/tsumugium-v4.3.0.71-beta.011.zip"))
-      # 版を指定したときは、ゼロ埋めしないタグが見つからなければ、ゼロ埋めしたタグを探す
+      # 版を指定したときは、ゼロ埋めしたタグが見つからなければ、ゼロ埋めしないタグを探す
       self.assertEqual(
         select_release(client, REPO, "beta", requested="v4.3.0.71 (beta 11)").tag,
         "v4.3.0.71-beta.011",
@@ -306,7 +306,8 @@ class BuildReleaseCompatibilityTest(TempDirTestCase):
     system = System(Path(self.tmp_dir) / "root")
     fetched = extract_from_file(system, make_ui(), Layout.of("/opt/tsumugium"), zip_path)
     self.assertEqual(fetched.version, Version.parse(info["version"]))
-    self.assertEqual(fetched.version.tag, info["tag"])
+    # CIが付けるタグ名を、インストーラーは版を指定したときに最初に探す
+    self.assertEqual(fetched.version.tags[0], info["tag"])
     self.assertTrue((fetched.path / "requirements.lock").is_file())
     self.assertEqual(oct(os.stat(fetched.path / "install.sh").st_mode & 0o777), "0o755")
 

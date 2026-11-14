@@ -2,8 +2,8 @@
 
 使い方（プロジェクトルートで実行）:
   python scripts/release_notes.py --tag v4.3.0.71 --out notes.md
-  python scripts/release_notes.py --tag v4.3.0.71-beta.2 --out notes.md
-  python scripts/release_notes.py --changed-code-since v4.3.0.71-beta.1
+  python scripts/release_notes.py --tag v4.3.0.71-beta.002 --out notes.md
+  python scripts/release_notes.py --changed-code-since v4.3.0.71-beta.001
 
 正式版（下書き）の本文には、docs/RELEASE_CHECKLIST.md「リリースノートの書き方」の見出しの
 ひな形と、前の正式版のタグからのコミット名の一覧（参考）を入れる。一覧はHTMLのコメントに
@@ -26,7 +26,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# vX.X.X.XX と、ベータの vX.X.X.XX-beta.X。ベータ番号は3桁のゼロ埋め（-beta.00X）へ移行する途中なので、どちらも受け付ける
+# vX.X.X.XX と、ベータの vX.X.X.XX-beta.XXX。v4.3.0.71-beta.12 まではゼロ埋めしていないので、どちらも受け付ける
 TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)\.(\d+)(?:-beta\.0*([1-9]\d*))?$")
 
 _spec = importlib.util.spec_from_file_location("build_release", ROOT / "scripts" / "build_release.py")
@@ -146,7 +146,7 @@ def changed_code_files(root: Path, since: str, until: str = "HEAD") -> list[str]
 
 def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description="GitHub Releaseの本文を作る")
-  parser.add_argument("--tag", help="作るReleaseのタグ名（例 v4.3.0.71、v4.3.0.71-beta.2）")
+  parser.add_argument("--tag", help="作るReleaseのタグ名（例 v4.3.0.71、v4.3.0.71-beta.002）")
   parser.add_argument("--out", help="本文を書き出すファイル")
   parser.add_argument("--changed-code-since", metavar="TAG", help="そのタグから変わったコードのファイルを表示する")
   args = parser.parse_args(argv)

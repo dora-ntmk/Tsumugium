@@ -316,7 +316,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - 新しいバージョンへ引き継ぐ形式には番号（`installer/__init__.py`の`HANDOFF_VERSION`）を付ける。引き継ぐ項目の意味を変えるときは番号を上げる。知らない番号を受け取ったバージョンは、何も変えずに止まる。
 - インストーラーを別のプロセスで動かすときは、`python -m installer`を使わず、`installer.python_command()`（`python -I`で起動する）を使う。`-m`は今いるディレクトリの`installer/`を先に読むので、展開したzipやリポジトリの中で実行すると、違うバージョンが動くため。
 - インストーラーが作るunitと入口には`# Managed by tsumugium-setup`の印を付ける。印のない同じ名前のファイルは、上書きも削除もしない。
-- `main`にコミットが入ると、CIの`release`ジョブが`build`ジョブの配布物を添付したGitHub Releaseを作る。`VERSION`が正式版なら下書きを作り、ベータ版（`(beta X)`）ならタグ`vX.X.X.XX-beta.X`のプレリリースをすぐ公開して、新しいほうから5件を残して古いプレリリースとタグを消す。同じタグか下書きがすでにあれば作らず、そのタグのあとでコードが変わっていれば、`(beta X)`の上げ忘れとして警告を出す。書き込みの権限（`contents: write`）は、このジョブだけに付ける。
+- `main`にコミットが入ると、CIの`release`ジョブが`build`ジョブの配布物を添付したGitHub Releaseを作る。`VERSION`が正式版なら下書きを作り、ベータ版（`(beta X)`）ならタグ`vX.X.X.XX-beta.XXX`（ベータ番号は3桁にゼロ埋め）のプレリリースをすぐ公開して、新しいほうから5件を残して古いプレリリースとタグを消す。同じタグか下書きがすでにあれば作らず、そのタグのあとでコードが変わっていれば、`(beta X)`の上げ忘れとして警告を出す。書き込みの権限（`contents: write`）は、このジョブだけに付ける。
 - PRですべての確認が通ると、CIの`verified`ジョブが、確かめた中身（マージした結果のツリー）を`verified-tree-<ツリー>`という名前の成果物に残す。mainへのpushでは、`gate`ジョブがこのコミットと同じ中身の記録（同じリポジトリのPRのもの）を探し、見つかればテスト・静的チェック・インストーラーの結合テスト・秘密情報のスキャンを省いて、`build`・`lock-check`・`release`だけを動かす。`build`は`build-info.json`にコミットを書くため、省かない。記録にはPRで確かめた`requirements.lock`も入れ、マージ後に作り直したロックがこれとまったく同じなら`lock-check`も省く（依存は範囲指定なので、違うロックになることがある）。見つからないとき（PRを確かめたあとにmainが進んだ、mainへ直接pushした、など）は、すべて確かめる。
 - 配布用のzipには`.claude/`・`.github/`・`docs/`・`scripts/`・`tests/`・`.gitignore`・`AGENTS.md`を入れず、`build-info.json`と`requirements.lock`を加える。
 - `requirements.lock`は、CIで`uv pip compile --universal`を使ってハッシュ値つきで作る。`--universal`を付けると、Python 3.13以上だけで要る依存（`audioop-lts`など）も条件付きで書き出されるので、Python 3.10以上のどのバージョンでも同じロックを使える。インストーラーは`pip install --require-hashes`で入れる。CIの`lock-check`ジョブがPython 3.10〜3.14のそれぞれで入れられることを確かめる。
@@ -390,7 +390,6 @@ Botが接続し直したときは、`VoiceService.reset_speaking_soon()`が1秒�
 - GitHubのタグ名とReleaseのタイトルは、ベータ版では`vX.X.X.XX-beta.XXX`と表記し、ベータ番号を3桁にゼロ埋めする（例: `v4.3.0.71-beta.001`、`v4.3.0.71-beta.010`）。Gitのタグ名には空白を使えず、GitHubのReleasesはタグ名の文字列順で並ぶため、ゼロ埋めで桁をそろえて順番を保つ。タイトルはタグ名と同じ文字列にする。
   - `config.py`の`VERSION`と`/version`の表示は、ゼロ埋めしない`vX.X.X.XX (beta X)`のままとする（例: `v4.3.0.71 (beta 10)`）。
   - 正式リリースのタグ名とタイトルは`vX.X.X.XX`とする（例: `v4.3.0.71`）。
-  - **移行中:** `v4.3.0.71-beta.11`以前の自動更新はゼロ埋めしたタグを読めない（正規表現に合わないタグを読み飛ばす）。そのため、まず`v4.3.0.71 (beta 12)`で`installer/release.py`と`scripts/release_notes.py`をゼロ埋めの有無どちらのタグも読めるようにした。CIがタグ名を作る`scripts/build_release.py`は、既存環境がこの版へ更新されるまでゼロ埋めしない`-beta.X`のままとし、切り替え後にこの項目を削除する。
 
 ---
 
