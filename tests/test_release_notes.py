@@ -102,3 +102,76 @@ class BuildNotesTest(TempDirTestCase):
     self.assertIn("3件", comment)
     self.assertNotIn("前の版", comment)
     self.assertNotIn("Merge topic", comment)
+
+
+class BetaNotesTest(TempDirTestCase):
+  def test_render_beta_lists_commits_openly(self):
+    text = release_notes.render_beta(
+      "v4.3.0.71-beta.2", "v4.3.0.71-beta.1", ["fix: A"], "0123456789abcdef",
+    )
+    self.assertIn("コミット 0123456 から自動で作ったベータ版です", text)
+    self.assertIn("v4.3.0.71-beta.1 からの変更（マージを除く、古い順、1件）", text)
+    self.assertIn("- fix: A\n", text)
+    self.assertNotIn("<!--", text)
+
+  def test_render_beta_without_previous(self):
+    text = release_notes.render_beta("v4.3.0.71-beta.1", None, [], "0123456789abcdef")
+    self.assertIn("最初からの変更", text)
+
+
+class IsCodeTest(TempDirTestCase):
+  def test_code_files(self):
+    for path in ("main.py", "config.py", "installer/upgrade.py", "requirements.txt", "install.sh",
+                 "db/speakers.json", ".env.template"):
+      with self.subTest(path=path):
+        self.assertTrue(release_notes.is_code(path))
+
+  def test_non_code_files(self):
+    for path in ("README.md", "USERGUIDE.md", "AGENTS.md", "LICENSE", ".gitignore",
+                 "docs/INSTALL.md", "tests/test_swap.py", "scripts/build_release.py",
+                 ".github/workflows/ci.yml", ".claude/CLAUDE.md"):
+      with self.subTest(path=path):
+        self.assertFalse(release_notes.is_code(path))
+
+
+class GitRepoTestCase(TempDirTestCase):
+  def git(self, *args):
+    subprocess.run(
+      ["git", "-c", "user.name=test", "-c", "user.email=test@example.invalid",
+       "-c", "commit.gpgsign=false", "-c", "tag.gpgsign=false", *args],
+      cwd=self.tmp_dir, check=True, capture_output=True,
+    )
+
+  def write_and_commit(self, path, text, subject):
+    file = Path(self.tmp_dir) / path
+    file.parent.mkdir(parents=True, exist_ok=True)
+    file.write_text(text, encoding="utf-8")
+    self.git("add", path)
+    self.git("commit", "-q", "-m", subject)
+
+
+class ChangedCodeFilesTest(GitRepoTestCase):
+  def test_only_code_changes_are_reported(self):
+    self.git("init", "-q")
+    self.write_and_commit("main.py", "a\n", "feat: 最初")
+    self.git("tag", "v4.3.0.71-beta.1")
+    self.write_and_commit("docs/INSTALL.md", "x\n", "docs: 手引き")
+    self.write_and_commit("tests/test_x.py", "x\n", "test: テスト")
+    root = Path(self.tmp_dir)
+    self.assertEqual(release_notes.changed_code_files(root, "v4.3.0.71-beta.1"), [])
+    self.write_and_commit("main.py", "b\n", "fix: 直した")
+    self.assertEqual(release_notes.changed_code_files(root, "v4.3.0.71-beta.1"), ["main.py"])
+
+
+class BuildBetaNotesTest(GitRepoTestCase):
+  def test_beta_notes_use_previous_beta(self):
+    self.git("init", "-q")
+    self.write_and_commit("main.py", "a\n", "feat: 正式版")
+    self.git("tag", "v4.2.0.70")
+    self.write_and_commit("main.py", "b\n", "fix: ベータ1")
+    self.git("tag", "v4.3.0.71-beta.1")
+    self.write_and_commit("main.py", "c\n", "fix: ベータ2")
+    text = release_notes.build_notes(Path(self.tmp_dir), "v4.3.0.71-beta.2")
+    self.assertIn("v4.3.0.71-beta.1 からの変更", text)
+    self.assertIn("- fix: ベータ2\n", text)
+    self.assertNotIn("ベータ1", text)
