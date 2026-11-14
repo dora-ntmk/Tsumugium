@@ -15,9 +15,53 @@ env:
   UV_VERSION: "0.13.8"
 
 jobs:
+  gate:
+    name: 確かめ済みかを調べる
+    runs-on: ubuntu-latest
+    # mainへのpushで、同じ中身をPRですでに確かめていれば、確かめ直しを省く。
+    # PRで確かめた中身（マージした結果のツリー）とマージ後のコミットの中身が同じなら、結果も同じになるため。
+    # mainが進んでいた、mainへ直接pushした、などで見つからないときは、今までどおりすべて確かめる。
+    permissions:
+      contents: read
+      actions: read
+    outputs:
+      verified: ${{ steps.check.outputs.verified }}
+    steps:
+      - uses: actions/checkout@v4
+        if: github.event_name == 'push'
+
+      - name: 同じ中身をPRで確かめたかを調べる
+        id: check
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          REPO_ID: ${{ github.repository_id }}
+        run: |
+          if [ "$EVENT_NAME" != "push" ]; then
+            echo "verified=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          echo "このコミットの中身: $tree"
+          # フォークからのPRの成果物は、そのPRが書き換えたワークフローで作れるので数えない
+          found="$(gh api "repos/$GH_REPO/actions/artifacts?name=verified-tree-$tree&per_page=100" \
+            --jq "[.artifacts[] | select((.expired | not) and .workflow_run.head_repository_id == $REPO_ID)] | length" \
+            || echo 0)"
+          if [ "$found" -gt 0 ]; then
+            echo "同じ中身をPRで確かめ済みなので、確かめ直しを省きます"
+            echo "verified=true" >> "$GITHUB_OUTPUT"
+            echo "### PRで確かめ済みの中身なので、テストなどの確かめ直しを省きました" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "確かめ済みの記録がないので、すべて確かめます"
+            echo "verified=false" >> "$GITHUB_OUTPUT"
+          fi
+
   test:
     name: テスト (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.verified != 'true'
     strategy:
       fail-fast: false
       matrix:
@@ -42,6 +86,8 @@ jobs:
   static-checks:
     name: 静的チェック
     runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.verified != 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -93,7 +139,11 @@ jobs:
   build:
     name: 配布物の作成
     runs-on: ubuntu-latest
-    needs: test
+    # 確かめ済みでテストを省いたときも作る。build-info.json にこのコミットを書くので、PRで作ったものは使えない
+    needs: [gate, test]
+    if: >-
+      !cancelled() && needs.gate.result == 'success' &&
+      (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.gate.outputs.verified == 'true'))
     outputs:
       tag: ${{ steps.build.outputs.tag }}
       channel: ${{ steps.build.outputs.channel }}
@@ -141,7 +191,10 @@ jobs:
   lock-check:
     name: requirements.lockの確認 (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
+    # 確かめ済みでも省かない。requirements.txt は範囲指定なので、マージ後に作り直したロックはPRのときと違うことがある
     needs: build
+    # gate から test が省かれたときも動かすため、build の結果だけを見る
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     strategy:
       fail-fast: false
       matrix:
@@ -166,7 +219,8 @@ jobs:
   installer-e2e:
     name: インストーラーの結合テスト
     runs-on: ubuntu-24.04
-    needs: test
+    needs: [gate, test]
+    if: needs.gate.outputs.verified != 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -226,6 +280,8 @@ jobs:
   secret-scan:
     name: 秘密情報のスキャン
     runs-on: ubuntu-latest
+    needs: gate
+    if: needs.gate.outputs.verified != 'true'
     steps:
       - uses: actions/checkout@v4
         with:
@@ -235,14 +291,44 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+  verified:
+    name: 確かめ済みの記録
+    runs-on: ubuntu-latest
+    # PRですべての確認が通ったら、確かめた中身（マージした結果のツリー）を成果物の名前に残す。
+    # マージ後のpushで gate がこれを見つけると、確かめ直しを省く。
+    needs: [test, static-checks, build, lock-check, installer-e2e, secret-scan]
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 確かめた中身を書き出す
+        id: tree
+        run: |
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          echo "tree=$tree" >> "$GITHUB_OUTPUT"
+          echo "$tree" > verified-tree.txt
+
+      - name: 成果物として残す
+        uses: actions/upload-artifact@v4
+        with:
+          name: verified-tree-${{ steps.tree.outputs.tree }}
+          path: verified-tree.txt
+          retention-days: 30
+
   release:
     name: Releaseの作成
     runs-on: ubuntu-latest
     # mainに入ったときだけ動く。すべての確認が通った配布物を、作り直さずにそのまま使う。
     #   正式版（VERSIONに (beta X) がない）: Releaseの下書きを作る。公開は人が本文を書いてから行う
     #   ベータ版（VERSIONが (beta X)）: プレリリースをすぐ公開する。ベータのチャンネルの環境はこれを取りに行く
-    needs: [test, static-checks, build, lock-check, installer-e2e, secret-scan]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    #   確かめ済みの中身なら、テストなどは省かれ、build と lock-check だけが通っていればよい
+    needs: [gate, test, static-checks, build, lock-check, installer-e2e, secret-scan]
+    if: >-
+      !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      needs.build.result == 'success' && needs.lock-check.result == 'success' &&
+      (needs.gate.outputs.verified == 'true' || (
+        needs.test.result == 'success' && needs.static-checks.result == 'success' &&
+        needs.installer-e2e.result == 'success' && needs.secret-scan.result == 'success'))
     permissions:
       # Releaseを作るために、このジョブだけ書き込みを許す
       contents: write
