@@ -176,9 +176,17 @@ class MigrateTest(TempDirTestCase):
       self.migrate()
 
   def test_old_major_version_stops(self):
-    (self.old / "config.py").write_text('VERSION = "v3.5.0.60"\n', encoding="utf-8")
-    with self.assertRaisesRegex(migrate_legacy.MigrationError, "v4 以上"):
-      self.migrate()
+    # v4.0.0.68までは、VERSIONの先頭に v が付かない
+    for version in ("v3.5.0.60", "3.6.0.68"):
+      with self.subTest(version=version):
+        (self.old / "config.py").write_text(f'VERSION = "{version}"\n', encoding="utf-8")
+        with self.assertRaisesRegex(migrate_legacy.MigrationError, "v4 以上"):
+          self.migrate()
+
+  def test_version_without_v_prefix(self):
+    # v4.0.0.68のconfig.pyは、VERSIONの先頭に v が付かない
+    (self.old / "config.py").write_text('VERSION      = "4.0.0.68"\n', encoding="utf-8")
+    self.assertEqual(self.migrate(), 0)
 
   def test_wrong_place(self):
     (self.base / "install.sh").unlink()
