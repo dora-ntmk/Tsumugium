@@ -34,6 +34,7 @@ from services.ready_state_service import ReadyStateService
 from services.speaker_service import SpeakerService
 from services.speech_service import SpeechService
 from services.status_service import StatusService
+from services.update_watch_service import UpdateWatchService
 from services.user_reading_service import UserReadingService
 from services.voice_service import VoiceService
 from setting import Setting
@@ -128,6 +129,14 @@ status_service = StatusService(client, STATUS_MESSAGE, error_notifier)
 client.register_closeable(status_service)
 ready_state = ReadyStateService(UPDATE_STATE_DIR, VERSION)
 client.register_closeable(ready_state)
+update_watch = UpdateWatchService(
+  client,
+  UPDATE_STATE_DIR,
+  status_service,
+  error_notifier,
+  operator_user_id=OPERATOR_USER_ID,
+)
+client.register_closeable(update_watch)
 message_service = MessageService(
   client,
   server_config,
@@ -162,6 +171,7 @@ lifecycle_cog = LifecycleCog(
   status_service=status_service,
   error_notifier=error_notifier,
   ready_state=ready_state,
+  update_watch=update_watch,
 )
 
 setting = Setting(
