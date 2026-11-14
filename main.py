@@ -1,6 +1,7 @@
 """Tsumugiumの依存関係を組み立て、Discord Botを起動する。"""
 
 import asyncio
+import sys
 
 import discord
 
@@ -223,5 +224,8 @@ try:
   asyncio.run(client.run_until_stopped(DISCORD_BOT_TOKEN))
 except VoicevoxStartupError as error:
   print(error)
+  # 失敗として終わらせ、systemd の Restart=on-failure で起動し直してもらう。
+  # 正常終了にすると、マシンの起動直後にVOICEVOXより先に起動したとき、そのまま止まってしまう
+  sys.exit(1)
 except KeyboardInterrupt:
   pass
