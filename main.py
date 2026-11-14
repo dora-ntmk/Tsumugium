@@ -37,7 +37,7 @@ from services.speaker_service import SpeakerService
 from services.speech_service import SpeechService
 from services.status_service import StatusService
 from services.reconnect_service import ReconnectService
-from services.update_watch_service import UpdateWatchService
+from services.update_watch_service import UpdateButton, UpdateWatchService
 from services.user_reading_service import UserReadingService
 from services.voice_service import VoiceService
 from setting import Setting
@@ -138,8 +138,12 @@ update_watch = UpdateWatchService(
   status_service,
   error_notifier,
   operator_user_id=OPERATOR_USER_ID,
+  current_version=VERSION,
 )
 client.register_closeable(update_watch)
+# 運営者へのDMの「更新する」ボタンを、Botを再起動したあとも押せるようにする
+client.update_watch = update_watch
+client.add_dynamic_items(UpdateButton)
 reconnect_service = ReconnectService(
   client,
   UPDATE_STATE_DIR,

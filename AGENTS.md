@@ -268,6 +268,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - `StatusService.set_override()`の表示は`clear_override()`まで、ふだんのステータス更新で上書きしない。
 - `last-update.json`（更新・入れ直し・戻したときの結果）を見張りのたびに読み、まだ知らせていなければ`OPERATOR_USER_ID`へEmbedでDMする。インストーラーは新しいバージョンのBotの起動を確かめてから結果を書くので、起動したときに1回読むだけでは間に合わない。成功も知らせる。知らせたら`update-notice.json`に印を付け、同じ結果を二度送らない。DMを送れなかったときは、次の見張りでもう一度送る。
 - `auto-update.json`の結果が`unfinished`（前回の更新が途中で止まっている）になったら、運営者へDMする。同じ状態が続くあいだは1回だけにし、ほかの結果に変わったら印を消す。
+- `available-update.json`に今と違うバージョンがあり、まだ知らせていなければ、運営者へ「今すぐ更新する」「VCが空いたら更新する」のボタン付きでDMする（同じバージョンは1回だけ）。ボタンは`UpdateButton`（`discord.ui.DynamicItem`。custom_idにバージョンを入れ、再起動したあとも押せる）で、押されたら`client.update_watch`が受ける。押せるのは`OPERATOR_USER_ID`の人だけ。「今すぐ」は`update-request.json`に依頼を書く。「VCが空いたら」は`pending-update.json`に残し、BotがどのVCにもつないでいないときに依頼を書く。今のバージョンと同じか、`available-update.json`と違うバージョンのボタンは、依頼を書かずに知らせる。
 
 ## 止めるときと、再起動のあとのつなぎ直し（`services/reconnect_service.py`）
 
@@ -316,6 +317,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - 配布用のzipには`.claude/`・`.github/`・`docs/`・`scripts/`・`tests/`・`.gitignore`・`AGENTS.md`を入れず、`build-info.json`と`requirements.lock`を加える。
 - `requirements.lock`は、CIで`uv pip compile --universal`を使ってハッシュ値つきで作る。`--universal`を付けると、Python 3.13以上だけで要る依存（`audioop-lts`など）も条件付きで書き出されるので、Python 3.10以上のどのバージョンでも同じロックを使える。インストーラーは`pip install --require-hashes`で入れる。CIの`lock-check`ジョブがPython 3.10〜3.14のそれぞれで入れられることを確かめる。
 - 自動更新は、`<サービス名>-update.timer`が10分おきに`upgrade --auto`を動かす。既定は`beta`チャンネルならオン、`stable`ならオフ（記録の`auto_update`がないときもチャンネルで決める）。起動を確かめられずに戻したバージョンと、`rollback`で戻した元のバージョンは、記録の`skip_versions`に入れて自動更新では入れない。
+- 自動更新がオフでもtimerは止めない。オフのときは、新しいバージョンを見つけたら`data/state/available-update.json`に書くだけにし、新しいバージョンがなければ消す。Botの「更新する」ボタンは`data/state/update-request.json`に依頼を書き、`<サービス名>-update.path`（`PathChanged=`）が同じserviceを動かす。`upgrade --auto`は依頼を先に扱い、頼まれたバージョンがReleasesにあり、今より新しく、チャンネルで入れられるときだけ更新する（飛ばすバージョンでも入れる）。ほかの操作が実行中のときは依頼を残し、次の確認に回す。それ以外は依頼を消す。
 - 記録の形式を変えるときは、`installer/instance.py`の`RECORD_FORMAT`を上げる。知らない項目は読み飛ばすので、項目を足すだけなら上げなくてよい。
 
 ---

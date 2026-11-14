@@ -25,20 +25,26 @@ from typing import Callable
 
 from installer import HANDOFF_VERSION, python_command
 from installer.autoupdate import (
+  REASON_UPDATE,
   RESULT_BUSY,
   RESULT_ERROR,
   RESULT_FAILED,
   RESULT_LATEST,
-  RESULT_OFF,
+  RESULT_NOTIFIED,
+  RESULT_REJECTED,
   RESULT_SKIPPED,
   RESULT_STOPPED,
   RESULT_UNFINISHED,
   RESULT_UPDATED,
   apply_auto_update,
-  REASON_UPDATE,
+  clear_available_update,
+  clear_update_request,
   clear_updating,
   mark_restart_reason,
   mark_updating,
+  read_check_result_code,
+  read_update_request,
+  write_available_update,
   write_check_result,
   write_last_update,
 )
@@ -184,7 +190,13 @@ def run_auto(
     client: GitHubClient | None = None,
     launch: Callable[[System, UI, Path, Path], int] = launch_new_installer,
 ) -> int:
-  """自動更新の timer から呼ばれる。更新しない条件に当たれば、理由を残して終わる。"""
+  """自動更新の timer と、更新の依頼の path unit から呼ばれる。
+
+  1. Botの「更新する」ボタンからの依頼（update-request.json）があれば、それを先に扱う。
+  2. 自動更新がオンなら、新しい版を入れる。オフなら、新しい版を見つけたら
+     available-update.json に書くだけにする（Botがボタン付きのDMで知らせる）。
+  更新しない条件に当たれば、理由を残して終わる。
+  """
   ui.assume_yes = True
   instance = select_instance(system, ui, args.instance)
   record = load_record(system, instance)
@@ -195,15 +207,17 @@ def run_auto(
     (ui.info if code == EXIT_OK else ui.error)(message)
     return code
 
-  if not record.auto_update_enabled:
-    return done(RESULT_OFF, "自動更新はオフなので、何もしません")
+  request = read_update_request(system, record.layout)
+  if request is not None:
+    return _run_requested(system, ui, record, request, client or GitHubClient(), launch, done)
+
   if record.updating:
     return done(
       RESULT_UNFINISHED,
       "前回の更新が途中で止まっているため、更新しません。"
       "sudo tsumugium-setup repair か sudo tsumugium-setup rollback で直してください",
     )
-  if not Systemctl(system).is_active(record.service):
+  if record.auto_update_enabled and not Systemctl(system).is_active(record.service):
     return done(RESULT_STOPPED, f"{unit_name(record.service)} が止まっているため、更新しません")
 
   client = client or GitHubClient()
@@ -213,8 +227,15 @@ def run_auto(
     return done(RESULT_ERROR, f"新しい版を確かめられませんでした: {error}")
   latest = str(release.version)
   if not release.version > Version.parse(record.version):
+    clear_available_update(system, record.layout)
     return done(RESULT_LATEST, f"新しい版はありません（今の版 {record.version}）")
-  if latest in record.skip_versions:
+  skipped = latest in record.skip_versions
+
+  if not record.auto_update_enabled:
+    # 自動では入れず、Botにボタン付きのDMで知らせてもらう
+    write_available_update(system, record, latest, skipped=skipped)
+    return done(RESULT_NOTIFIED, f"新しい版 {latest} があることを知らせました（自動更新はオフ）", latest=latest)
+  if skipped:
     return done(
       RESULT_SKIPPED,
       f"{latest} は前に起動を確かめられなかった（または戻した）版なので、入れません。"
@@ -223,28 +244,68 @@ def run_auto(
     )
 
   ui.info(f"新しい版 {latest} があるので、更新します")
+  return _upgrade_to(system, ui, record, latest, client, launch, done, auto=True)
+
+
+def _upgrade_to(system, ui, record, version, client, launch, done, *, auto: bool) -> int:
   upgrade_args = argparse.Namespace(
-    instance=instance,
+    instance=record.instance,
     yes=True,
-    auto=True,
-    target_version=latest,
+    auto=auto,
+    target_version=version,
     allow_downgrade=False,
     from_file=None,
   )
   try:
-    code = _fetch_and_hand_off(upgrade_args, system, ui, instance, "upgrade", client, launch)
+    code = _fetch_and_hand_off(upgrade_args, system, ui, record.instance, "upgrade", client, launch)
   except LockBusy:
     return done(RESULT_BUSY, "ほかの操作が実行中なので、次の機会に更新します")
   except Exception as error:  # 何が起きても、結果を残してから終わる
-    return done(RESULT_ERROR, f"{latest} に更新できませんでした: {error}", EXIT_ERROR, latest=latest)
+    return done(RESULT_ERROR, f"{version} に更新できませんでした: {error}", EXIT_ERROR, latest=version)
   if code == EXIT_OK:
-    return done(RESULT_UPDATED, f"{latest} に更新しました", latest=latest)
+    clear_available_update(system, record.layout)
+    return done(RESULT_UPDATED, f"{version} に更新しました", latest=version)
   return done(
     RESULT_FAILED,
-    f"{latest} に更新できませんでした。詳しくは journalctl -u {record.service}-update を見てください",
+    f"{version} に更新できませんでした。詳しくは journalctl -u {record.service}-update を見てください",
     EXIT_ERROR,
-    latest=latest,
+    latest=version,
   )
+
+
+def _run_requested(system, ui, record, request, client, launch, done) -> int:
+  """Botの「更新する」ボタンで頼まれた更新。人が決めたものなので、飛ばす版でも入れる。"""
+  version = request.get("version")
+  if record.updating:
+    return done(
+      RESULT_UNFINISHED,
+      "前回の更新が途中で止まっているため、頼まれた更新を始められません。"
+      "sudo tsumugium-setup repair か sudo tsumugium-setup rollback で直してください",
+    )
+
+  def reject(message: str) -> int:
+    clear_update_request(system, record.layout)
+    return done(RESULT_REJECTED, message, latest=version if isinstance(version, str) else None)
+
+  try:
+    wanted = Version.parse(version)
+  except Exception:
+    return reject(f"頼まれた版の書き方が正しくないため、更新しません: {version!r}")
+  if not wanted > Version.parse(record.version):
+    return reject(f"頼まれた {wanted} は今の版 {record.version} より新しくないため、更新しません")
+  try:
+    release = client.release(record.repo, wanted)
+  except ReleaseError as error:
+    return reject(f"頼まれた {wanted} を取得元で見つけられないため、更新しません: {error}")
+  if release.prerelease and record.channel != "beta":
+    return reject(f"頼まれた {wanted} はベータ版で、チャンネルが {record.channel} なので、更新しません")
+
+  ui.info(f"頼まれた {wanted} に更新します（{request.get('mode', 'now')}）")
+  code = _upgrade_to(system, ui, record, str(wanted), client, launch, done, auto=False)
+  # ほかの操作が実行中だったときだけ、依頼を残して次の機会（10分おきの確認）に回す
+  if read_check_result_code(system, load_record(system, record.instance)) != RESULT_BUSY:
+    clear_update_request(system, record.layout)
+  return code
 
 
 def _fetch_and_hand_off(args, system, ui, instance, mode, client, launch) -> int:

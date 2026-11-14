@@ -44,6 +44,7 @@ PREFIX = f"/opt/{INSTANCE}"
 SERVICE = f"{INSTANCE}.service"
 UPDATE_SERVICE = f"{INSTANCE}-update.service"
 UPDATE_TIMER = f"{INSTANCE}-update.timer"
+UPDATE_PATH = f"{INSTANCE}-update.path"
 VERSION_A = "v0.0.1.1"
 VERSION_B = "v0.0.2.2"
 VERSION_C = "v0.0.3.3"
@@ -159,8 +160,8 @@ def status_text():
   return setup("status").stdout
 
 
-def timer_enabled():
-  return subprocess.run(["systemctl", "is-enabled", "--quiet", UPDATE_TIMER]).returncode == 0
+def timer_enabled(unit=UPDATE_TIMER):
+  return subprocess.run(["systemctl", "is-enabled", "--quiet", unit]).returncode == 0
 
 
 def assert_running(version):
@@ -246,21 +247,19 @@ def scenario(work: Path, zips: dict[str, Path]) -> None:
   check("稼働中" in status_text(), "status が稼働中を表示する")
 
   print("\n== 1b. 自動更新の timer ==", flush=True)
-  for unit in (UPDATE_SERVICE, UPDATE_TIMER):
+  # timer の service は本物の GitHub Releases を取りに行くので、CIでは動かさない
+  for unit in (UPDATE_SERVICE, UPDATE_TIMER, UPDATE_PATH):
     check(exists(f"/etc/systemd/system/{unit}"), f"{unit} が置かれた")
     verify = sudo("systemd-analyze", "verify", f"/etc/systemd/system/{unit}", check=False)
     check(verify.returncode == 0, f"{unit} を systemd が正しく読める（{verify.stderr.strip()}）")
-  check(not timer_enabled(), "stable の既定なので、自動更新の timer は無効")
+  check(timer_enabled() and timer_enabled(UPDATE_PATH), "自動更新がオフ（stable の既定）でも、知らせるために timer と path は有効")
   check("自動更新    オフ" in status_text(), "status が自動更新オフを表示する")
-  # オフのときは GitHub に問い合わせずに終わる（CIでは本物のReleasesを取りに行かない）
-  setup("upgrade", "--auto", "--instance", INSTANCE)
-  check(read_json(f"{PREFIX}/data/state/auto-update.json")["result"] == "off", "オフなので何もしなかった")
   setup("auto-update", "on")
-  check(timer_enabled(), "auto-update on で timer が有効になった")
-  check(record()["auto_update"] is True, "記録に auto_update が残った")
+  check(record()["auto_update"] is True, "auto-update on が記録に残った")
   check("自動更新    オン（10分おき）" in status_text(), "status が自動更新オンを表示する")
   setup("auto-update", "off")
-  check(not timer_enabled(), "auto-update off で timer が無効になった")
+  check(record()["auto_update"] is False, "auto-update off が記録に残った")
+  check(timer_enabled(), "auto-update off でも timer は有効のまま")
 
   print("\n== 2. upgrade（版B） ==", flush=True)
   setup("upgrade", "--yes", "--from-file", str(zips["b"]))
@@ -307,6 +306,7 @@ def scenario(work: Path, zips: dict[str, Path]) -> None:
   check(not exists(f"/etc/systemd/system/{SERVICE}"), "unit が消えた")
   check(not exists(f"/etc/systemd/system/{UPDATE_TIMER}"), "自動更新の timer が消えた")
   check(not exists(f"/etc/systemd/system/{UPDATE_SERVICE}"), "自動更新の service が消えた")
+  check(not exists(f"/etc/systemd/system/{UPDATE_PATH}"), "更新の依頼の path が消えた")
   check(not exists(f"/etc/tsumugium/{INSTANCE}.json"), "記録が消えた")
   check(not exists(f"{PREFIX}/app"), "コードが消えた")
   check(exists(f"{PREFIX}/data/db/config.db"), "DBは残った")
