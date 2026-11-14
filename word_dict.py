@@ -480,7 +480,7 @@ class WordDict:
 
     @dict_group.command(
       name='export',
-      description='このサーバーの辞書を.dictファイル（CSV形式）で書き出します（サーバー管理者のみ）',
+      description='（ベータ版）このサーバーの辞書を.dictファイル（CSV形式）で書き出します（サーバー管理者のみ）',
     )
     @discord.app_commands.describe(
       ephemeral='Trueにすると自分にだけ見える形で表示します',
@@ -520,7 +520,7 @@ class WordDict:
 
     @dict_group.command(
       name='import',
-      description='.dictファイル（CSV形式）から辞書を読み込みます（サーバー管理者のみ）',
+      description='（ベータ版）.dictファイル（CSV形式）から辞書を読み込みます（サーバー管理者のみ）',
     )
     @discord.app_commands.describe(
       file='「単語, 読み」を1行に1件ずつ書いたファイル（文字コードは自動で判別）',
