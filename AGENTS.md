@@ -390,6 +390,7 @@ Botが接続し直したときは、`VoiceService.reset_speaking_soon()`が1秒�
 - GitHubのタグ名とReleaseのタイトルは、ベータ版では`vX.X.X.XX-beta.XXX`と表記し、ベータ番号を3桁にゼロ埋めする（例: `v4.3.0.71-beta.001`、`v4.3.0.71-beta.010`）。Gitのタグ名には空白を使えず、GitHubのReleasesはタグ名の文字列順で並ぶため、ゼロ埋めで桁をそろえて順番を保つ。タイトルはタグ名と同じ文字列にする。
   - `config.py`の`VERSION`と`/version`の表示は、ゼロ埋めしない`vX.X.X.XX (beta X)`のままとする（例: `v4.3.0.71 (beta 10)`）。
   - 正式リリースのタグ名とタイトルは`vX.X.X.XX`とする（例: `v4.3.0.71`）。
+  - **移行中:** `v4.3.0.71-beta.11`以前の自動更新はゼロ埋めしたタグを読めない（正規表現に合わないタグを読み飛ばす）。そのため、まず`v4.3.0.71 (beta 12)`で`installer/release.py`と`scripts/release_notes.py`をゼロ埋めの有無どちらのタグも読めるようにした。CIがタグ名を作る`scripts/build_release.py`は、既存環境がこの版へ更新されるまでゼロ埋めしない`-beta.X`のままとし、切り替え後にこの項目を削除する。
 
 ---
 
