@@ -26,6 +26,9 @@ jobs:
       actions: read
     outputs:
       verified: ${{ steps.check.outputs.verified }}
+      # 見つけた記録の名前と、それを残したPRの実行。build がPRのときの requirements.lock を取りに行く
+      artifact: ${{ steps.check.outputs.artifact }}
+      run_id: ${{ steps.check.outputs.run_id }}
     steps:
       - uses: actions/checkout@v4
         if: github.event_name == 'push'
@@ -45,12 +48,15 @@ jobs:
           tree="$(git rev-parse 'HEAD^{tree}')"
           echo "このコミットの中身: $tree"
           # フォークからのPRの成果物は、そのPRが書き換えたワークフローで作れるので数えない
-          found="$(gh api "repos/$GH_REPO/actions/artifacts?name=verified-tree-$tree&per_page=100" \
-            --jq "[.artifacts[] | select((.expired | not) and .workflow_run.head_repository_id == $REPO_ID)] | length" \
-            || echo 0)"
-          if [ "$found" -gt 0 ]; then
-            echo "同じ中身をPRで確かめ済みなので、確かめ直しを省きます"
+          # 同じ中身を何度か確かめていれば、いちばん新しい記録を使う
+          run_id="$(gh api "repos/$GH_REPO/actions/artifacts?name=verified-tree-$tree&per_page=100" \
+            --jq "[.artifacts[] | select((.expired | not) and .workflow_run.head_repository_id == $REPO_ID)] | sort_by(.created_at) | last | .workflow_run.id // empty" \
+            || true)"
+          if [ -n "$run_id" ]; then
+            echo "同じ中身をPRで確かめ済みなので、確かめ直しを省きます（記録を残した実行: $run_id）"
             echo "verified=true" >> "$GITHUB_OUTPUT"
+            echo "artifact=verified-tree-$tree" >> "$GITHUB_OUTPUT"
+            echo "run_id=$run_id" >> "$GITHUB_OUTPUT"
             echo "### PRで確かめ済みの中身なので、テストなどの確かめ直しを省きました" >> "$GITHUB_STEP_SUMMARY"
           else
             echo "確かめ済みの記録がないので、すべて確かめます"
@@ -144,9 +150,14 @@ jobs:
     if: >-
       !cancelled() && needs.gate.result == 'success' &&
       (needs.test.result == 'success' || (needs.test.result == 'skipped' && needs.gate.outputs.verified == 'true'))
+    permissions:
+      contents: read
+      # PRの実行が残した requirements.lock を取りに行くため
+      actions: read
     outputs:
       tag: ${{ steps.build.outputs.tag }}
       channel: ${{ steps.build.outputs.channel }}
+      lock_same: ${{ steps.compare.outputs.same }}
     steps:
       - uses: actions/checkout@v4
 
@@ -175,6 +186,29 @@ jobs:
           path: requirements.lock
           if-no-files-found: error
 
+      - name: PRで確かめたときのrequirements.lockを取ってくる
+        if: needs.gate.outputs.verified == 'true'
+        # 古い記録にはロックが入っていない。取れなければ lock-check を動かすだけなので、失敗にはしない
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ needs.gate.outputs.artifact }}
+          run-id: ${{ needs.gate.outputs.run_id }}
+          github-token: ${{ github.token }}
+          path: ${{ runner.temp }}/verified
+
+      - name: PRのときと同じロックかを比べる
+        id: compare
+        # 同じなら、PRの lock-check で確かめたものと同じなので、lock-check を省く
+        run: |
+          if [ -f "$RUNNER_TEMP/verified/requirements.lock" ] && cmp -s requirements.lock "$RUNNER_TEMP/verified/requirements.lock"; then
+            echo "PRで確かめたロックと同じなので、lock-check を省きます"
+            echo "same=true" >> "$GITHUB_OUTPUT"
+            echo "### PRで確かめたrequirements.lockと同じなので、lock-checkを省きました" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "same=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: zipとSHA256値を作る
         id: build
         run: python scripts/build_release.py --lock requirements.lock --out dist
@@ -191,10 +225,11 @@ jobs:
   lock-check:
     name: requirements.lockの確認 (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
-    # 確かめ済みでも省かない。requirements.txt は範囲指定なので、マージ後に作り直したロックはPRのときと違うことがある
+    # requirements.txt は範囲指定なので、マージ後に作り直したロックはPRのときと違うことがある。
+    # PRで確かめたロックとまったく同じときだけ省く
     needs: build
     # gate から test が省かれたときも動かすため、build の結果だけを見る
-    if: ${{ !cancelled() && needs.build.result == 'success' }}
+    if: ${{ !cancelled() && needs.build.result == 'success' && needs.build.outputs.lock_same != 'true' }}
     strategy:
       fail-fast: false
       matrix:
@@ -296,10 +331,16 @@ jobs:
     runs-on: ubuntu-latest
     # PRですべての確認が通ったら、確かめた中身（マージした結果のツリー）を成果物の名前に残す。
     # マージ後のpushで gate がこれを見つけると、確かめ直しを省く。
+    # lock-check で確かめた requirements.lock も入れ、マージ後に同じロックができたら lock-check も省く。
     needs: [test, static-checks, build, lock-check, installer-e2e, secret-scan]
     if: github.event_name == 'pull_request'
     steps:
       - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: requirements-lock
+          path: ${{ runner.temp }}/lock
 
       - name: 確かめた中身を書き出す
         id: tree
@@ -307,12 +348,15 @@ jobs:
           tree="$(git rev-parse 'HEAD^{tree}')"
           echo "tree=$tree" >> "$GITHUB_OUTPUT"
           echo "$tree" > verified-tree.txt
+          cp "$RUNNER_TEMP/lock/requirements.lock" requirements.lock
 
       - name: 成果物として残す
         uses: actions/upload-artifact@v4
         with:
           name: verified-tree-${{ steps.tree.outputs.tree }}
-          path: verified-tree.txt
+          path: |
+            verified-tree.txt
+            requirements.lock
           retention-days: 30
 
   release:
@@ -321,11 +365,13 @@ jobs:
     # mainに入ったときだけ動く。すべての確認が通った配布物を、作り直さずにそのまま使う。
     #   正式版（VERSIONに (beta X) がない）: Releaseの下書きを作る。公開は人が本文を書いてから行う
     #   ベータ版（VERSIONが (beta X)）: プレリリースをすぐ公開する。ベータのチャンネルの環境はこれを取りに行く
-    #   確かめ済みの中身なら、テストなどは省かれ、build と lock-check だけが通っていればよい
+    #   確かめ済みの中身なら、テストなどは省かれ、build と lock-check だけが通っていればよい。
+    #   ロックもPRのときと同じなら、lock-check も省かれる
     needs: [gate, test, static-checks, build, lock-check, installer-e2e, secret-scan]
     if: >-
       !cancelled() && github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      needs.build.result == 'success' && needs.lock-check.result == 'success' &&
+      needs.build.result == 'success' &&
+      (needs.lock-check.result == 'success' || (needs.lock-check.result == 'skipped' && needs.build.outputs.lock_same == 'true')) &&
       (needs.gate.outputs.verified == 'true' || (
         needs.test.result == 'success' && needs.static-checks.result == 'success' &&
         needs.installer-e2e.result == 'success' && needs.secret-scan.result == 'success'))
