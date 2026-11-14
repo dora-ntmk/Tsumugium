@@ -304,10 +304,31 @@ NEW_VERSION = "v4.3.0.71 (beta 8)"
 CURRENT_VERSION = "v4.3.0.71 (beta 7)"
 
 
+class FakePartialMessage:
+  def __init__(self, channel, message_id):
+    self.channel = channel
+    self.id = message_id
+
+  async def edit(self, *, embed, view):
+    if self.channel.error is not None:
+      raise self.channel.error
+    self.channel.edits.append((self.id, embed, view))
+
+
+class FakeDMChannel:
+  def __init__(self):
+    self.edits = []
+    self.error = None
+
+  def get_partial_message(self, message_id):
+    return FakePartialMessage(self, message_id)
+
+
 class ViewUser(FakeUser):
   def __init__(self):
     super().__init__()
     self.views = []
+    self.dm_channel = FakeDMChannel()
 
   async def send(self, *, embed, view=None):
     self.sent.append(embed)
@@ -331,6 +352,7 @@ class FakeInteraction:
     self.user = type("U", (), {"id": user_id})()
     self.client = client
     self.response = FakeResponse()
+    self.message = type("M", (), {"id": 222222222222222222})()
 
 
 class FakeVoiceClient:
@@ -493,3 +515,71 @@ class DynamicItemTest(unittest.TestCase):
 
     asyncio.run(scenario())
     self.assertEqual(calls, [("now", NEW_VERSION)])
+
+
+class StartedTest(UpdateButtonTestCase):
+  press = ButtonTest.press
+  _press_idle = ButtonTest._press_idle
+
+  def edits(self):
+    return self.client.user_obj.dm_channel.edits
+
+  def start_updating(self):
+    self.write(UPDATING_FILE, {"pid": 4242, "to": NEW_VERSION})
+    self.alive.add(4242)
+
+  def test_now_message_is_rewritten_when_update_starts(self):
+    self.offer()
+    self.press("now")
+
+    async def scenario():
+      await self.watch.check_updating()
+      await self.watch.mark_update_started()
+      self.assertEqual(self.edits(), [], "更新が始まるまでは書き換えない")
+      self.start_updating()
+      await self.watch.check_updating()
+      await self.watch.mark_update_started()
+      await self.watch.mark_update_started()
+
+    asyncio.run(scenario())
+    self.assertEqual(len(self.edits()), 1)
+    message_id, embed, view = self.edits()[0]
+    self.assertEqual(message_id, 222222222222222222)
+    self.assertEqual(embed.title, "更新を開始しました")
+    self.assertIn(NEW_VERSION, embed.description)
+    self.assertIsNone(view)
+
+  def test_idle_message_is_rewritten_when_update_starts(self):
+    self.offer()
+    asyncio.run(self._press_idle())
+    self.watch.check_pending_update()
+    self.start_updating()
+
+    async def scenario():
+      await self.watch.check_updating()
+      await self.watch.mark_update_started()
+
+    asyncio.run(scenario())
+    self.assertEqual(self.edits()[0][1].title, "更新を開始しました")
+
+  def test_rewritten_after_restart_when_update_was_missed(self):
+    self.offer()
+    self.press("now")
+    restarted = self.make_watch(current_version=NEW_VERSION)
+    asyncio.run(restarted.mark_update_started())
+    self.assertEqual(self.edits()[0][1].title, "更新を開始しました")
+
+  def test_retried_when_edit_fails(self):
+    self.offer()
+    self.press("now")
+    self.start_updating()
+    self.client.user_obj.dm_channel.error = RuntimeError("temporary")
+
+    async def scenario():
+      await self.watch.check_updating()
+      await self.watch.mark_update_started()
+      self.client.user_obj.dm_channel.error = None
+      await self.watch.mark_update_started()
+
+    asyncio.run(scenario())
+    self.assertEqual(len(self.edits()), 1)

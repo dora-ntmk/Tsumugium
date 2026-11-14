@@ -8,6 +8,7 @@
   「今すぐ更新する」「VCが空いたら更新する」のボタン付きのDMで運営者へ知らせる。
   ボタンが押されたら update-request.json に依頼を書き、インストーラーの path unit が更新を動かす。
   「VCが空いたら」のときは pending-update.json に残し、BotがどのVCにもつないでいないときに依頼を書く。
+  押されたDMは、更新が始まったら「更新を開始しました」に書き換える。
 
 UPDATE_STATE_DIR が空欄（インストーラーを使わずに動かしている）なら何もしない。
 """
@@ -92,6 +93,14 @@ def available_embed(data: dict) -> discord.Embed:
   if data.get("skipped"):
     text += f"\n\n{version} は、前に起動を確かめられなかった（または戻した）版です。"
   return make_embed("新しい版があります", text)
+
+
+def started_embed(version: str | None) -> discord.Embed:
+  return make_embed(
+    "更新を開始しました",
+    f"{version} への更新を始めました。数分のあいだ、Botが止まります。終わったら、結果をお知らせします",
+    embed_type=EmbedType.SUCCESS,
+  )
 
 
 def update_view(version: str, *, idle: bool = True) -> discord.ui.View:
@@ -185,6 +194,7 @@ class UpdateWatchService:
 
   async def check(self) -> None:
     await self.check_updating()
+    await self.mark_update_started()
     await self.notify_last_update()
     await self.check_auto_update()
     await self.offer_available_update()
@@ -315,6 +325,41 @@ class UpdateWatchService:
     if await self._send_to_operator(available_embed(data), view=update_view(version)):
       self._write_notice(offered_version=version)
 
+  def _remember_button_message(self, interaction, version: str) -> None:
+    """押されたDMを覚えておき、更新が始まったら書き換える。"""
+    message = getattr(interaction, "message", None)
+    if message is None:
+      return
+    self._write_notice(button_message={"message_id": message.id, "version": version})
+
+  async def mark_update_started(self) -> None:
+    """ボタンを押したDMを、更新が始まったら「更新を開始しました」に書き換える。
+
+    更新中（updating.json がある）か、Botがすでにその版で動いている（見張りのすきまで更新が終わった）ときに書き換える。
+    """
+    if self.operator_user_id is None:
+      return
+    record = (self._read(NOTICE_FILE) or {}).get("button_message")
+    if not isinstance(record, dict):
+      return
+    version = record.get("version")
+    if not (self._showing_updating or version == self.current_version):
+      return
+    try:
+      user = self.client.get_user(self.operator_user_id)
+      if user is None:
+        user = await self.client.fetch_user(self.operator_user_id)
+      channel = user.dm_channel or await user.create_dm()
+      await channel.get_partial_message(record.get("message_id")).edit(
+        embed=started_embed(version), view=None
+      )
+    except discord.NotFound:
+      pass  # DMが消されていれば、書き換えずに忘れる
+    except Exception as error:
+      print(f"更新のお知らせを書き換えられませんでした（Discord DM）: {type(error).__name__}: {error}")
+      return  # 次の見張りでもう一度試す
+    self._write_notice(button_message=None)
+
   def _request(self, version: str, mode: str, user_id: int | None) -> None:
     self._write(REQUEST_FILE, {
       "version": version,
@@ -359,6 +404,7 @@ class UpdateWatchService:
     if mode == MODE_NOW:
       self._remove(PENDING_FILE)
       self._request(version, MODE_NOW, interaction.user.id)
+      self._remember_button_message(interaction, version)
       await interaction.response.edit_message(
         embed=make_embed(
           "更新を受け付けました",
@@ -369,6 +415,7 @@ class UpdateWatchService:
       )
       return
     self._write(PENDING_FILE, {"version": version, "requested_by": interaction.user.id})
+    self._remember_button_message(interaction, version)
     await interaction.response.edit_message(
       embed=make_embed(
         "VCが空いたら更新します",
