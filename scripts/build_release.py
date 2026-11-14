@@ -55,7 +55,8 @@ def read_version(config_path: Path) -> str:
 def parse_version(version: str) -> dict[str, str]:
   """VERSIONからチャンネルとタグ名を決める。
 
-  gitのタグ名には空白を使えないので、ベータは (beta X) を -beta.X に置き換える。
+  gitのタグ名には空白を使えないので、ベータは (beta X) を -beta.XXX に置き換える。
+  GitHubのReleasesはタグ名の文字列順で並ぶので、ベータ番号は3桁にゼロ埋めする（beta.010 を beta.9 より上にするため）。
   """
   match = VERSION_RE.fullmatch(version)
   if match is None:
@@ -63,7 +64,7 @@ def parse_version(version: str) -> dict[str, str]:
   base, beta = match.groups()
   if beta is None:
     return {"version": version, "channel": "stable", "tag": base}
-  return {"version": version, "channel": "beta", "tag": f"{base}-beta.{beta}"}
+  return {"version": version, "channel": "beta", "tag": f"{base}-beta.{int(beta):03d}"}
 
 
 def tracked_files(root: Path) -> list[str]:

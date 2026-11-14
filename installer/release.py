@@ -27,7 +27,7 @@ HTTP_TIMEOUT = 30.0
 MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024
 
 # v4.2.0.70、v4.2.0.70 (beta 9)、v4.2.0.70-beta.9、v4.2.0.70-beta.009 のどれも受け付ける
-# タグ名のベータ番号は、ゼロ埋めした3桁（-beta.009）へ移行する途中なので、ゼロ埋めの有無を問わない
+# タグ名のベータ番号は v4.3.0.71-beta.12 まではゼロ埋めせず、そのあとは3桁にゼロ埋めするので、どちらも読む
 _VERSION_RE = re.compile(
   r"^v(\d+)\.(\d+)\.(\d+)\.(\d+)(?:(?: \(beta ([1-9]\d*)\))|(?:-beta\.0*([1-9]\d*)))?$"
 )
@@ -73,16 +73,17 @@ class Version:
   @property
   def tag(self) -> str:
     base = "v" + ".".join(str(part) for part in self.numbers)
+    # 手元のバックアップの名前に使う。今までの名前と合わせるため、ゼロ埋めしない
     return f"{base}-beta.{self.beta}" if self.is_beta else base
 
   @property
   def tags(self) -> tuple[str, ...]:
-    """GitHubでこの版に付きうるタグ名。ベータは、ゼロ埋めしないものと3桁にゼロ埋めしたもの。"""
+    """GitHubでこの版に付きうるタグ名。ベータは、今の書き方（3桁にゼロ埋め）を先にし、前の書き方を後にする。"""
     if not self.is_beta:
       return (self.tag,)
     base = "v" + ".".join(str(part) for part in self.numbers)
     padded = f"{base}-beta.{self.beta:03d}"
-    return (self.tag,) if padded == self.tag else (self.tag, padded)
+    return (padded,) if padded == self.tag else (padded, self.tag)
 
   def __str__(self) -> str:
     base = "v" + ".".join(str(part) for part in self.numbers)

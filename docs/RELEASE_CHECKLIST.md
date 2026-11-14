@@ -104,7 +104,7 @@ python -m unittest discover -s tests -v
 
 ## ベータ版の公開
 
-`VERSION`が`(beta X)`のコミットが`main`に入ると、CIの`release`ジョブがタグ`vX.X.X.XX-beta.X`のプレリリースをすぐ公開し、zipと`.sha256`を添付します。本文には、前のタグからのコミット名の一覧が入ります。チャンネルを`beta`にした環境は、`sudo tsumugium-setup upgrade`でこのプレリリースを取得します。
+`VERSION`が`(beta X)`のコミットが`main`に入ると、CIの`release`ジョブがタグ`vX.X.X.XX-beta.XXX`（ベータ番号は3桁にゼロ埋め。例: `v4.3.0.71-beta.013`）のプレリリースをすぐ公開し、zipと`.sha256`を添付します。本文には、前のタグからのコミット名の一覧が入ります。チャンネルを`beta`にした環境は、`sudo tsumugium-setup upgrade`でこのプレリリースを取得します。
 
 - プレリリースは新しいほうから5件だけ残し、古いものはタグごと消します。消えたバージョンは、それを入れている環境でも`repair`で取り直せなくなります。
 - ドキュメントやテストだけを変えたときは、`(beta X)`が変わらないので、プレリリースは作りません。

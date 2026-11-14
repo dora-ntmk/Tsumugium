@@ -28,7 +28,7 @@ class ParseVersionTest(TempDirTestCase):
   def test_beta_version_becomes_tag_without_spaces(self):
     self.assertEqual(
       build_release.parse_version("v4.2.0.70 (beta 8)"),
-      {"version": "v4.2.0.70 (beta 8)", "channel": "beta", "tag": "v4.2.0.70-beta.8"},
+      {"version": "v4.2.0.70 (beta 8)", "channel": "beta", "tag": "v4.2.0.70-beta.008"},
     )
 
   def test_invalid_versions_are_rejected(self):
@@ -98,8 +98,8 @@ class BuildTest(TempDirTestCase):
 
   def test_zip_contents_and_build_info(self):
     zip_path, _, info = self.build()
-    self.assertEqual(zip_path.name, "tsumugium-v4.2.0.70-beta.3.zip")
-    prefix = "tsumugium-v4.2.0.70-beta.3/"
+    self.assertEqual(zip_path.name, "tsumugium-v4.2.0.70-beta.003.zip")
+    prefix = "tsumugium-v4.2.0.70-beta.003/"
     with zipfile.ZipFile(zip_path) as archive:
       names = sorted(archive.namelist())
       build_info = json.loads(archive.read(prefix + "build-info.json"))
@@ -115,7 +115,7 @@ class BuildTest(TempDirTestCase):
     self.assertEqual(build_info, {
       "version": "v4.2.0.70 (beta 3)",
       "channel": "beta",
-      "tag": "v4.2.0.70-beta.3",
+      "tag": "v4.2.0.70-beta.003",
       "commit": "0" * 40,
     })
     self.assertEqual(info, build_info)
@@ -139,7 +139,7 @@ class BuildTest(TempDirTestCase):
     script.chmod(0o755)
     self.files = sorted(self.files + ["install.sh"])
     zip_path, _, _ = self.build()
-    prefix = "tsumugium-v4.2.0.70-beta.3/"
+    prefix = "tsumugium-v4.2.0.70-beta.003/"
     with zipfile.ZipFile(zip_path) as archive:
       modes = {
         info.filename: (info.external_attr >> 16) & 0o777
