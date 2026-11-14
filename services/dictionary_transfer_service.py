@@ -1,7 +1,9 @@
-"""読み辞書をShovel形式のテキストへ書き出し、読み込む。
+"""読み辞書を.dictファイル（CSV形式）へ書き出し、読み込む。
 
 形式は1行に1件の`単語, 読み`。SQLiteもDiscordも知らない純粋な処理だけを置く。
 """
+
+import codecs
 
 from dataclasses import dataclass, field
 
@@ -64,7 +66,7 @@ def is_exportable(reading: str) -> bool:
 
 
 def format_export(entries: list[tuple[str, str]]) -> str:
-  """(単語, 読み)の一覧をShovel形式の本文にする。書き出せない項目は入れない。"""
+  """(単語, 読み)の一覧を.dictファイルの本文にする。書き出せない項目は入れない。"""
   return ''.join(
     f'{word}, {reading}\n'
     for word, reading in entries
@@ -79,16 +81,65 @@ def check_import_size(size: int) -> None:
     )
 
 
+_REJECT_ENCODING = (
+  '文字コードを判別できませんでした。UTF-8・UTF-16・Shift_JISのどれかで保存してください'
+)
+
+# BOMと、そのBOMを読み飛ばして読む文字コード。
+_BOMS = (
+  (codecs.BOM_UTF8, 'utf-8-sig'),
+  (codecs.BOM_UTF16_LE, 'utf-16'),
+  (codecs.BOM_UTF16_BE, 'utf-16'),
+)
+
+
+def _guess_utf16_without_bom(data: bytes):
+  """BOMのないUTF-16を、半角文字（カンマ・空白・改行など）の上位バイトの0で見分ける。
+
+  各行に半角文字があるので、UTF-16なら片側のバイトにだけ0が多く並ぶ。
+  """
+  if len(data) < 2 or len(data) % 2:
+    return None
+  even_zeros = data[0::2].count(0)
+  odd_zeros = data[1::2].count(0)
+  enough = len(data) // 20
+  if odd_zeros >= enough and odd_zeros > even_zeros * 4:
+    return 'utf-16-le'
+  if even_zeros >= enough and even_zeros > odd_zeros * 4:
+    return 'utf-16-be'
+  return None
+
+
+def detect_encoding(data: bytes) -> str:
+  """ファイルの文字コードを中身から決める。
+
+  BOMがあればそれに従う。なければUTF-16（0の並び）、UTF-8、Shift_JIS（cp932）の順に、
+  読めて、かつNUL文字を含まないものを選ぶ。どれでも読めなければ ImportRejected を投げる。
+  """
+  for bom, encoding in _BOMS:
+    if data.startswith(bom):
+      return encoding
+  candidates = [_guess_utf16_without_bom(data), 'utf-8', 'cp932']
+  for encoding in filter(None, candidates):
+    try:
+      text = data.decode(encoding)
+    except UnicodeDecodeError:
+      continue
+    if '\x00' not in text:
+      return encoding
+  raise ImportRejected(_REJECT_ENCODING)
+
+
 def decode_import(data: bytes) -> str:
   check_import_size(len(data))
   try:
-    return data.decode('utf-8-sig')
+    return data.decode(detect_encoding(data))
   except UnicodeDecodeError:
-    raise ImportRejected('ファイルをUTF-8で保存してから読み込んでください') from None
+    raise ImportRejected(_REJECT_ENCODING) from None
 
 
 def parse_import(text: str) -> ParsedImport:
-  """Shovel形式の本文を読む。
+  """.dictファイルの本文を読む。
 
   空行と、`#`で始まりカンマのない行（`# exported_….dict`の見出しなど）は読み飛ばす。
   単語にカンマが入ってもよいように、最後のカンマで単語と読みに分ける。
