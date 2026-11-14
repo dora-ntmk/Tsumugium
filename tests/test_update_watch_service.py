@@ -248,3 +248,21 @@ class LoopTest(WatchTestCase):
     self.assertEqual(len(self.sent()), 1)
     self.assertIn((discord.Status.dnd, UPDATING_TEXT), self.client.presences)
     self.assertTrue(watch._task.done())
+
+
+class ResultWrittenAfterStartTest(WatchTestCase):
+  OLD_RESULT = {"at": "2026-11-14T10:00:00+09:00", "result": "updated", "mode": "upgrade",
+                "from": "v4.3.0.71 (beta 1)", "to": "v4.3.0.71 (beta 2)", "auto": False}
+  NEW_RESULT = {"at": "2026-11-14T15:50:00+09:00", "result": "updated", "mode": "upgrade",
+                "from": "v4.3.0.71 (beta 2)", "to": "v4.3.0.71 (beta 3)", "auto": True}
+
+  def test_result_written_after_the_bot_started_is_sent(self):
+    # インストーラーは、新しいBotの起動を確かめてから last-update.json を書く。
+    # 起動した時点では前の結果しかなく、新しい結果はあとから書かれる。
+    self.write(LAST_UPDATE_FILE, self.OLD_RESULT)
+    asyncio.run(self.watch.check())
+    self.write(LAST_UPDATE_FILE, self.NEW_RESULT)
+    asyncio.run(self.watch.check())
+    asyncio.run(self.watch.check())
+    self.assertEqual(len(self.sent()), 2)
+    self.assertIn("v4.3.0.71 (beta 3) に更新しました（自動更新）", self.sent()[-1].description)
