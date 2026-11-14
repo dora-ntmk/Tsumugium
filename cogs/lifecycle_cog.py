@@ -22,6 +22,7 @@ class LifecycleCog:
       status_service,
       error_notifier=None,
       ready_state=None,
+      update_watch=None,
   ):
     self.client = client
     self.tree = tree
@@ -32,6 +33,7 @@ class LifecycleCog:
     self.status_service = status_service
     self.error_notifier = ensure_error_notifier(error_notifier)
     self.ready_state = ready_state
+    self.update_watch = update_watch
     self.backup_task = None
     self._register()
 
@@ -65,6 +67,9 @@ class LifecycleCog:
       # 起動の準備がすべて終わってから、インストーラーへ知らせる
       if self.ready_state is not None:
         self.ready_state.mark_ready()
+      # 更新中の表示と、更新の結果の知らせ（ステータスを書き換えるので、ふだんの表示を出したあとに始める）
+      if self.update_watch is not None:
+        self.update_watch.start()
 
     @self.client.event
     async def on_guild_join(guild):

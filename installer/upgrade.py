@@ -35,6 +35,8 @@ from installer.autoupdate import (
   RESULT_UNFINISHED,
   RESULT_UPDATED,
   apply_auto_update,
+  clear_updating,
+  mark_updating,
   write_check_result,
   write_last_update,
 )
@@ -304,9 +306,14 @@ def _fetch_and_hand_off(args, system, ui, instance, mode, client, launch) -> int
       "auto": bool(getattr(args, "auto", False)),
     })
     try:
+      mark_updating(system, record, fetched.build["version"], mode)
+    except Exception as error:  # 知らせられなくても、更新は続ける
+      ui.warn(f"更新中であることをBotに知らせられませんでした: {error}")
+    try:
       return launch(system, ui, fetched.path, handoff)
     finally:
       handoff.unlink(missing_ok=True)
+      clear_updating(system, layout)
 
 
 # 新しい版のインストーラー
@@ -504,6 +511,8 @@ class Continuation:
 
   def start_and_wait(self, version: str) -> None:
     service = self.record.service
+    # 起動したBotが、古い「更新中」の印を見てアップデート中の表示を出さないようにする
+    clear_updating(self.system, self.layout)
     clear_ready(self.system, self.layout)
     self.systemctl.start(service)
     self.ui.info(f"起動の完了を待っています（最大{int(READY_TIMEOUT)}秒）...")

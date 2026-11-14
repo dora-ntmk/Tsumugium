@@ -19,6 +19,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `services/status_service.py` | STATUS_MESSAGEの検証・変数展開と、接続状態に応じたDiscordステータス更新を担当 |
 | `services/user_reading_service.py` | ユーザー設定の読み方を優先し、未設定時はDiscord表示名へ戻す共通名前解決を担当 |
 | `services/dictionary_transfer_service.py` | 読み辞書を.dictファイル（CSV形式。1行に1件の`単語, 読み`）へ書き出し、読み込む純粋な処理。SQLiteとDiscordは扱わない |
+| `services/update_watch_service.py` | インストーラーが`UPDATE_STATE_DIR`に置くファイルを見張る。更新中はステータスを「アップデート中」にし、更新の結果と、自動更新が人の手を要る状態を運営者へDMで知らせる |
 | `services/ready_state_service.py` | 起動の準備が終わったことを、インストーラーへ`ready.json`で知らせる。`UPDATE_STATE_DIR`が空欄なら何もしない |
 | `cogs/connection_cog.py` | `/join`・`/leave`とVC状態イベントを`ConnectionService`へ接続する登録層 |
 | `cogs/playback_cog.py` | `/clear`と`on_message`を読み上げサービスへ接続する登録層 |
@@ -257,6 +258,15 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 ## 起動の準備完了の知らせ
 
 `on_ready`の処理（コマンドの同期、ギルドの整理、Soundboardの更新、バックアップの開始、ステータスの更新）がすべて終わったあとに、`ReadyStateService.mark_ready()`が`UPDATE_STATE_DIR/ready.json`へバージョン・プロセスID・時刻を書く。一時ファイルから置き換えるので、書きかけを読まれることはない。Botの終了時には`ManagedDiscordClient.close()`の中でこのファイルを消す。書き込みに失敗してもBotは止めない。インストーラーは起動前にこのファイルを消し、サービスの今のプロセスIDと期待するバージョンが書かれるまで最大60秒待つ。
+
+## 更新の見える化（`services/update_watch_service.py`）
+
+`UPDATE_STATE_DIR`が空欄でなければ、`on_ready`の処理のあとに`UpdateWatchService`が動き出し、5秒おきに`UPDATE_STATE_DIR`を見る。
+
+- インストーラーは、更新（手でも自動でも、`repair`も）を始めるときに`updating.json`（インストーラーのプロセスID・前後のバージョン）を置き、終わったときと、新しいバージョンのBotを起動する直前に消す。Botはこのファイルがあるあいだ、ステータスを「取り込み中」と「📥アップデート中…　操作を受け付けない場合があります」にし、なくなったら元の表示に戻す。書いたプロセスがもういなければ、残ったファイルとして無視する。
+- `StatusService.set_override()`の表示は`clear_override()`まで、ふだんのステータス更新で上書きしない。
+- 起動したときに`last-update.json`（更新・入れ直し・戻したときの結果）を読み、まだ知らせていなければ`OPERATOR_USER_ID`へEmbedでDMする。成功も知らせる。知らせたら`update-notice.json`に印を付け、同じ結果を二度送らない。DMを送れなかったときは、次の起動でもう一度送る。
+- `auto-update.json`の結果が`unfinished`（前回の更新が途中で止まっている）になったら、運営者へDMする。同じ状態が続くあいだは1回だけにし、ほかの結果に変わったら印を消す。
 
 ---
 

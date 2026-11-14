@@ -133,7 +133,7 @@ Ctrl+Cで表示を終えます。
 | `/opt/tsumugium/data/db/` | DB | `tsumugium`、750 |
 | `/opt/tsumugium/data/backup/` | DBのバックアップ | `tsumugium`、750 |
 | `/opt/tsumugium/data/tmp/` | 読み上げ音声の一時ファイル | `tsumugium`、750 |
-| `/opt/tsumugium/data/state/` | Botとインストーラーがやり取りするファイル（`ready.json`、更新の結果の`last-update.json`、自動更新が確かめた結果の`auto-update.json`など） | `tsumugium`、750 |
+| `/opt/tsumugium/data/state/` | Botとインストーラーがやり取りするファイル（`ready.json`、更新中の印の`updating.json`、更新の結果の`last-update.json`、自動更新が確かめた結果の`auto-update.json`など） | `tsumugium`、750 |
 | `/etc/tsumugium/tsumugium.json` | インストールで選んだ値の記録 | `root`、644 |
 | `/etc/systemd/system/tsumugium.service` | systemdのunit | `root`、644 |
 | `/etc/systemd/system/tsumugium-update.timer`・`tsumugium-update.service` | 自動更新のtimerとservice | `root`、644 |
@@ -166,6 +166,12 @@ Botを止めている間に`upgrade`すると、更新のあとで起動して�
 定時のバックアップは既定で毎日12:00に取ります。時刻は`.env`の`BACKUP_TIMES`で変えられます。
 
 `rollback`では、戻すバージョンから更新したときのバックアップを使って、DBも戻すかを聞きます。既定は「戻す」です。新しいバージョンがDBの形を変えていると、古いバージョンがそのDBを読めないことがあるためです。
+
+## 更新の知らせ
+
+- 更新しているあいだ（手でも自動でも）、Botのステータスは「取り込み中」と「📥アップデート中…　操作を受け付けない場合があります」になります。更新が終わってBotが起動すると、元の表示に戻ります。
+- `.env`の`OPERATOR_USER_ID`を設定していると、更新・入れ直し・戻したときの結果を、Botが起動したときにDMで知らせます。成功したときも知らせます。
+- 自動更新が「前回の更新が途中で止まっている」ために止まっているときも、DMで知らせます。
 
 ## 自動更新
 

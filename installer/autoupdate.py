@@ -34,6 +34,8 @@ UPDATE_TIMEOUT = "30min"
 
 STATE_FILE = "auto-update.json"
 LAST_UPDATE_FILE = "last-update.json"
+# 更新しているあいだだけ置く。Botはこれを見て、ステータスを「アップデート中」にする
+UPDATING_FILE = "updating.json"
 
 # auto-update.json の result
 RESULT_OFF = "off"
@@ -181,6 +183,21 @@ def write_check_result(system: System, record: InstanceRecord, result: str, mess
 def write_last_update(system: System, record: InstanceRecord, data: dict) -> None:
   """更新（手でも自動でも）の結果を last-update.json に残す。Botが起動したときに知らせるために使う。"""
   write_state(system, record.layout, record.user, LAST_UPDATE_FILE, {"at": now_text(), **data})
+
+
+def mark_updating(system: System, record: InstanceRecord, to_version: str, mode: str) -> None:
+  """更新を始めたことを Bot に知らせる。書いたプロセスがいなくなれば、Botは無視する。"""
+  write_state(system, record.layout, record.user, UPDATING_FILE, {
+    "pid": os.getpid(),
+    "mode": mode,
+    "from": record.version,
+    "to": to_version,
+    "started_at": now_text(),
+  })
+
+
+def clear_updating(system: System, layout: Layout) -> None:
+  system.path(str(layout.state / UPDATING_FILE)).unlink(missing_ok=True)
 
 
 # auto-update モード

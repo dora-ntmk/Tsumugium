@@ -3,6 +3,7 @@
 import functools
 import io
 import json
+import os
 import unittest.mock
 from dataclasses import replace
 from pathlib import Path
@@ -288,3 +289,28 @@ class UninstallTest(AutoUpgradeTestCase):
     self.assertFalse(self.exists("/etc/systemd/system/tsumugium-update.timer"))
     self.assertFalse(self.exists("/etc/systemd/system/tsumugium-update.service"))
     self.assertIn("自動更新の timer を消しました", self.ui.stdout.getvalue())
+
+
+class UpdatingMarkTest(UpgradeTestCase):
+  def test_mark_exists_only_while_updating(self):
+    seen = {}
+    original = self.launch
+
+    def launch(system, ui, app_new, handoff_file):
+      path = system.path("/opt/tsumugium/data/state/updating.json")
+      seen["before"] = json.loads(path.read_text(encoding="utf-8"))
+      self.on_new_start = lambda: seen.setdefault("at_start", path.exists())
+      return original(system, ui, app_new, handoff_file)
+
+    self.launch = launch
+    self.assertEqual(self.upgrade(["--yes"]), cli.EXIT_OK, self.output())
+    mark = seen["before"]
+    self.assertEqual((mark["from"], mark["to"], mark["mode"]), (OLD, NEW, "upgrade"))
+    self.assertEqual(mark["pid"], os.getpid())
+    self.assertFalse(seen["at_start"], "新しいBotを起動する前に消す")
+    self.assertFalse(self.exists("/opt/tsumugium/data/state/updating.json"))
+
+  def test_mark_is_removed_when_update_fails(self):
+    self.fail_versions = {NEW}
+    self.assertEqual(self.upgrade(["--yes"]), cli.EXIT_ERROR)
+    self.assertFalse(self.exists("/opt/tsumugium/data/state/updating.json"))

@@ -34,6 +34,8 @@ class StatusService:
     self._formatter = string.Formatter()
     self._update_task: asyncio.Task | None = None
     self._last_message: str | None = None
+    # 更新中など、ふだんの表示より優先する表示（ステータス、文）
+    self._override: tuple[discord.Status, str] | None = None
     self._validate_template()
 
   def _validate_template(self) -> None:
@@ -81,8 +83,34 @@ class StatusService:
   def render(self) -> str:
     return self.template.format(**self.values())
 
+  @property
+  def overridden(self) -> bool:
+    return self._override is not None
+
+  async def set_override(self, status: discord.Status, text: str) -> None:
+    """ふだんの表示の代わりに、指定したステータスと文を出す。clear_override() まで続ける。"""
+    self._override = (status, text)
+    try:
+      await self.client.change_presence(
+        status=status,
+        activity=discord.CustomActivity(name=text),
+      )
+    except Exception as error:
+      self.error_notifier.report_exception(error, "status override")
+    # 元に戻すときに、ふだんの表示を必ず送り直す
+    self._last_message = None
+
+  async def clear_override(self) -> None:
+    """set_override() の表示をやめ、ふだんの表示に戻す。"""
+    if self._override is None:
+      return
+    self._override = None
+    await self.update()
+
   async def update(self) -> None:
     """現在値を反映する。APIエラーは通知し、呼び出し元へ伝播しない。"""
+    if self._override is not None:
+      return
     message = self.render()
     if message == self._last_message:
       return
