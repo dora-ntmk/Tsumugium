@@ -14,7 +14,7 @@
 
 ## 2. 開発用テスト
 
-テストはリポジトリの`tests/`に置きます。PRと`main`・`feature/**`へのpushのたびに、CIがPython 3.10と最新版で実行します。手元ではプロジェクトルートで次を実行します。
+テストはリポジトリの`tests/`に置きます。PRと`main`へのpushのたびに、CIがPython 3.10と最新版で実行します。手元ではプロジェクトルートで次を実行します。
 
 ```bash
 python -m unittest discover -s tests -v
