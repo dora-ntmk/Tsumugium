@@ -8,6 +8,12 @@ import os
 from services.error_notification_service import ensure_error_notifier
 
 
+# 歌声合成用のスタイルの種類。読み上げには使えないので一覧から外す。
+# 読み上げ用の種類は "talk" のほかに "streaming_talk" などがあり、
+# VOICEVOXの版で増えることがあるため、読み上げ用を数え上げずに歌声用だけを外す。
+SINGING_STYLE_TYPES = frozenset({"sing", "singing_teacher", "frame_decode"})
+
+
 class SpeakerService:
   """起動時にVOICEVOX APIから話者一覧を取得し、失敗時は静的JSONを使う。"""
 
@@ -31,7 +37,7 @@ class SpeakerService:
     for character in payload:
       character_name = character["name"]
       for style in character.get("styles", []):
-        if style.get("type", "talk") != "talk":
+        if style.get("type", "talk") in SINGING_STYLE_TYPES:
           continue
         style_id = int(style["id"])
         if style_id in seen_ids:
