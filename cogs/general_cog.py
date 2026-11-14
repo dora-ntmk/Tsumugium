@@ -6,6 +6,10 @@ from presentation.embeds import make_embed
 from presentation.error_handler import handle_internal_error
 from services.error_notification_service import ensure_error_notifier
 
+# 更新内容のページ。バージョンごとの見出し（#以降）を付けると、新しいバージョンを出したときに
+# 古い見出しを指したままになるので、ページの先頭へのリンクにする。
+CHANGELOG_URL = "https://hackmd.io/@dora-ntmk/SkNwNSMuGe"
+
 
 class GeneralCog:
   def __init__(self, tree, version: str, last_updated: str, error_notifier=None):
@@ -36,7 +40,7 @@ class GeneralCog:
         )
         embed.add_field(
           name="更新内容",
-          value="[こちらをご覧ください](https://hackmd.io/@dora-ntmk/SkNwNSMuGe#v41069---20260901)",
+          value=f"[こちらをご覧ください]({CHANGELOG_URL})",
           inline=False,
         )
         await ctx.edit_original_response(embed=embed)
