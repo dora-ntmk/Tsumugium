@@ -207,9 +207,14 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/version` | — | 全員 |
 | `/clear` | `instant: bool` | 全員 |
 | `/user-reading` | `reading: str (1〜50文字)` | 全員（DM可・ephemeral応答） |
+| `/user-reading-reset` | — | 全員（DM可・ephemeral応答） |
+| `/skip` | — | 全員 |
+| `/s` | — | 全員（`/skip`の短縮） |
+| `/c` | — | 全員（`/clear instant:True`の短縮） |
 | `/dict add` | `word`, `read` | 全員 |
 | `/dict del` | `word`, `both: bool` | 全員 |
 | `/dict view` | `search: str`, `ephemeral: bool` | 全員 |
+| `/dict view-common` | `search: str`, `ephemeral: bool` | 全員 |
 | `/dict export` | `ephemeral: bool` | manage_guild |
 | `/dict import` | `file: Attachment` | manage_guild |
 | `/sounddict add` | `word`, `sound`, `read: str`, `full_match: bool`, `trigger_user: Member` | 全員 |
@@ -233,7 +238,8 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - `@Bot` 単体メンション: VC接続トグル
 - `s`: 現在再生中をスキップ
 - `c`: 読み上げキューをすべてクリア（`/clear instant:True` と同じ）。クリアのたびに`GuildSession.clear_generation`を上げ、クリアの時点で音声を生成中だったメッセージも読み上げない
-- `!s ` プレフィックスまたは silent フラグ: 読み上げをスキップ
+- `!s `・`!skip ` プレフィックスまたは silent フラグ: 読み上げをスキップ
+- メッセージの削除: 読み上げ中なら止め、読み上げ待ちなら再生しない（`VoiceService.cancel_message()`）
 
 ---
 
