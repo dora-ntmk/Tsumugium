@@ -248,7 +248,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 ## 外部HTTP API
 
 - VOICEVOX通信は`VoicevoxClient`、Discord Soundboard通信は`DiscordSoundboardClient`だけが担当する。
-- Discord Gateway接続前に`VoicevoxClient.check_health()`で`/version`へ疎通確認し、失敗した場合はBotの起動を中止する。
+- Discord Gateway接続前に`VoicevoxClient.check_health()`で`/version`へ疎通確認し、失敗した場合はBotの起動を中止する。このときは終了コード1で終わり、systemdの`Restart=on-failure`で10秒後に起動し直す（マシンの起動直後にVOICEVOXより先に起動しても、VOICEVOXが立ち上がればつながる）。
 - 稼働中の音声生成は全ギルドで1件ずつ処理し、一時的なHTTP障害だけを受付から最大30秒再試行する。一時切断後はClient所有のHTTPセッションを再生成する。
 - 両Clientは`aiohttp.ClientSession`を初回通信時に生成して再利用する。通常実行経路で同期`requests`は使用しない。
 - `VoiceService`と`UpdateSoundBoards`はHTTPのURL・認証方法を知らず、Clientのメソッドだけを呼ぶ。
