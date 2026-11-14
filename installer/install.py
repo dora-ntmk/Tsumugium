@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
+from installer.autoupdate import apply_auto_update
 from installer.checks import (
   VoicevoxResult,
   confirm_voicevox,
@@ -23,6 +24,7 @@ from installer.envfile import find_env, install_env
 from installer.instance import (
   CHANNELS,
   DEFAULT_INSTANCE,
+  default_auto_update,
   DEFAULT_REPO,
   DEFAULT_VOICEVOX_URL,
   InstanceError,
@@ -72,6 +74,12 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
   parser.add_argument("--channel", choices=CHANNELS, help="チャンネル（既定は stable）")
   parser.add_argument("--admin", help="グループに入れる管理者のユーザー名")
   parser.add_argument("--voicevox-url", help=f"VOICEVOXのURL（既定は {DEFAULT_VOICEVOX_URL}）")
+  parser.add_argument(
+    "--auto-update",
+    action=argparse.BooleanOptionalAction,
+    default=None,
+    help="自動更新（10分おきに新しい版を確かめて入れる）を使うか（既定は beta ならオン、stable ならオフ）",
+  )
 
 
 def _display_width(text: str) -> int:
@@ -103,6 +111,7 @@ class Answers:
   prefix: str
   repo: str
   channel: str
+  auto_update: bool
   admin: str | None
   voicevox: VoicevoxResult
 
@@ -226,6 +235,14 @@ class Installer:
     problem = check_channel(channel)
     if problem:
       raise UserAbort(problem)
+    if args.auto_update is not None:
+      auto_update = args.auto_update
+      self.ui.info(f"自動更新: {'オン' if auto_update else 'オフ'}（オプションで指定）")
+    else:
+      auto_update = self.ui.confirm(
+        "自動更新（10分おきに新しい版を確かめて入れる）を使いますか？",
+        default=default_auto_update(channel),
+      ) if not self.ui.assume_yes else default_auto_update(channel)
 
     self.step(8, "管理者")
     admin = self._option_or_ask(
@@ -241,7 +258,7 @@ class Installer:
       ask_url=args.voicevox_url is None,
       title=f"9/{STEPS} VOICEVOX",
     )
-    return Answers(instance, user, exists, service, prefix, repo, channel, admin, voicevox)
+    return Answers(instance, user, exists, service, prefix, repo, channel, auto_update, admin, voicevox)
 
   def show_summary(self, answers: Answers, version: str) -> None:
     self.step(10, "確認")
@@ -253,6 +270,7 @@ class Installer:
       ("入れる場所", answers.prefix),
       ("取得元", answers.repo),
       ("チャンネル", {"stable": "stable（安定版）", "beta": "beta（ベータ）"}[answers.channel]),
+      ("自動更新", "オン（10分おき）" if answers.auto_update else "オフ"),
       ("管理者", f"{answers.admin}（{answers.user} グループに追加）" if answers.admin else "なし"),
       ("VOICEVOX", voicevox.url + ("" if voicevox.version else "（つながらないため、起動はしません）")),
       ("バージョン", version),
@@ -307,6 +325,7 @@ class Installer:
       version=version,
       admin_user=answers.admin,
       voicevox_url=answers.voicevox.url,
+      auto_update=answers.auto_update,
     )
     record.validate()
     layout = record.layout
@@ -323,6 +342,8 @@ class Installer:
     self._deploy_code(layout)
     write_unit(self.system, record)
     self.ui.info(f"systemd unit を作成しました: {unit_name(record.service)}")
+    apply_auto_update(self.system, record)
+    self.ui.info(f"自動更新の timer を作成しました（{'有効' if record.auto_update else '無効'}）")
     save_record(self.system, record)
     self.ui.info(f"記録を作成しました: /etc/tsumugium/{record.instance}.json")
     install_entry(self.system)
@@ -361,7 +382,10 @@ class Installer:
     self.ui.info(f"  ログを見る:   sudo journalctl -u {service} -f")
     self.ui.info(f"  設定を変える: sudo nano {record.layout.env_file} のあと sudo systemctl restart {service}")
     self.ui.info("  更新する:     sudo tsumugium-setup upgrade")
-    self.ui.info("  自動更新はまだありません（次のバージョンで追加予定）")
+    if record.auto_update_enabled:
+      self.ui.info("  自動更新:     オン（10分おきに新しい版を確かめます。止めるときは sudo tsumugium-setup auto-update off）")
+    else:
+      self.ui.info("  自動更新:     オフ（使うときは sudo tsumugium-setup auto-update on）")
 
   def run(self) -> int:
     build = read_build_info(self.source)

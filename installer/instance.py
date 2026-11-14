@@ -8,7 +8,7 @@ import json
 import os
 import re
 import tempfile
-from dataclasses import asdict, dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path, PurePosixPath
 
 from installer.system import System
@@ -23,6 +23,8 @@ DEFAULT_INSTANCE = "tsumugium"
 DEFAULT_REPO = "dora-ntmk/Tsumugium"
 DEFAULT_VOICEVOX_URL = "http://127.0.0.1:50021"
 CHANNELS = ("stable", "beta")
+# 記録に残す「自動更新で入れない版」の数（古いものから消す）
+SKIP_VERSIONS_KEEP = 10
 
 # Linuxのユーザー名とsystemdのunit名の両方に使える名前（小文字・数字・_・-、32文字まで）
 _NAME_RE = re.compile(r"^[a-z_][a-z0-9_-]{0,31}$")
@@ -159,6 +161,17 @@ class Layout:
     }
 
 
+def default_auto_update(channel: str) -> bool:
+  """自動更新の既定。ベータは追いかけて使うのでオン、安定版は人が決めるのでオフ。"""
+  return channel == "beta"
+
+
+def with_skipped(record: "InstanceRecord", version: str) -> "InstanceRecord":
+  """自動更新で入れない版に version を足した記録を返す。"""
+  versions = [item for item in record.skip_versions if item != version] + [version]
+  return replace(record, skip_versions=versions[-SKIP_VERSIONS_KEEP:])
+
+
 @dataclass
 class InstanceRecord:
   """/etc/tsumugium/<インスタンス名>.json に残す、インストール時に選んだ値。"""
@@ -176,11 +189,21 @@ class InstanceRecord:
   updating: dict | None = None
   # Botを止めたまま入れ替えたとき、まだ起動を確かめていない版
   unverified: str | None = None
+  # 自動更新を使うか。None（自動更新ができる前の記録）のときは、チャンネルで決める
+  auto_update: bool | None = None
+  # 自動更新で入れない版。起動を確かめられずに戻した版と、rollback で戻した元の版
+  skip_versions: list = field(default_factory=list)
   format: int = field(default=RECORD_FORMAT)
 
   @property
   def layout(self) -> Layout:
     return Layout.of(self.prefix)
+
+  @property
+  def auto_update_enabled(self) -> bool:
+    if self.auto_update is None:
+      return default_auto_update(self.channel)
+    return self.auto_update
 
   def validate(self) -> None:
     problems = [
@@ -193,6 +216,11 @@ class InstanceRecord:
     ]
     if self.admin_user is not None:
       problems.append(check_name(self.admin_user, "管理者のユーザー名"))
+    if self.auto_update is not None and not isinstance(self.auto_update, bool):
+      problems.append("auto_update は true か false にしてください")
+    if not isinstance(self.skip_versions, list) or not all(
+        isinstance(version, str) for version in self.skip_versions):
+      problems.append("skip_versions は版の名前の一覧にしてください")
     problems = [problem for problem in problems if problem]
     if problems:
       raise InstanceError("記録の内容が正しくありません: " + " / ".join(problems))

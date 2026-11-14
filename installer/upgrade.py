@@ -24,6 +24,20 @@ from pathlib import Path
 from typing import Callable
 
 from installer import HANDOFF_VERSION, python_command
+from installer.autoupdate import (
+  RESULT_BUSY,
+  RESULT_ERROR,
+  RESULT_FAILED,
+  RESULT_LATEST,
+  RESULT_OFF,
+  RESULT_SKIPPED,
+  RESULT_STOPPED,
+  RESULT_UNFINISHED,
+  RESULT_UPDATED,
+  apply_auto_update,
+  write_check_result,
+  write_last_update,
+)
 from installer.checks import CheckError, probe_voicevox
 from installer.deploy import build_venv
 from installer.entry import install_entry
@@ -33,9 +47,11 @@ from installer.instance import (
   InstanceLock,
   InstanceRecord,
   Layout,
+  LockBusy,
   load_record,
   save_record,
   select_instance,
+  with_skipped,
 )
 from installer.readiness import READY_TIMEOUT, ReadyError, clear_ready, wait_ready
 from installer.release import (
@@ -68,6 +84,11 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
   parser.add_argument("--version", dest="target_version", help="入れる版（省略時はチャンネルの最新）")
   parser.add_argument("--allow-downgrade", action="store_true", help="今より古い版も入れる")
   parser.add_argument("--from-file", help="GitHubから取得せず、手元のzipを使う（隣に .sha256 が必要）")
+  parser.add_argument(
+    "--auto",
+    action="store_true",
+    help="自動更新の timer から使う。何も聞かず、更新しない条件に当たれば何もせずに終わる",
+  )
 
 
 # 今の版のインストーラー
@@ -127,6 +148,8 @@ def run_upgrade(
     launch: Callable[[System, UI, Path, Path], int] = launch_new_installer,
     rollback: Callable[[System, UI, InstanceRecord], int] = launch_rollback,
 ) -> int:
+  if getattr(args, "auto", False):
+    return run_auto(args, system, ui, client=client, launch=launch)
   instance = select_instance(system, ui, args.instance)
   record = load_record(system, instance)
   if record.updating:
@@ -147,6 +170,77 @@ def run_repair(
 ) -> int:
   instance = select_instance(system, ui, args.instance)
   return _fetch_and_hand_off(args, system, ui, instance, "repair", client, launch)
+
+
+def run_auto(
+    args: argparse.Namespace,
+    system: System,
+    ui: UI,
+    *,
+    client: GitHubClient | None = None,
+    launch: Callable[[System, UI, Path, Path], int] = launch_new_installer,
+) -> int:
+  """自動更新の timer から呼ばれる。更新しない条件に当たれば、理由を残して終わる。"""
+  ui.assume_yes = True
+  instance = select_instance(system, ui, args.instance)
+  record = load_record(system, instance)
+
+  def done(result: str, message: str, code: int = EXIT_OK, **extra) -> int:
+    current = load_record(system, instance)
+    write_check_result(system, current, result, message, **extra)
+    (ui.info if code == EXIT_OK else ui.error)(message)
+    return code
+
+  if not record.auto_update_enabled:
+    return done(RESULT_OFF, "自動更新はオフなので、何もしません")
+  if record.updating:
+    return done(
+      RESULT_UNFINISHED,
+      "前回の更新が途中で止まっているため、更新しません。"
+      "sudo tsumugium-setup repair か sudo tsumugium-setup rollback で直してください",
+    )
+  if not Systemctl(system).is_active(record.service):
+    return done(RESULT_STOPPED, f"{unit_name(record.service)} が止まっているため、更新しません")
+
+  client = client or GitHubClient()
+  try:
+    release = select_release(client, record.repo, record.channel)
+  except ReleaseError as error:
+    return done(RESULT_ERROR, f"新しい版を確かめられませんでした: {error}")
+  latest = str(release.version)
+  if not release.version > Version.parse(record.version):
+    return done(RESULT_LATEST, f"新しい版はありません（今の版 {record.version}）")
+  if latest in record.skip_versions:
+    return done(
+      RESULT_SKIPPED,
+      f"{latest} は前に起動を確かめられなかった（または戻した）版なので、入れません。"
+      "入れるときは sudo tsumugium-setup upgrade を手で実行してください",
+      latest=latest,
+    )
+
+  ui.info(f"新しい版 {latest} があるので、更新します")
+  upgrade_args = argparse.Namespace(
+    instance=instance,
+    yes=True,
+    auto=True,
+    target_version=latest,
+    allow_downgrade=False,
+    from_file=None,
+  )
+  try:
+    code = _fetch_and_hand_off(upgrade_args, system, ui, instance, "upgrade", client, launch)
+  except LockBusy:
+    return done(RESULT_BUSY, "ほかの操作が実行中なので、次の機会に更新します")
+  except Exception as error:  # 何が起きても、結果を残してから終わる
+    return done(RESULT_ERROR, f"{latest} に更新できませんでした: {error}", EXIT_ERROR, latest=latest)
+  if code == EXIT_OK:
+    return done(RESULT_UPDATED, f"{latest} に更新しました", latest=latest)
+  return done(
+    RESULT_FAILED,
+    f"{latest} に更新できませんでした。詳しくは journalctl -u {record.service}-update を見てください",
+    EXIT_ERROR,
+    latest=latest,
+  )
 
 
 def _fetch_and_hand_off(args, system, ui, instance, mode, client, launch) -> int:
@@ -206,6 +300,8 @@ def _fetch_and_hand_off(args, system, ui, instance, mode, client, launch) -> int
       "from_version": record.version,
       "to_version": fetched.build["version"],
       "assume_yes": ui.assume_yes,
+      # 自動更新かどうか（引き継ぎ先が結果を書き残すときに使う。知らない版は読み飛ばす）
+      "auto": bool(getattr(args, "auto", False)),
     })
     try:
       return launch(system, ui, fetched.path, handoff)
@@ -287,6 +383,7 @@ class Continuation:
     self.to_version = data["to_version"]
     # repair は記録の版を入れ直す。app.prev/（本当の1つ前の版）は残す
     self.repair = data.get("mode", "upgrade") == "repair"
+    self.auto = bool(data.get("auto"))
     self.app_aside = self.layout.prefix / "app.repair-old"
     self.prev_aside = self.layout.prefix / "app.prev-old"
 
@@ -385,6 +482,26 @@ class Continuation:
     write_unit(self.system, new_record)
     return new_record
 
+  def _apply_auto_update(self, record: InstanceRecord) -> None:
+    try:
+      apply_auto_update(self.system, record)
+    except Exception as error:  # 更新そのものは済んでいるので、止めずに知らせる
+      self.ui.warn(f"自動更新の設定を書き直せませんでした: {error}")
+
+  def _write_result(self, result: str, **extra) -> None:
+    """結果を last-update.json に残す。Botが起動したときに知らせるために使う。"""
+    try:
+      write_last_update(self.system, self.record, {
+        "result": result,
+        "mode": "repair" if self.repair else "upgrade",
+        "from": self.from_version,
+        "to": self.to_version,
+        "auto": self.auto,
+        **extra,
+      })
+    except Exception as error:
+      self.ui.warn(f"更新の結果を書き残せませんでした: {error}")
+
   def start_and_wait(self, version: str) -> None:
     service = self.record.service
     clear_ready(self.system, self.layout)
@@ -424,8 +541,14 @@ class Continuation:
       unit.write_text(state.unit_text, encoding="utf-8")
       self.systemctl.daemon_reload()
       ui.info("unitを元に戻しました")
-    save_record(self.system, replace(record, updating=None))
+    restored = replace(record, updating=None)
+    if not self.repair:
+      # 自動更新が、同じ版を何度も入れ直そうとしないようにする
+      restored = with_skipped(restored, self.to_version)
+      ui.info(f"{self.to_version} は、自動更新では入れないようにしました")
+    save_record(self.system, restored)
     ui.info(".env に書き足した項目は残しています")
+    self._write_result("rolled_back", reason=reason)
     if state.was_active:
       try:
         self.start_and_wait(self.from_version)
@@ -456,6 +579,12 @@ class Continuation:
         self.start_and_wait(self.to_version)
       else:
         new_record = replace(new_record, unverified=self.to_version)
+      if not self.repair:
+        # 入れた版とそれより古い版は、飛ばす必要がなくなる
+        new_version = Version.parse(self.to_version)
+        new_record = replace(new_record, skip_versions=[
+          version for version in new_record.skip_versions if Version.parse(version) > new_version
+        ])
       save_record(self.system, new_record)
     except ReadyError as error:
       self.rollback(state, f"{self.to_version} の起動を確認できませんでした: {error}")
@@ -468,8 +597,10 @@ class Continuation:
       shutil.rmtree(self.path(self.app_aside), ignore_errors=True)
     if state.prev_aside:
       shutil.rmtree(self.path(self.prev_aside), ignore_errors=True)
-    # 入口のスクリプトも新しい版のものに置き直す
+    # 入口のスクリプトと自動更新の timer も、新しい版のものに置き直す
     install_entry(self.system)
+    self._apply_auto_update(new_record)
+    self._write_result("repaired" if self.repair else "updated", started=bool(start_after))
     if start_after:
       ui.info(f"{self.to_version} を入れ直しました" if self.repair else f"{self.to_version} に更新しました")
     else:

@@ -133,23 +133,25 @@ def is_managed_unit(path: Path) -> bool:
     return False
 
 
-def _check_can_write(path: Path, service: str) -> None:
+def _check_can_write(path: Path, name: str) -> None:
   if path.exists() and not is_managed_unit(path):
     raise ServiceError(
-      f"{UNIT_DIR}/{unit_name(service)} は tsumugium-setup が作ったものではないため、上書きしません。"
+      f"{UNIT_DIR}/{name} は tsumugium-setup が作ったものではないため、上書きしません。"
       "別のサービス名を選ぶか、元のunitの名前を変えてから、もう一度実行してください"
     )
 
 
-def write_unit(system: System, record: InstanceRecord) -> bool:
-  """unit を書き、systemd に読み直させる。中身が変わらなければ何もせず False を返す。"""
-  path = unit_path(system, record.service)
-  _check_can_write(path, record.service)
-  text = render_unit(record)
+def write_managed_file(system: System, name: str, text: str) -> bool:
+  """/etc/systemd/system/<name> を書く。中身が変わらなければ何もせず False を返す。
+
+  印のない同じ名前のファイルは上書きしない。systemd に読み直させるのは呼んだ側が行う。
+  """
+  path = system.path(f"{UNIT_DIR}/{name}")
+  _check_can_write(path, name)
   if path.is_file() and path.read_text(encoding="utf-8") == text:
     return False
   path.parent.mkdir(parents=True, exist_ok=True)
-  fd, temp = tempfile.mkstemp(dir=path.parent, prefix=".tmp-", suffix=".service")
+  fd, temp = tempfile.mkstemp(dir=path.parent, prefix=".tmp-", suffix=".unit")
   try:
     with os.fdopen(fd, "w", encoding="utf-8") as file:
       file.write(text)
@@ -163,17 +165,31 @@ def write_unit(system: System, record: InstanceRecord) -> bool:
     except FileNotFoundError:
       pass
     raise
+  return True
+
+
+def remove_managed_file(system: System, name: str) -> bool:
+  """tsumugium-setup が作った /etc/systemd/system/<name> だけを消す。消したときは True を返す。"""
+  path = system.path(f"{UNIT_DIR}/{name}")
+  if not path.exists():
+    return False
+  _check_can_write(path, name)
+  path.unlink()
+  return True
+
+
+def write_unit(system: System, record: InstanceRecord) -> bool:
+  """unit を書き、systemd に読み直させる。中身が変わらなければ何もせず False を返す。"""
+  if not write_managed_file(system, unit_name(record.service), render_unit(record)):
+    return False
   Systemctl(system).daemon_reload()
   return True
 
 
 def remove_unit(system: System, service: str) -> bool:
   """tsumugium-setup が作った unit だけを消す。消したときは True を返す。"""
-  path = unit_path(system, service)
-  if not path.exists():
+  if not remove_managed_file(system, unit_name(service)):
     return False
-  _check_can_write(path, service)
-  path.unlink()
   Systemctl(system).daemon_reload()
   return True
 

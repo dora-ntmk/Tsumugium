@@ -6,6 +6,7 @@ import argparse
 import shutil
 from dataclasses import replace
 
+from installer import autoupdate
 from installer.entry import remove_entry
 from installer.instance import (
   InstanceLock,
@@ -69,7 +70,8 @@ def show_status(args: argparse.Namespace, system: System, ui: UI) -> int:
     ui.info(f"  状態        {service_state(system, record.service)}")
     ui.info(f"  サービス名  {unit_name(record.service)}")
     ui.info(f"  入れる場所  {record.prefix}")
-    ui.info("  自動更新    なし（次のバージョンで追加予定）")
+    for line in autoupdate.describe(system, record):
+      ui.info(line)
     if record.unverified:
       ui.info(f"  注意        未確認の更新あり（{record.unverified}。start で起動すると確かめます）")
     if record.updating:
@@ -130,7 +132,10 @@ def stop(args: argparse.Namespace, system: System, ui: UI) -> int:
 def _confirm_uninstall(ui: UI, record: InstanceRecord, purge: bool) -> None:
   layout = record.layout
   ui.info(f"インスタンス {record.instance} を消します")
-  ui.info(f"  消すもの: {unit_name(record.service)}、{layout.app}、{layout.app_prev}、記録、ユーザー {record.user}")
+  ui.info(
+    f"  消すもの: {unit_name(record.service)}、自動更新の timer、{layout.app}、{layout.app_prev}、"
+    f"記録、ユーザー {record.user}"
+  )
   if purge:
     ui.info(f"  さらに消すもの: {layout.data}（DBとバックアップ）、{layout.env_file}")
   else:
@@ -156,6 +161,8 @@ def uninstall(args: argparse.Namespace, system: System, ui: UI) -> int:
     systemctl = Systemctl(system)
     systemctl.stop(record.service, check=False)
     systemctl.disable(record.service, check=False)
+    if autoupdate.remove_auto_update(system, record.service):
+      ui.info("自動更新の timer を消しました")
     if remove_unit(system, record.service):
       ui.info(f"{unit_name(record.service)} を消しました")
     for directory in (layout.app, layout.app_prev, layout.app_new, layout.prefix / ".download"):

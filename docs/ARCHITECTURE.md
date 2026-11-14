@@ -210,6 +210,24 @@ sequenceDiagram
 - `repair`は、記録のバージョンを取得し直し、`upgrade`と同じ流れで入れ直します。`app.prev/`は残し、元の`app/`は成功するまで`app.repair-old/`に置いておきます。
 - `rollback`は、入口が`app.prev/`にある1つ前のバージョンのインストーラーで動かします。`app/`と`app.prev/`を入れ替え、そのバージョンから更新したときのDBのバックアップに戻すかを聞きます（既定は戻す）。unitは戻す先のバージョンの形で書き直します。
 
+### 自動更新
+
+```mermaid
+sequenceDiagram
+    participant Timer as <サービス名>-update.timer（10分おき）
+    participant Cur as 今のバージョンのインストーラー（app/）
+    participant GH as GitHub Releases
+    Timer->>Cur: tsumugium-setup upgrade --auto
+    Cur->>Cur: オフ・Botを手で停止・更新が途中・ロック中なら、理由をauto-update.jsonに残して終わる
+    Cur->>GH: チャンネルの最新のバージョン
+    Cur->>Cur: 今より新しくない、または「飛ばすバージョン」なら終わる
+    Cur->>Cur: 「更新の流れ」と同じく取得・引き継ぎ（handoff.jsonに auto: true）
+```
+
+- serviceは、今の`app/`に`installer/autoupdate.py`があるときだけ動きます（`ConditionPathExists`）。自動更新のないバージョンに`rollback`したときに、10分おきに失敗し続けないようにするためです。
+- 新しいバージョンのインストーラーは、更新・入れ直し・ロールバックの結果を`data/state/last-update.json`に書きます（手で更新したときも書きます）。起動を確かめられずに戻したバージョンは、記録の`skip_versions`に入れ、自動更新が同じバージョンを何度も入れ直さないようにします。`rollback`でも、戻した元のバージョンを入れます。
+- 引き継ぎに足した`auto`は、知らないバージョンが読み飛ばしても動きが変わらないので、引き継ぎの番号は上げていません。
+
 ## 変更時の注意点
 
 - `swap.py`の前処理順序を変更する場合は、優先辞書・URL・カスタム絵文字・`www`の回帰テストを必ず実行してください。

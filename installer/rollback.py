@@ -13,8 +13,16 @@ import shutil
 from dataclasses import replace
 from pathlib import Path
 
+from installer.autoupdate import apply_auto_update, write_last_update
 from installer.entry import install_entry
-from installer.instance import InstanceError, InstanceLock, load_record, save_record, select_instance
+from installer.instance import (
+  InstanceError,
+  InstanceLock,
+  load_record,
+  save_record,
+  select_instance,
+  with_skipped,
+)
 from installer.readiness import READY_TIMEOUT, ReadyError, clear_ready, wait_ready
 from installer.release import Version
 from installer.service import Systemctl, unit_name, write_unit
@@ -94,8 +102,23 @@ def run_rollback(args: argparse.Namespace, system: System, ui: UI, *, wait=None)
       ui.info("DBを更新の直前の状態に戻しました")
 
     restored = replace(record, version=target, updating=None, unverified=None)
+    if record.version and Version.parse(record.version) > Version.parse(target):
+      # 戻した元の版を、自動更新がすぐに入れ直さないようにする
+      restored = with_skipped(restored, record.version)
+      ui.info(f"{record.version} は、自動更新では入れないようにしました")
     write_unit(system, restored)
     install_entry(system)
+    try:
+      apply_auto_update(system, restored)
+      write_last_update(system, restored, {
+        "result": "rollback",
+        "mode": "rollback",
+        "from": record.version,
+        "to": target,
+        "auto": False,
+      })
+    except Exception as error:  # 戻すこと自体は済んでいるので、止めずに知らせる
+      ui.warn(f"自動更新の設定か結果を書き残せませんでした: {error}")
     ui.info(".env はそのままです（新しい版で足した項目は、この版では使われません）")
 
     if not was_active:

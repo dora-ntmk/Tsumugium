@@ -267,12 +267,13 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | ファイル | 役割 |
 |---|---|
 | `install.sh` | 展開したzipから最初に実行する入口。Python 3.10以上かを確かめ、隣の`installer/`を呼ぶ |
-| `installer/cli.py` | 8つのモードの振り分け。想定している失敗は理由を表示して終了コード1で終える |
+| `installer/cli.py` | 9つのモードの振り分け。想定している失敗は理由を表示して終了コード1で終える |
 | `installer/install.py` | `install`モード |
 | `installer/upgrade.py` | `upgrade`・`repair`モード。取得・照合・展開までを今のバージョンが行い、そのあとを新しいバージョンに引き継ぐ |
 | `installer/handoff.py` | 引き継ぎを受ける新しいバージョンの入口 |
 | `installer/rollback.py` | `rollback`モード。`app.prev/`にある1つ前のバージョンのインストーラーで動く |
 | `installer/manage.py` | `status`・`start`・`stop`・`uninstall`モード |
+| `installer/autoupdate.py` | 自動更新のtimerとservice、`auto-update`モード（on・off）、更新の結果（`data/state/last-update.json`・`auto-update.json`）の書き残し。更新するかの判断は`upgrade.py`の`upgrade --auto`が行う |
 | `installer/entry.py` | `/usr/local/sbin/tsumugium-setup`の中身と、置き方・消し方 |
 | `installer/release.py` | GitHub Releasesからのバージョンの選択・取得、SHA256値の照合、zipの安全な展開、バージョンの比較 |
 | `installer/checks.py` | OS・systemd・Python・必要なパッケージ・VOICEVOXの事前チェック |
@@ -293,6 +294,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - `main`にコミットが入ると、CIの`release`ジョブが`build`ジョブの配布物を添付したGitHub Releaseを作る。`VERSION`が正式版なら下書きを作り、ベータ版（`(beta X)`）ならタグ`vX.X.X.XX-beta.X`のプレリリースをすぐ公開して、新しいほうから5件を残して古いプレリリースとタグを消す。同じタグか下書きがすでにあれば作らず、そのタグのあとでコードが変わっていれば、`(beta X)`の上げ忘れとして警告を出す。書き込みの権限（`contents: write`）は、このジョブだけに付ける。
 - 配布用のzipには`.claude/`・`.github/`・`docs/`・`scripts/`・`tests/`・`.gitignore`・`AGENTS.md`を入れず、`build-info.json`と`requirements.lock`を加える。
 - `requirements.lock`は、CIで`uv pip compile --universal`を使ってハッシュ値つきで作る。`--universal`を付けると、Python 3.13以上だけで要る依存（`audioop-lts`など）も条件付きで書き出されるので、Python 3.10以上のどのバージョンでも同じロックを使える。インストーラーは`pip install --require-hashes`で入れる。CIの`lock-check`ジョブがPython 3.10〜3.14のそれぞれで入れられることを確かめる。
+- 自動更新は、`<サービス名>-update.timer`が10分おきに`upgrade --auto`を動かす。既定は`beta`チャンネルならオン、`stable`ならオフ（記録の`auto_update`がないときもチャンネルで決める）。起動を確かめられずに戻したバージョンと、`rollback`で戻した元のバージョンは、記録の`skip_versions`に入れて自動更新では入れない。
 - 記録の形式を変えるときは、`installer/instance.py`の`RECORD_FORMAT`を上げる。知らない項目は読み飛ばすので、項目を足すだけなら上げなくてよい。
 
 ---
