@@ -312,6 +312,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - インストーラーを別のプロセスで動かすときは、`python -m installer`を使わず、`installer.python_command()`（`python -I`で起動する）を使う。`-m`は今いるディレクトリの`installer/`を先に読むので、展開したzipやリポジトリの中で実行すると、違うバージョンが動くため。
 - インストーラーが作るunitと入口には`# Managed by tsumugium-setup`の印を付ける。印のない同じ名前のファイルは、上書きも削除もしない。
 - `main`にコミットが入ると、CIの`release`ジョブが`build`ジョブの配布物を添付したGitHub Releaseを作る。`VERSION`が正式版なら下書きを作り、ベータ版（`(beta X)`）ならタグ`vX.X.X.XX-beta.X`のプレリリースをすぐ公開して、新しいほうから5件を残して古いプレリリースとタグを消す。同じタグか下書きがすでにあれば作らず、そのタグのあとでコードが変わっていれば、`(beta X)`の上げ忘れとして警告を出す。書き込みの権限（`contents: write`）は、このジョブだけに付ける。
+- PRですべての確認が通ると、CIの`verified`ジョブが、確かめた中身（マージした結果のツリー）を`verified-tree-<ツリー>`という名前の成果物に残す。mainへのpushでは、`gate`ジョブがこのコミットと同じ中身の記録（同じリポジトリのPRのもの）を探し、見つかればテスト・静的チェック・インストーラーの結合テスト・秘密情報のスキャンを省いて、`build`・`lock-check`・`release`だけを動かす。`build`は`build-info.json`にコミットを書くため、`lock-check`は範囲指定の依存からロックを作り直すため、省かない。見つからないとき（PRを確かめたあとにmainが進んだ、mainへ直接pushした、など）は、すべて確かめる。
 - 配布用のzipには`.claude/`・`.github/`・`docs/`・`scripts/`・`tests/`・`.gitignore`・`AGENTS.md`を入れず、`build-info.json`と`requirements.lock`を加える。
 - `requirements.lock`は、CIで`uv pip compile --universal`を使ってハッシュ値つきで作る。`--universal`を付けると、Python 3.13以上だけで要る依存（`audioop-lts`など）も条件付きで書き出されるので、Python 3.10以上のどのバージョンでも同じロックを使える。インストーラーは`pip install --require-hashes`で入れる。CIの`lock-check`ジョブがPython 3.10〜3.14のそれぞれで入れられることを確かめる。
 - 自動更新は、`<サービス名>-update.timer`が10分おきに`upgrade --auto`を動かす。既定は`beta`チャンネルならオン、`stable`ならオフ（記録の`auto_update`がないときもチャンネルで決める）。起動を確かめられずに戻したバージョンと、`rollback`で戻した元のバージョンは、記録の`skip_versions`に入れて自動更新では入れない。
