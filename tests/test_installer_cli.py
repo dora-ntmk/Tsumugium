@@ -33,7 +33,7 @@ class CliTest(TempDirTestCase):
   def test_all_modes_are_registered(self):
     self.assertEqual(
       set(cli.MODES),
-      {"install", "upgrade", "repair", "rollback", "uninstall", "status", "start", "stop"},
+      {"install", "upgrade", "repair", "rollback", "uninstall", "status", "start", "stop", "auto-update"},
     )
     self.assertEqual(set(cli.HANDLERS), set(cli.MODES))
 

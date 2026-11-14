@@ -7,7 +7,7 @@ import sys
 from typing import Callable
 
 from installer.checks import CheckError
-from installer import install, manage, rollback, upgrade
+from installer import autoupdate, install, manage, rollback, upgrade
 from installer.envfile import EnvError
 from installer.instance import InstanceError
 from installer.readiness import ReadyError
@@ -30,6 +30,7 @@ MODES = {
   "status": "インスタンスごとの状態を表示する",
   "start": "Botを動かす",
   "stop": "Botを止める",
+  "auto-update": "自動更新を切り替える（on・off）",
 }
 
 
@@ -69,6 +70,8 @@ def build_parser() -> argparse.ArgumentParser:
       manage.add_stop_arguments(sub)
     if mode == "uninstall":
       manage.add_uninstall_arguments(sub)
+    if mode == "auto-update":
+      autoupdate.add_arguments(sub)
   return parser
 
 
@@ -82,6 +85,7 @@ HANDLERS: dict[str, Callable[[argparse.Namespace, System, UI], int]] = {
   "status": manage.show_status,
   "start": manage.start,
   "stop": manage.stop,
+  "auto-update": autoupdate.run_mode,
 }
 
 

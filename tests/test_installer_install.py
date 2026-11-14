@@ -140,9 +140,15 @@ class InstallFlowTest(InstallTestCase):
     systemctl = [call[1:] for call in self.calls("systemctl")]
     self.assertEqual(systemctl, [
       ["daemon-reload"],
+      # 自動更新の timer と service を書き、stable の既定（オフ）に合わせて無効にする
+      ["daemon-reload"],
+      ["disable", "--now", "tsumugium-update.timer"],
       ["enable", "tsumugium.service"],
       ["start", "tsumugium.service"],
     ])
+    self.assertFalse(load_record(self.system, "tsumugium").auto_update)
+    self.assertTrue(self.system.path("/etc/systemd/system/tsumugium-update.timer").is_file())
+    self.assertIn("自動更新:     オフ", self.output())
     self.assertEqual(self.waits, [("/opt/tsumugium", "tsumugium", VERSION)])
     self.assertIn("インストールが完了しました", self.output())
     self.assertNotIn(SHAPED_TOKEN, self.output())
@@ -170,6 +176,7 @@ class InstallFlowTest(InstallTestCase):
       "",                 # 入れる場所
       "",                 # 取得元
       "beta",             # チャンネル
+      "",                 # 自動更新（beta の既定はオン）
       ADMIN,              # 管理者
       "",                 # VOICEVOXのURL
       "y",                # 確認
@@ -180,6 +187,10 @@ class InstallFlowTest(InstallTestCase):
       (record.user, record.service, record.prefix, record.channel, record.admin_user),
       ("tsumugium-beta", "tsumugium-beta", "/opt/tsumugium-beta", "beta", ADMIN),
     )
+    self.assertTrue(record.auto_update)
+    self.assertIn(
+      ["systemctl", "enable", "--now", "tsumugium-beta-update.timer"], self.runner.calls
+    )
     self.assertEqual(self.calls("usermod"), [["usermod", "-aG", "tsumugium-beta", ADMIN]])
     output = self.output()
     for expected in ("[1/10 .env]", "[10/10 確認]", "beta（ベータ）", f"{ADMIN}（tsumugium-beta グループに追加）"):
@@ -189,7 +200,7 @@ class InstallFlowTest(InstallTestCase):
     argv = [
       "--instance", "bot2", "--user", "botuser", "--service", "bot2svc",
       "--prefix", "/srv/bot2", "--repo", "example/Fork", "--channel", "beta",
-      "--admin", ADMIN, "--voicevox-url", "http://192.0.2.10:50021",
+      "--admin", ADMIN, "--voicevox-url", "http://192.0.2.10:50021", "--no-auto-update",
     ]
     self.assertEqual(self.run_install(argv, "y\n"), install.EXIT_OK)
     record = load_record(self.system, "bot2")
@@ -197,6 +208,7 @@ class InstallFlowTest(InstallTestCase):
       (record.user, record.service, record.prefix, record.repo, record.voicevox_url),
       ("botuser", "bot2svc", "/srv/bot2", "example/Fork", "http://192.0.2.10:50021"),
     )
+    self.assertFalse(record.auto_update)
     self.probe_mock.assert_called_once()
     output = self.output()
     self.assertNotIn("インスタンス名 [", output)
@@ -223,7 +235,7 @@ class InstallFlowTest(InstallTestCase):
 
   def test_voicevox_skip_installs_without_starting(self):
     self.probe_mock.side_effect = CheckError("接続できません")
-    answers = "\n" * 8 + "skip\ny\n"
+    answers = "\n" * 9 + "skip\ny\n"
     self.assertEqual(self.run_install([], answers), install.EXIT_OK)
     systemctl = [call[1:] for call in self.calls("systemctl")]
     self.assertIn(["enable", "tsumugium.service"], systemctl)
@@ -273,7 +285,7 @@ class InstallStopsTest(InstallTestCase):
 
   def test_unknown_admin_is_asked_again(self):
     self.runner.responses[("id", "-u", "nobody2")] = CommandResult(1)
-    answers = "\n" * 6 + "nobody2\n\n\ny\n"
+    answers = "\n" * 7 + "nobody2\n\n\ny\n"
     self.assertEqual(self.run_install([], answers), install.EXIT_OK)
     self.assertIn("nobody2 が見つかりません", self.output())
     self.assertEqual(self.calls("usermod"), [])

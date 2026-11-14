@@ -42,6 +42,8 @@ _spec.loader.exec_module(build_release)
 INSTANCE = "tsumugium"
 PREFIX = f"/opt/{INSTANCE}"
 SERVICE = f"{INSTANCE}.service"
+UPDATE_SERVICE = f"{INSTANCE}-update.service"
+UPDATE_TIMER = f"{INSTANCE}-update.timer"
 VERSION_A = "v0.0.1.1"
 VERSION_B = "v0.0.2.2"
 VERSION_C = "v0.0.3.3"
@@ -157,6 +159,10 @@ def status_text():
   return setup("status").stdout
 
 
+def timer_enabled():
+  return subprocess.run(["systemctl", "is-enabled", "--quiet", UPDATE_TIMER]).returncode == 0
+
+
 def assert_running(version):
   check(is_active(), f"{SERVICE} が動いている")
   check(record()["version"] == version, f"記録の版が {version}")
@@ -239,6 +245,23 @@ def scenario(work: Path, zips: dict[str, Path]) -> None:
   check(exists("/usr/local/sbin/tsumugium-setup"), "tsumugium-setup が置かれた")
   check("稼働中" in status_text(), "status が稼働中を表示する")
 
+  print("\n== 1b. 自動更新の timer ==", flush=True)
+  for unit in (UPDATE_SERVICE, UPDATE_TIMER):
+    check(exists(f"/etc/systemd/system/{unit}"), f"{unit} が置かれた")
+    verify = sudo("systemd-analyze", "verify", f"/etc/systemd/system/{unit}", check=False)
+    check(verify.returncode == 0, f"{unit} を systemd が正しく読める（{verify.stderr.strip()}）")
+  check(not timer_enabled(), "stable の既定なので、自動更新の timer は無効")
+  check("自動更新    オフ" in status_text(), "status が自動更新オフを表示する")
+  # オフのときは GitHub に問い合わせずに終わる（CIでは本物のReleasesを取りに行かない）
+  setup("upgrade", "--auto", "--instance", INSTANCE)
+  check(read_json(f"{PREFIX}/data/state/auto-update.json")["result"] == "off", "オフなので何もしなかった")
+  setup("auto-update", "on")
+  check(timer_enabled(), "auto-update on で timer が有効になった")
+  check(record()["auto_update"] is True, "記録に auto_update が残った")
+  check("自動更新    オン（10分おき）" in status_text(), "status が自動更新オンを表示する")
+  setup("auto-update", "off")
+  check(not timer_enabled(), "auto-update off で timer が無効になった")
+
   print("\n== 2. upgrade（版B） ==", flush=True)
   setup("upgrade", "--yes", "--from-file", str(zips["b"]))
   assert_running(VERSION_B)
@@ -254,6 +277,9 @@ def scenario(work: Path, zips: dict[str, Path]) -> None:
   check(record().get("updating") is None, "更新中の印が消えた")
   check(app_version("app") == VERSION_B, "app/ が版B")
   check(app_version("app.prev") == VERSION_A, "app.prev/（版A）が残っている")
+  check(VERSION_C in record()["skip_versions"], "起動できなかった版Cを、自動更新で飛ばす版にした")
+  last = read_json(f"{PREFIX}/data/state/last-update.json")
+  check((last["result"], last["to"]) == ("rolled_back", VERSION_C), "last-update.json に戻したことが残った")
 
   print("\n== 4. rollback（版Aへ、DBも戻す） ==", flush=True)
   setup("rollback", "--yes")
@@ -279,6 +305,8 @@ def scenario(work: Path, zips: dict[str, Path]) -> None:
   setup("uninstall", "--yes")
   check(not is_active(), "サービスが止まった")
   check(not exists(f"/etc/systemd/system/{SERVICE}"), "unit が消えた")
+  check(not exists(f"/etc/systemd/system/{UPDATE_TIMER}"), "自動更新の timer が消えた")
+  check(not exists(f"/etc/systemd/system/{UPDATE_SERVICE}"), "自動更新の service が消えた")
   check(not exists(f"/etc/tsumugium/{INSTANCE}.json"), "記録が消えた")
   check(not exists(f"{PREFIX}/app"), "コードが消えた")
   check(exists(f"{PREFIX}/data/db/config.db"), "DBは残った")

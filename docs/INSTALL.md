@@ -61,7 +61,7 @@ sudo ./install.sh install
 | 4 | サービス名 | インスタンス名 | systemdのunitの名前（`<サービス名>.service`） |
 | 5 | 入れる場所 | `/opt/<インスタンス名>` | `/home`・`/root`・`/tmp`などの下には入れられません |
 | 6 | 取得元 | `dora-ntmk/Tsumugium` | 更新を取得するGitHubのリポジトリ。既定以外にすると警告します |
-| 7 | チャンネル | `stable` | `stable`（安定版）か`beta`（ベータ版） |
+| 7 | チャンネル | `stable` | `stable`（安定版）か`beta`（ベータ版）。続けて、自動更新を使うかを聞きます（既定は`beta`ならはい、`stable`ならいいえ） |
 | 8 | 管理者 | なし | 専用ユーザーのグループに入れるユーザー。入れると、`sudo`なしで`.env`とDBを読めます（次のログインから） |
 | 9 | VOICEVOXのURL | `http://127.0.0.1:50021` | 入力したURLに実際に接続して確かめます |
 | 10 | 確認 | いいえ | 内容のまとめを見て、よければ`y`と答えます |
@@ -70,7 +70,7 @@ VOICEVOXにつながらないときは、`retry`（もう一度接続する）�
 
 インストールが終わるとBotを起動し、Botの準備が終わるまで最大60秒待ちます。「インストールが完了しました」と表示されれば成功です。
 
-質問に答えずに既定値で進めるときは、`--yes`を付けます。既定値以外にしたい項目だけを`--instance`・`--user`・`--service`・`--prefix`・`--repo`・`--channel`・`--admin`・`--voicevox-url`で指定できます。指定した項目は聞きません。
+質問に答えずに既定値で進めるときは、`--yes`を付けます。既定値以外にしたい項目だけを`--instance`・`--user`・`--service`・`--prefix`・`--repo`・`--channel`・`--admin`・`--voicevox-url`・`--auto-update`（`--no-auto-update`）で指定できます。指定した項目は聞きません。
 
 ```bash
 sudo ./install.sh install --yes --admin <自分のユーザー名>
@@ -93,10 +93,11 @@ sudo ./install.sh install --yes --admin <自分のユーザー名>
 | 手元のzipで更新する | `sudo tsumugium-setup upgrade --from-file <zipのパス>` |
 | 今のバージョンを入れ直す | `sudo tsumugium-setup repair` |
 | 1つ前のバージョンに戻す | `sudo tsumugium-setup rollback` |
+| 自動更新を使う・やめる | `sudo tsumugium-setup auto-update on`・`off` |
 | 消す（DBと`.env`は残す） | `sudo tsumugium-setup uninstall` |
 | DBと`.env`も含めてすべて消す | `sudo tsumugium-setup uninstall --purge` |
 
-`status`は、バージョン、チャンネル、状態（稼働中／停止中（手動）／停止中（自動起動も無効）／異常で停止）を表示します。
+`status`は、バージョン、チャンネル、状態（稼働中／停止中（手動）／停止中（自動起動も無効）／異常で停止）、自動更新のオン・オフと最後に確かめた結果を表示します。
 
 `--yes`を付けると、質問せずに既定値で進めます。ただし`uninstall --purge`は`--yes`と一緒には使えません。消してよいかを2回確かめるためです。
 
@@ -132,9 +133,10 @@ Ctrl+Cで表示を終えます。
 | `/opt/tsumugium/data/db/` | DB | `tsumugium`、750 |
 | `/opt/tsumugium/data/backup/` | DBのバックアップ | `tsumugium`、750 |
 | `/opt/tsumugium/data/tmp/` | 読み上げ音声の一時ファイル | `tsumugium`、750 |
-| `/opt/tsumugium/data/state/` | Botとインストーラーがやり取りするファイル（`ready.json`など） | `tsumugium`、750 |
+| `/opt/tsumugium/data/state/` | Botとインストーラーがやり取りするファイル（`ready.json`、更新の結果の`last-update.json`、自動更新が確かめた結果の`auto-update.json`など） | `tsumugium`、750 |
 | `/etc/tsumugium/tsumugium.json` | インストールで選んだ値の記録 | `root`、644 |
 | `/etc/systemd/system/tsumugium.service` | systemdのunit | `root`、644 |
+| `/etc/systemd/system/tsumugium-update.timer`・`tsumugium-update.service` | 自動更新のtimerとservice | `root`、644 |
 | `/usr/local/sbin/tsumugium-setup` | 操作の入口 | `root`、755 |
 
 Botが書き込めるのは`data/`の中だけです。インストーラーが`data/`を消すのは`uninstall --purge`のときだけです。更新に失敗したときと`rollback`でDBを戻すときは、`data/db/`の中身をバックアップの内容に置き換えます。
@@ -164,6 +166,20 @@ Botを止めている間に`upgrade`すると、更新のあとで起動して�
 定時のバックアップは既定で毎日12:00に取ります。時刻は`.env`の`BACKUP_TIMES`で変えられます。
 
 `rollback`では、戻すバージョンから更新したときのバックアップを使って、DBも戻すかを聞きます。既定は「戻す」です。新しいバージョンがDBの形を変えていると、古いバージョンがそのDBを読めないことがあるためです。
+
+## 自動更新
+
+自動更新をオンにすると、systemdのtimer（`<サービス名>-update.timer`）が、マシンの起動の5分後と、そのあとは10分おきに`tsumugium-setup upgrade --auto`を実行します。チャンネルに新しいバージョンがあれば、「更新で起きること」と同じ流れで更新します。
+
+- 既定は`beta`チャンネルならオン、`stable`チャンネルならオフです。`sudo tsumugium-setup auto-update on`と`off`で切り替えます。イベントの最中など、しばらく更新したくないときも`off`にします。
+- 次のときは更新しません。
+  - Botを手で止めているとき
+  - 前回の更新が途中で止まっているとき（`repair`か`rollback`で直してください）
+  - ほかの操作が実行中のとき
+  - 新しいバージョンが「飛ばすバージョン」のとき
+- 起動を確かめられずに元に戻したバージョンと、`rollback`で戻した元のバージョンは、記録の「飛ばすバージョン」に入ります。自動更新は、それより新しいバージョンが出るまで更新しません。手で`upgrade`すれば入れられます。
+- 最後に確かめた時刻と結果、飛ばすバージョンは`status`で見られます。くわしいログは`sudo journalctl -u tsumugium-update`で見ます。
+- 自動更新のないバージョンに`rollback`したときは、timerは残りますが何もしません。
 
 ## 困ったとき
 
