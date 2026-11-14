@@ -89,15 +89,16 @@ python -m unittest discover -s tests -v
 
 ## 7. リリースの公開
 
-GitHub Releasesは、当面は手で作ります。インストーラーの`upgrade`はここに添付したzipを取得します。
+`VERSION`が正式版（`(beta X)`のない`vX.X.X.XX`）のコミットが`main`に入ると、CIの`release`ジョブがGitHub Releaseの下書きを作り、zipと`.sha256`を添付します。添付するのは、そのコミットですべての確認を通った配布物です。インストーラーの`upgrade`は公開したReleaseからこのzipを取得します。
 
 1. `config.py`の`VERSION`から`(beta X)`を外して`vX.X.X.XX`にし、`LAST_UPDATED`を更新して`main`へマージする
-2. CIの「配布物の作成」ジョブの成果物（`release-assets-tsumugium-<タグ名>`）をダウンロードして展開し、中にある`tsumugium-<タグ名>.zip`と`tsumugium-<タグ名>.zip.sha256`を取り出す。ダウンロードしたzipそのものは添付しない
-3. `sha256sum -c tsumugium-<タグ名>.zip.sha256`で照合する
-4. タグ`vX.X.X.XX`でGitHub Releaseを作り、zipと`.sha256`を添付する。本文は下の「リリースノートの書き方」に沿って書く。ベータを出すときは、タグを`vX.X.X.XX-beta.X`にして「プレリリース」にする
-5. 添付したファイルの名前が`tsumugium-<タグ名>.zip`と`tsumugium-<タグ名>.zip.sha256`であることを確かめる（インストーラーはこの名前で探す）
-6. ベータ環境で`sudo tsumugium-setup upgrade`を実行し、Releaseから取得して更新できることを確かめる
-7. 本番環境の管理者に、更新が出たことを知らせる
+2. CIが終わったら、GitHubのReleasesに`vX.X.X.XX`の下書きができていることを確かめる。下書きには見出しのひな形と、前の正式版からのコミット名の一覧（コメントの中にあり、公開しても表示されない）が入っている
+3. 下の「リリースノートの書き方」に沿って本文を書き、空の行を消す
+4. 添付されたファイルが`tsumugium-<タグ名>.zip`と`tsumugium-<タグ名>.zip.sha256`の2つであることを確かめて、公開する。公開したときに、GitHubがそのコミットにタグ`vX.X.X.XX`を付ける
+5. ベータ環境で`sudo tsumugium-setup upgrade`を実行し、Releaseから取得して更新できることを確かめる
+6. 本番環境の管理者に、更新が出たことを知らせる
+
+下書きができなかったときは、CIの`release`ジョブのログを見ます。同じ名前のタグか下書きがすでにあるときは、作りません。
 
 - [ ] 上の手順をすべて終えた
 

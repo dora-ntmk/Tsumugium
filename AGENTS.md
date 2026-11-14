@@ -283,12 +283,14 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `installer/instance.py` | 名前の検証、置き場所の構成、記録（`/etc/tsumugium/<インスタンス名>.json`）、インスタンスごとのロック |
 | `installer/system.py`・`installer/ui.py` | コマンドの実行とパスの組み立て、端末での表示と質問。テストでは偽物に差し替える |
 | `scripts/build_release.py` | 配布用のzipと`.sha256`を作る（CIで使う） |
+| `scripts/release_notes.py` | GitHub Releaseの下書きの本文（見出しのひな形と、前の正式版からのコミット名の一覧）を作る（CIで使う） |
 | `scripts/ci_installer_e2e.py` | CIの結合テスト。本物のsystemdでinstallからuninstallまでを動かす |
 | `scripts/migrate_legacy.py` | 旧環境から`.env`と`data/`を作る移行ツール。配布用のzipには入れず、移行する人に直接渡す |
 
 - 新しいバージョンへ引き継ぐ形式には番号（`installer/__init__.py`の`HANDOFF_VERSION`）を付ける。引き継ぐ項目の意味を変えるときは番号を上げる。知らない番号を受け取ったバージョンは、何も変えずに止まる。
 - インストーラーを別のプロセスで動かすときは、`python -m installer`を使わず、`installer.python_command()`（`python -I`で起動する）を使う。`-m`は今いるディレクトリの`installer/`を先に読むので、展開したzipやリポジトリの中で実行すると、違うバージョンが動くため。
 - インストーラーが作るunitと入口には`# Managed by tsumugium-setup`の印を付ける。印のない同じ名前のファイルは、上書きも削除もしない。
+- `VERSION`が正式版のコミットが`main`に入ると、CIの`release`ジョブがGitHub Releaseの下書きを作り、`build`ジョブの配布物を添付する。同じタグか下書きがすでにあれば作らない。書き込みの権限（`contents: write`）は、このジョブだけに付ける。
 - 配布用のzipには`.claude/`・`.github/`・`docs/`・`scripts/`・`tests/`・`.gitignore`・`AGENTS.md`を入れず、`build-info.json`と`requirements.lock`を加える。
 - `requirements.lock`は、CIで`uv pip compile --universal`を使ってハッシュ値つきで作る。`--universal`を付けると、Python 3.13以上だけで要る依存（`audioop-lts`など）も条件付きで書き出されるので、Python 3.10以上のどのバージョンでも同じロックを使える。インストーラーは`pip install --require-hashes`で入れる。CIの`lock-check`ジョブがPython 3.10〜3.14のそれぞれで入れられることを確かめる。
 - 記録の形式を変えるときは、`installer/instance.py`の`RECORD_FORMAT`を上げる。知らない項目は読み飛ばすので、項目を足すだけなら上げなくてよい。
