@@ -112,6 +112,44 @@ class VoicevoxClient:
       raise RuntimeError("VOICEVOX /speakers returned an unexpected response")
     return payload
 
+  INITIALIZE_TIMEOUT_SECONDS = 120.0
+
+  async def initialize_speaker(self, speaker: int) -> None:
+    """話者の声のモデルをVOICEVOXに読み込ませる。読み込み済みならすぐ終わる。"""
+    import aiohttp
+
+    session = await self._get_session()
+    async with session.post(
+        f"{self.url}/initialize_speaker",
+        params={"speaker": speaker, "skip_reinit": "true"},
+        timeout=aiohttp.ClientTimeout(total=self.INITIALIZE_TIMEOUT_SECONDS),
+    ) as response:
+      response.raise_for_status()
+
+  async def warm_up_speaker(self, speaker: int) -> float | None:
+    """起動直後の最初の読み上げが遅れないよう、話者のモデルを前もって読み込む。
+
+    VOICEVOXは話者を最初に使うときにモデルを読み込むため、何もしないと
+    起動後の最初のメッセージがその待ち時間を受ける。合成用のロックは取らず、
+    失敗しても表示するだけにする（最初の合成が遅くなるだけで済むため）。
+    かかった秒数を返し、失敗したときはNoneを返す。
+    """
+    loop = asyncio.get_running_loop()
+    started_at = loop.time()
+    try:
+      await self.initialize_speaker(speaker)
+    except asyncio.CancelledError:
+      raise
+    except Exception as error:
+      print(
+        f"VOICEVOX話者{speaker}の事前読み込みに失敗しました: "
+        f"{type(error).__name__}: {error}"
+      )
+      return None
+    elapsed = loop.time() - started_at
+    print(f"VOICEVOX話者{speaker}の事前読み込みが完了しました: {elapsed:.1f}秒")
+    return elapsed
+
   async def generate(
       self,
       msg: str,

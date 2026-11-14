@@ -4,6 +4,9 @@
 aiohttpのサーバーへ接続する。トークンはダミーだけを使う。
 """
 
+import asyncio
+import contextlib
+import io
 import json
 import os
 import unittest
@@ -43,6 +46,7 @@ class VoicevoxClientTest(LocalServerTestCase):
     self.requests = []
     self.audio_query_failures = 0
     self.audio_query_status = 200
+    self.initialize_status = 200
 
     async def version(request):
       return web.Response(text='"0.0.0-test"\n')
@@ -62,8 +66,15 @@ class VoicevoxClientTest(LocalServerTestCase):
       self.requests.append(("synthesis", dict(request.query), body))
       return web.Response(body=FAKE_WAV, content_type="audio/wav")
 
+    async def initialize_speaker(request):
+      self.requests.append(("initialize_speaker", dict(request.query)))
+      if self.initialize_status != 200:
+        return web.Response(status=self.initialize_status)
+      return web.Response(status=204)
+
     base_url = await self.start_server([
       web.get("/version", version),
+      web.post("/initialize_speaker", initialize_speaker),
       web.post("/audio_query", audio_query),
       web.post("/synthesis", synthesis),
     ])
@@ -118,6 +129,31 @@ class VoicevoxClientTest(LocalServerTestCase):
     self.assertIsNone(path)
     self.assertEqual(len(self.requests), 1)
     self.assertEqual(len(self.notifier.exceptions), 1)
+
+  async def test_warm_up_initializes_speaker_without_reinit(self):
+    with contextlib.redirect_stdout(io.StringIO()) as output:
+      elapsed = await self.client.warm_up_speaker(3)
+    self.assertIsNotNone(elapsed)
+    self.assertIn("事前読み込みが完了しました", output.getvalue())
+    self.assertEqual(
+      self.requests,
+      [("initialize_speaker", {"speaker": "3", "skip_reinit": "true"})],
+    )
+
+  async def test_warm_up_failure_does_not_raise_or_report(self):
+    self.initialize_status = 500
+    with contextlib.redirect_stdout(io.StringIO()) as output:
+      elapsed = await self.client.warm_up_speaker(3)
+    self.assertIsNone(elapsed)
+    self.assertIn("事前読み込みに失敗しました", output.getvalue())
+    self.assertEqual(self.notifier.exceptions, [])
+
+  async def test_warm_up_does_not_wait_for_generation_lock(self):
+    # 合成の最中でも、読み込みはロックを待たずに進む
+    async with self.client._generation_lock:
+      with contextlib.redirect_stdout(io.StringIO()):
+        elapsed = await asyncio.wait_for(self.client.warm_up_speaker(3), timeout=5)
+    self.assertIsNotNone(elapsed)
 
   def test_cleanup_removes_only_wav_files(self):
     tmp_dir = os.path.join(self.tmp_dir, "tmp")
