@@ -1,6 +1,22 @@
 """Discordメッセージを読み上げ対象として扱うか判定する。"""
 
+import re
+
+import discord
+
 from services.error_notification_service import ensure_error_notifier
+
+
+# `!t おはよう`・`!tts おはよう`: 読み上げて、その音声ファイルを送る
+TTS_FILE_PREFIX_RE = re.compile(r"!(?:tts|t)\s+(?P<text>\S.*)", re.DOTALL)
+
+
+def parse_tts_file_command(content: str) -> str | None:
+  """`!t`・`!tts`のあとの文章を返す。当てはまらなければNoneを返す。"""
+  match = TTS_FILE_PREFIX_RE.fullmatch(content.strip())
+  if match is None:
+    return None
+  return match.group("text").strip()
 
 
 class MessageService:
@@ -65,7 +81,42 @@ class MessageService:
         "message clear",
       )
       return
+    tts_text = parse_tts_file_command(content)
+    if tts_text is not None:
+      self.error_notifier.create_task(
+        self.speak_and_send_file(message, tts_text),
+        "message tts file",
+      )
+      return
     self.error_notifier.create_task(
       self.speech_service.add_message(message),
       "message speech",
     )
+
+  async def speak_and_send_file(self, message, text: str) -> None:
+    """`!t`の文章を読み上げ、その音声ファイルをメッセージへの返信で送る。"""
+    tts_file = await self.speech_service.speak_and_export(
+      message.guild,
+      text,
+      message.id,
+      author_id=message.author.id,
+      mentions=message.mentions,
+      attachments=(),
+      created_at=message.created_at,
+      message_id=message.id,
+    )
+    if tts_file is None:
+      return
+    try:
+      await message.reply(
+        file=tts_file.to_discord_file(),
+        mention_author=False,
+      )
+    except discord.HTTPException as error:
+      if getattr(error, "status", None) == 413:
+        await message.channel.send(
+          "音声ファイルが大きすぎて送れませんでした。文章を短くしてください。"
+        )
+        return
+      # 返信先が消えたときなどは、返信にせずに送る
+      await message.channel.send(file=tts_file.to_discord_file())
