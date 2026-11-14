@@ -94,6 +94,9 @@ jobs:
     name: 配布物の作成
     runs-on: ubuntu-latest
     needs: test
+    outputs:
+      tag: ${{ steps.build.outputs.tag }}
+      channel: ${{ steps.build.outputs.channel }}
     steps:
       - uses: actions/checkout@v4
 
@@ -231,3 +234,62 @@ jobs:
       - uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  release:
+    name: Releaseの下書き
+    runs-on: ubuntu-latest
+    # mainに入ったときだけ動く。すべての確認が通った配布物を、作り直さずにそのまま使う。
+    needs: [test, static-checks, build, lock-check, installer-e2e, secret-scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      # Releaseを作るために、このジョブだけ書き込みを許す
+      contents: write
+    concurrency:
+      group: release
+      cancel-in-progress: false
+    env:
+      TAG: ${{ needs.build.outputs.tag }}
+      CHANNEL: ${{ needs.build.outputs.channel }}
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # 前のタグからのコミットの一覧を作るため、履歴とタグをすべて取る
+          fetch-depth: 0
+
+      - name: 作るかどうかを決める
+        id: decide
+        run: |
+          if [ "$CHANNEL" != "stable" ]; then
+            echo "VERSIONがベータ（$TAG）なので、正式版の下書きは作りません"
+            echo "create=false" >> "$GITHUB_OUTPUT"
+          elif git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
+            echo "タグ $TAG はもうあるので、下書きは作りません"
+            echo "create=false" >> "$GITHUB_OUTPUT"
+          elif gh release list --limit 100 --json tagName --jq '.[].tagName' | grep -qxF "$TAG"; then
+            echo "$TAG の下書きはもうあるので、作りません"
+            echo "create=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "create=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/download-artifact@v4
+        if: steps.decide.outputs.create == 'true'
+        with:
+          name: release-assets-tsumugium-${{ needs.build.outputs.tag }}
+          path: dist
+
+      - name: 下書きを作り、zipと.sha256を添付する
+        if: steps.decide.outputs.create == 'true'
+        # 下書きのあいだはタグを作らない。公開したときに、GitHubがこのコミットにタグを付ける。
+        run: |
+          python3 scripts/release_notes.py --tag "$TAG" --out "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" \
+            "dist/tsumugium-$TAG.zip" \
+            "dist/tsumugium-$TAG.zip.sha256" \
+            --draft \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes-file "$RUNNER_TEMP/notes.md"
+          echo "### Releaseの下書きを作りました: $TAG" >> "$GITHUB_STEP_SUMMARY"
