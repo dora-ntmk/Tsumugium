@@ -269,7 +269,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - `StatusService.set_override()`の表示は`clear_override()`まで、ふだんのステータス更新で上書きしない。
 - `last-update.json`（更新・入れ直し・戻したときの結果）を見張りのたびに読み、まだ知らせていなければ`OPERATOR_USER_ID`へEmbedでDMする。インストーラーは新しいバージョンのBotの起動を確かめてから結果を書くので、起動したときに1回読むだけでは間に合わない。成功も知らせる。知らせたら`update-notice.json`に印を付け、同じ結果を二度送らない。DMを送れなかったときは、次の見張りでもう一度送る。
 - `auto-update.json`の結果が`unfinished`（前回の更新が途中で止まっている）になったら、運営者へDMする。同じ状態が続くあいだは1回だけにし、ほかの結果に変わったら印を消す。
-- `available-update.json`に今と違うバージョンがあり、まだ知らせていなければ、運営者へ「今すぐ更新する」「VCが空いたら更新する」のボタン付きでDMする（同じバージョンは1回だけ）。ボタンは`UpdateButton`（`discord.ui.DynamicItem`。custom_idにバージョンを入れ、再起動したあとも押せる）で、押されたら`client.update_watch`が受ける。押せるのは`OPERATOR_USER_ID`の人だけ。「今すぐ」は`update-request.json`に依頼を書く。「VCが空いたら」は`pending-update.json`に残し、BotがどのVCにもつないでいないときに依頼を書く。今のバージョンと同じか、`available-update.json`と違うバージョンのボタンは、依頼を書かずに知らせる。
+- `available-update.json`に今と違うバージョンがあり、まだ知らせていなければ、運営者へ「今すぐ更新する」「VCが空いたら更新する」のボタン付きでDMする（同じバージョンは1回だけ）。ボタンは`UpdateButton`（`discord.ui.DynamicItem`。custom_idにバージョンを入れ、再起動したあとも押せる）で、押されたら`client.update_watch`が受ける。押せるのは`OPERATOR_USER_ID`の人だけ。「今すぐ」は`update-request.json`に依頼を書く。「VCが空いたら」は`pending-update.json`に残し、BotがどのVCにもつないでいないときに依頼を書く。今のバージョンと同じか、`available-update.json`と違うバージョンのボタンは、依頼を書かずに知らせる。押されたDMは`update-notice.json`の`button_message`に覚えておき、更新が始まった（`updating.json`が現れた）ら「更新を開始しました」に書き換える。見張りのすきまで更新が終わったときは、新しいバージョンで起動したあとに書き換える。
 
 ## 止めるときと、再起動のあとのつなぎ直し（`services/reconnect_service.py`）
 
