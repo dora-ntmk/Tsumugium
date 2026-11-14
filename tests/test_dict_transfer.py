@@ -1,4 +1,4 @@
-"""辞書のエクスポート・インポート（Shovel形式）のテスト。
+"""辞書のエクスポート・インポート（.dictファイル、CSV形式）のテスト。
 
 単語と読みはテスト用の作り物で、実際の辞書の登録内容は使わない。
 """
@@ -98,13 +98,44 @@ class ParseImportTest(unittest.TestCase):
     self.assertEqual(len(parse_import(text).entries), count)
 
 
-class DecodeImportTest(unittest.TestCase):
-  def test_utf8_with_bom(self):
-    self.assertEqual(decode_import('﻿てすと, てすと'.encode('utf-8')), 'てすと, てすと')
+SAMPLE = 'てすと語, てすとご\r\nA,B, えーびー\r\n一, いち\r\n'
+BOM = '\ufeff'
 
-  def test_not_utf8(self):
-    with self.assertRaisesRegex(ImportRejected, 'UTF-8'):
-      decode_import('てすと, てすと'.encode('cp932'))
+
+class DecodeImportTest(unittest.TestCase):
+  def test_utf8(self):
+    self.assertEqual(decode_import(SAMPLE.encode('utf-8')), SAMPLE)
+
+  def test_utf8_with_bom(self):
+    self.assertEqual(decode_import((BOM + SAMPLE).encode('utf-8')), SAMPLE)
+
+  def test_utf16_le_with_bom(self):
+    # Windowsのツールが「Unicode」として書き出す形。
+    self.assertEqual(decode_import(SAMPLE.encode('utf-16')), SAMPLE)
+    self.assertEqual(decode_import((BOM + SAMPLE).encode('utf-16-le')), SAMPLE)
+
+  def test_utf16_be_with_bom(self):
+    self.assertEqual(decode_import((BOM + SAMPLE).encode('utf-16-be')), SAMPLE)
+
+  def test_utf16_without_bom(self):
+    self.assertEqual(decode_import(SAMPLE.encode('utf-16-le')), SAMPLE)
+    self.assertEqual(decode_import(SAMPLE.encode('utf-16-be')), SAMPLE)
+
+  def test_shift_jis(self):
+    self.assertEqual(decode_import(SAMPLE.encode('cp932')), SAMPLE)
+
+  def test_detected_encodings(self):
+    self.assertEqual(dict_transfer.detect_encoding(SAMPLE.encode('utf-8')), 'utf-8')
+    self.assertEqual(dict_transfer.detect_encoding(SAMPLE.encode('utf-16-le')), 'utf-16-le')
+    self.assertEqual(dict_transfer.detect_encoding(SAMPLE.encode('cp932')), 'cp932')
+
+  def test_unreadable_bytes(self):
+    with self.assertRaisesRegex(ImportRejected, '文字コード'):
+      decode_import(b'\x81')
+
+  def test_nul_bytes_are_rejected(self):
+    with self.assertRaisesRegex(ImportRejected, '文字コード'):
+      decode_import(b'abc\x00def')
 
   def test_too_large(self):
     with self.assertRaisesRegex(ImportRejected, '大きすぎます'):
@@ -213,8 +244,14 @@ class DictManagerTransferTest(TempDirTestCase):
 
   def test_rejected_file_adds_nothing(self):
     with self.assertRaises(ImportRejected):
-      self.manager.import_data(DUMMY_GUILD_ID, 'てすと, てすと'.encode('cp932'))
+      self.manager.import_data(DUMMY_GUILD_ID, b'\x81')
     self.assertEqual(self.readings(), {})
+
+  def test_utf16_file_is_imported(self):
+    data = '# メモ\r\nてすと, てすと\r\nみほん, みほん\r\n'.encode('utf-16')
+    result = self.manager.import_data(DUMMY_GUILD_ID, data)
+    self.assertEqual((result.added, result.failures), (2, []))
+    self.assertEqual(self.readings(), {'てすと': 'てすと', 'みほん': 'みほん'})
 
   def test_database_error_rolls_back(self):
     repository = self.manager.repository

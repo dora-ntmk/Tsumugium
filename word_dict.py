@@ -130,14 +130,14 @@ class DictManager:
     return self.repository.get_reading_entries(guild_id)
 
   def export_text(self, guild_id: int) -> tuple[str, int, int]:
-    """このサーバーの読み辞書を、Shovel形式の本文・書き出した件数・
+    """このサーバーの読み辞書を、.dictファイルの本文・書き出した件数・
     読みにカンマがあって書き出さなかった件数で返す（古い順）。"""
     entries = list(reversed(self.repository.get_reading_entries(guild_id)))
     exported = sum(1 for _, reading in entries if dict_transfer.is_exportable(reading))
     return dict_transfer.format_export(entries), exported, len(entries) - exported
 
   def import_data(self, guild_id: int, data: bytes) -> dict_transfer.ImportResult:
-    """Shovel形式のファイルを読み込む。すでに読みがある単語は上書きしない。
+    """.dictファイルを読み込む。すでに読みがある単語は上書きしない。
 
     ファイル全体を断るときは ImportRejected を投げる。
     """
@@ -480,7 +480,7 @@ class WordDict:
 
     @dict_group.command(
       name='export',
-      description='このサーバーの辞書をShovel形式のファイルで書き出します（サーバー管理者のみ）',
+      description='このサーバーの辞書を.dictファイル（CSV形式）で書き出します（サーバー管理者のみ）',
     )
     @discord.app_commands.describe(
       ephemeral='Trueにすると自分にだけ見える形で表示します',
@@ -520,10 +520,10 @@ class WordDict:
 
     @dict_group.command(
       name='import',
-      description='Shovel形式のファイルから辞書を読み込みます（サーバー管理者のみ）',
+      description='.dictファイル（CSV形式）から辞書を読み込みます（サーバー管理者のみ）',
     )
     @discord.app_commands.describe(
-      file='「単語, 読み」を1行に1件ずつ書いたUTF-8のファイル',
+      file='「単語, 読み」を1行に1件ずつ書いたファイル（文字コードは自動で判別）',
     )
     @discord.app_commands.checks.has_permissions(manage_guild=True)
     async def dict_import(ctx, file: discord.Attachment):
