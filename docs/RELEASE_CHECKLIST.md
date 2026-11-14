@@ -92,7 +92,7 @@ python -m unittest discover -s tests -v
 GitHub Releasesは、当面は手で作ります。インストーラーの`upgrade`はここに添付したzipを取得します。
 
 1. `config.py`の`VERSION`から`(beta X)`を外して`vX.X.X.XX`にし、`LAST_UPDATED`を更新して`main`へマージする
-2. CIの「配布物の作成」ジョブの成果物（`tsumugium-<タグ名>`）から、zipと`.sha256`をダウンロードする
+2. CIの「配布物の作成」ジョブの成果物（`release-assets-tsumugium-<タグ名>`）をダウンロードして展開し、中にある`tsumugium-<タグ名>.zip`と`tsumugium-<タグ名>.zip.sha256`を取り出す。ダウンロードしたzipそのものは添付しない
 3. `sha256sum -c tsumugium-<タグ名>.zip.sha256`で照合する
 4. タグ`vX.X.X.XX`でGitHub Releaseを作り、zipと`.sha256`を添付する。ベータを出すときは、タグを`vX.X.X.XX-beta.X`にして「プレリリース」にする
 5. 添付したファイルの名前が`tsumugium-<タグ名>.zip`と`tsumugium-<タグ名>.zip.sha256`であることを確かめる（インストーラーはこの名前で探す）

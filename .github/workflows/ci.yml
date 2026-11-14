@@ -129,7 +129,9 @@ jobs:
       - name: 成果物として保存する
         uses: actions/upload-artifact@v4
         with:
-          name: tsumugium-${{ steps.build.outputs.tag }}
+          # ダウンロードすると、この名前のzipの中に配布用のzipと.sha256が入っている。
+          # 中のzipと同じ名前にすると取り違えやすいので、Releaseに添付するものだと分かる名前にする。
+          name: release-assets-tsumugium-${{ steps.build.outputs.tag }}
           path: dist/
           if-no-files-found: error
 
