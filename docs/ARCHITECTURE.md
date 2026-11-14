@@ -148,7 +148,7 @@ Botを止めるときは、`ReconnectService`がつないでいたVCを`data/sta
 
 ## Discordステータス
 
-`StatusService`は`STATUS_MESSAGE`を起動時に検証し、`{voice_connections}`、`{voice_users}`、`{guilds}`を現在のDiscordキャッシュから展開します。起動時は即時反映し、VC状態または参加サーバーが変化した場合は連続イベントを1秒間まとめて更新します。展開結果が変わらない場合はDiscord APIを呼びません。
+`StatusService`は`STATUS_MESSAGE`を起動時に検証し、`{voice_connections}`、`{voice_users}`、`{guilds}`を現在のDiscordキャッシュから展開します。起動時は即時反映し、VC状態または参加サーバーが変化した場合は連続イベントを1秒間まとめて更新します。展開結果が変わらない場合はDiscord APIを呼びません。展開した文は、アイコンの横の吹き出し（カスタムステータス、`discord.CustomActivity`）に出します。更新中の「📥アップデート中…」も同じ場所に出ます。
 
 ## DB境界と互換性
 

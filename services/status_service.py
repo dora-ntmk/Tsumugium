@@ -117,7 +117,7 @@ class StatusService:
     try:
       await self.client.change_presence(
         status=discord.Status.online,
-        activity=discord.Game(name=message),
+        activity=discord.CustomActivity(name=message),
       )
     except Exception as error:
       self.error_notifier.report_exception(error, "status update")
