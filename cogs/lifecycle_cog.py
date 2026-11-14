@@ -23,6 +23,7 @@ class LifecycleCog:
       error_notifier=None,
       ready_state=None,
       update_watch=None,
+      reconnect_service=None,
   ):
     self.client = client
     self.tree = tree
@@ -34,8 +35,16 @@ class LifecycleCog:
     self.error_notifier = ensure_error_notifier(error_notifier)
     self.ready_state = ready_state
     self.update_watch = update_watch
+    self.reconnect_service = reconnect_service
+    self._reconnect_started = False
     self.backup_task = None
     self._register()
+
+  async def _restore_voice(self) -> None:
+    restored = await self.reconnect_service.restore()
+    if restored:
+      print(f"on_ready: {restored}個のVCにつなぎ直しました")
+    self.reconnect_service.start()
 
   def _register(self) -> None:
     @self.client.event
@@ -70,6 +79,10 @@ class LifecycleCog:
       # 更新中の表示と、更新の結果の知らせ（ステータスを書き換えるので、ふだんの表示を出したあとに始める）
       if self.update_watch is not None:
         self.update_watch.start()
+      # 再起動・更新の前につないでいたVCにつなぎ直す（Gatewayの再接続で on_ready が再び呼ばれても1回だけ）
+      if self.reconnect_service is not None and not self._reconnect_started:
+        self._reconnect_started = True
+        self.error_notifier.create_task(self._restore_voice(), "voice reconnect")
 
     @self.client.event
     async def on_guild_join(guild):

@@ -20,6 +20,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `services/user_reading_service.py` | ユーザー設定の読み方を優先し、未設定時はDiscord表示名へ戻す共通名前解決を担当 |
 | `services/dictionary_transfer_service.py` | 読み辞書を.dictファイル（CSV形式。1行に1件の`単語, 読み`）へ書き出し、読み込む純粋な処理。SQLiteとDiscordは扱わない |
 | `services/update_watch_service.py` | インストーラーが`UPDATE_STATE_DIR`に置くファイルを見張る。更新中はステータスを「アップデート中」にし、更新の結果と、自動更新が人の手を要る状態を運営者へDMで知らせる |
+| `services/reconnect_service.py` | つないでいるVCを`UPDATE_STATE_DIR`に書き残し、止めるときは読み上げチャンネルへ知らせてVCを抜け、再起動・更新のあとに同じVCへつなぎ直す |
 | `services/ready_state_service.py` | 起動の準備が終わったことを、インストーラーへ`ready.json`で知らせる。`UPDATE_STATE_DIR`が空欄なら何もしない |
 | `cogs/connection_cog.py` | `/join`・`/leave`とVC状態イベントを`ConnectionService`へ接続する登録層 |
 | `cogs/playback_cog.py` | `/clear`と`on_message`を読み上げサービスへ接続する登録層 |
@@ -28,7 +29,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `cogs/user_cog.py` | DMを含むユーザー単位設定コマンドを登録する層 |
 | `clients/voicevox_client.py` | 再利用可能な非同期HTTPセッションでVOICEVOX生成とWAV保存を担当 |
 | `clients/discord_soundboard_client.py` | Discord Soundboard一覧取得・再生APIを担当する非同期HTTPクライアント |
-| `clients/managed_discord_client.py` | Bot終了時に外部HTTP・SQLiteリソースを閉じるDiscord Client |
+| `clients/managed_discord_client.py` | Bot終了時に、登録した終了前の処理（VCから抜けるなど）を動かしてから、外部HTTP・SQLiteリソースを閉じるDiscord Client。SIGTERM・SIGINTを受けたらDiscordとの接続を閉じてから終わる |
 | `swap.py` | SQLiteを知らない純粋なテキスト前処理エンジン。`DictionarySnapshot`を入力に辞書・URL・絵文字・メンション・Markdownを処理 |
 | `word_dict.py` | `DictionaryRepository`を利用する辞書サービス窓口（`DictManager`）と `/dict` コマンド群 |
 | `sound_dict.py` | サウンドボード辞書と `/sounddict` コマンド群。Clientから受け取った一覧を`SoundboardCacheRepository`へ渡す |
@@ -267,6 +268,15 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - `StatusService.set_override()`の表示は`clear_override()`まで、ふだんのステータス更新で上書きしない。
 - `last-update.json`（更新・入れ直し・戻したときの結果）を見張りのたびに読み、まだ知らせていなければ`OPERATOR_USER_ID`へEmbedでDMする。インストーラーは新しいバージョンのBotの起動を確かめてから結果を書くので、起動したときに1回読むだけでは間に合わない。成功も知らせる。知らせたら`update-notice.json`に印を付け、同じ結果を二度送らない。DMを送れなかったときは、次の見張りでもう一度送る。
 - `auto-update.json`の結果が`unfinished`（前回の更新が途中で止まっている）になったら、運営者へDMする。同じ状態が続くあいだは1回だけにし、ほかの結果に変わったら印を消す。
+
+## 止めるときと、再起動のあとのつなぎ直し（`services/reconnect_service.py`）
+
+`main.py`は`ManagedDiscordClient.run_until_stopped()`でBotを動かす。`discord.Client.run()`はSIGTERMでDiscordとの接続を閉じずに終わり、終了前の処理が動かず、古い接続がしばらく残ってステータスも混ざるため、SIGTERM・SIGINTを受けたら`close()`を呼ぶ。`close()`は、登録した終了前の処理を動かしてからDiscordとの接続を閉じる。
+
+- `ReconnectService`は、つないでいるVC（サーバー・VC・一時的な読み上げチャンネル）を`UPDATE_STATE_DIR/voice-sessions.json`へ、Bot自身がVCにつないだ・抜けたときと、1分おきに書く。最後に動いていた時刻（`alive_at`）も書くので、異常で落ちたときも止まっていた時間がわかる。起動したときのつなぎ直しが終わるまでは書かない。
+- インストーラーはBotを止める前に、`restart-reason.json`へ止める理由を書く。更新・`rollback`は`update`、`tsumugium-setup stop`・`uninstall`は`manual_stop`。ファイルがなければ再起動（`systemctl restart`、マシンの再起動、異常で落ちたあとの自動の起動）として扱う。
+- 止めるとき（終了前の処理）は、理由が`manual_stop`なら`voice-sessions.json`を消して黙ってVCを抜ける。それ以外は、最後の状態を書いてから、読み上げチャンネル（一時的な読み上げチャンネル→`TextTarget`→VCのテキストチャットの順に最初にあるもの）へ「アップデートのため再起動しています」か「（Bot名）は再起動しています」を送り、VCを抜ける。知らせと切断は、合わせて最大10秒で打ち切る。この切断は自発的な切断として扱う。
+- 起動したときは、`on_ready`の処理のあとに`restart-reason.json`を読んで消す。理由が`manual_stop`でなく、`alive_at`から3分以内なら、記録したVCのうち人がいるVCにつなぎ直し、一時的な読み上げチャンネルを戻して「再接続しました」を送る。すでにつないでいるサーバーと、人がいないVCは飛ばす。
 
 ---
 

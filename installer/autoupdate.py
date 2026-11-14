@@ -36,6 +36,11 @@ STATE_FILE = "auto-update.json"
 LAST_UPDATE_FILE = "last-update.json"
 # 更新しているあいだだけ置く。Botはこれを見て、ステータスを「アップデート中」にする
 UPDATING_FILE = "updating.json"
+# Botを止める前に置く、止める理由。Botは止まるときと次に起動したときにこれを見て、
+# VCにいた人への知らせ方と、起動したあとにつなぎ直すかを決める
+RESTART_REASON_FILE = "restart-reason.json"
+REASON_UPDATE = "update"
+REASON_MANUAL_STOP = "manual_stop"
 
 # auto-update.json の result
 RESULT_OFF = "off"
@@ -198,6 +203,17 @@ def mark_updating(system: System, record: InstanceRecord, to_version: str, mode:
 
 def clear_updating(system: System, layout: Layout) -> None:
   system.path(str(layout.state / UPDATING_FILE)).unlink(missing_ok=True)
+
+
+def mark_restart_reason(system: System, record: InstanceRecord, reason: str) -> None:
+  """Botを止める理由を残す。書けなくても止める処理は続ける（Botは再起動として扱う）。"""
+  try:
+    write_state(system, record.layout, record.user, RESTART_REASON_FILE, {
+      "reason": reason,
+      "at": now_text(),
+    })
+  except Exception as error:
+    print(f"{RESTART_REASON_FILE} を書けませんでした: {error}")
 
 
 # auto-update モード

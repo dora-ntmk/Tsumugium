@@ -116,6 +116,8 @@ def stop(args: argparse.Namespace, system: System, ui: UI) -> int:
     record = load_record(system, instance)
     systemctl = Systemctl(system)
     service = unit_name(record.service)
+    # 手で止めたときは、次に起動してもVCにつなぎ直さない
+    autoupdate.mark_restart_reason(system, record, autoupdate.REASON_MANUAL_STOP)
     systemctl.stop(record.service)
     ui.info(f"{service} を止めました")
     if args.disable:
@@ -159,6 +161,7 @@ def uninstall(args: argparse.Namespace, system: System, ui: UI) -> int:
     _confirm_uninstall(ui, record, args.purge)
 
     systemctl = Systemctl(system)
+    autoupdate.mark_restart_reason(system, record, autoupdate.REASON_MANUAL_STOP)
     systemctl.stop(record.service, check=False)
     systemctl.disable(record.service, check=False)
     if autoupdate.remove_auto_update(system, record.service):

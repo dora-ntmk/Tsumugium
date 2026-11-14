@@ -1,5 +1,7 @@
 """Tsumugiumの依存関係を組み立て、Discord Botを起動する。"""
 
+import asyncio
+
 import discord
 
 from clients.discord_soundboard_client import DiscordSoundboardClient
@@ -34,6 +36,7 @@ from services.ready_state_service import ReadyStateService
 from services.speaker_service import SpeakerService
 from services.speech_service import SpeechService
 from services.status_service import StatusService
+from services.reconnect_service import ReconnectService
 from services.update_watch_service import UpdateWatchService
 from services.user_reading_service import UserReadingService
 from services.voice_service import VoiceService
@@ -137,6 +140,16 @@ update_watch = UpdateWatchService(
   operator_user_id=OPERATOR_USER_ID,
 )
 client.register_closeable(update_watch)
+reconnect_service = ReconnectService(
+  client,
+  UPDATE_STATE_DIR,
+  connection_service,
+  voice_service,
+  error_notifier,
+)
+client.register_closeable(reconnect_service)
+# Discordとの接続を閉じる前に、読み上げチャンネルへ知らせてVCから抜ける
+client.register_shutdown_hook(reconnect_service.shutdown)
 message_service = MessageService(
   client,
   server_config,
@@ -158,6 +171,7 @@ connection_cog = ConnectionCog(
   tree,
   connection_service,
   status_service,
+  reconnect_service,
 )
 general_cog = GeneralCog(tree, VERSION, LAST_UPDATED, error_notifier)
 user_cog = UserCog(tree, user_config, error_notifier)
@@ -172,6 +186,7 @@ lifecycle_cog = LifecycleCog(
   error_notifier=error_notifier,
   ready_state=ready_state,
   update_watch=update_watch,
+  reconnect_service=reconnect_service,
 )
 
 setting = Setting(
@@ -199,7 +214,10 @@ sound_dict_view = SoundDictView(
   error_notifier,
 )
 
+discord.utils.setup_logging()
 try:
-  client.run(DISCORD_BOT_TOKEN)
+  asyncio.run(client.run_until_stopped(DISCORD_BOT_TOKEN))
 except VoicevoxStartupError as error:
   print(error)
+except KeyboardInterrupt:
+  pass

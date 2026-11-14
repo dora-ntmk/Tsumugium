@@ -314,3 +314,25 @@ class UpdatingMarkTest(UpgradeTestCase):
     self.fail_versions = {NEW}
     self.assertEqual(self.upgrade(["--yes"]), cli.EXIT_ERROR)
     self.assertFalse(self.exists("/opt/tsumugium/data/state/updating.json"))
+
+
+class RestartReasonTest(UpgradeTestCase):
+  REASON = "/opt/tsumugium/data/state/restart-reason.json"
+
+  def test_update_writes_reason_before_stopping(self):
+    seen = {}
+    original_run = self.runner.run
+
+    def run(args, **kwargs):
+      if list(args[:2]) == ["systemctl", "stop"]:
+        seen["reason"] = json.loads(self.read(self.REASON))["reason"]
+      return original_run(args, **kwargs)
+
+    self.runner.run = run
+    self.assertEqual(self.upgrade(["--yes"]), cli.EXIT_OK, self.output())
+    self.assertEqual(seen["reason"], "update")
+
+  def test_manual_stop_writes_reason(self):
+    self.ui = UI(assume_yes=True, stdin=io.StringIO(), stdout=io.StringIO(), stderr=io.StringIO())
+    self.assertEqual(cli.main(["stop"], system=self.system, ui=self.ui), cli.EXIT_OK)
+    self.assertEqual(json.loads(self.read(self.REASON))["reason"], "manual_stop")
