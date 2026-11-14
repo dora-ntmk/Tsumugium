@@ -229,6 +229,7 @@ sequenceDiagram
 - serviceは、今の`app/`に`installer/autoupdate.py`があるときだけ動きます（`ConditionPathExists`）。自動更新のないバージョンに`rollback`したときに、10分おきに失敗し続けないようにするためです。
 - 新しいバージョンのインストーラーは、更新・入れ直し・ロールバックの結果を`data/state/last-update.json`に書きます（手で更新したときも書きます）。起動を確かめられずに戻したバージョンは、記録の`skip_versions`に入れ、自動更新が同じバージョンを何度も入れ直さないようにします。`rollback`でも、戻した元のバージョンを入れます。
 - 更新しているあいだは`data/state/updating.json`を置き、Botはそれを見てステータスを「アップデート中」にします。Botは`last-update.json`を見張り、新しい結果が書かれたら運営者へDMで知らせます（`services/update_watch_service.py`）。
+- 自動更新がオフのときは、新しいバージョンを`data/state/available-update.json`に書くだけにし、Botが運営者へボタン付きのDMで知らせます。ボタンが押されると、Botが`data/state/update-request.json`に依頼を書き、`<サービス名>-update.path`が更新を動かします。Botが書けるのは「このバージョンに更新して」という依頼だけで、何を入れるかはrootで動くインストーラーがGitHub Releasesから取得・照合して決めます。
 - 引き継ぎに足した`auto`は、知らないバージョンが読み飛ばしても動きが変わらないので、引き継ぎの番号は上げていません。
 
 ## 変更時の注意点

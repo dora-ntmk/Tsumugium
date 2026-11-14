@@ -140,9 +140,9 @@ class InstallFlowTest(InstallTestCase):
     systemctl = [call[1:] for call in self.calls("systemctl")]
     self.assertEqual(systemctl, [
       ["daemon-reload"],
-      # 自動更新の timer と service を書き、stable の既定（オフ）に合わせて無効にする
+      # 自動更新の timer・path・service を書いて有効にする（stable の既定はオフ。オフでも知らせるために動かす）
       ["daemon-reload"],
-      ["disable", "--now", "tsumugium-update.timer"],
+      ["enable", "--now", "tsumugium-update.timer", "tsumugium-update.path"],
       ["enable", "tsumugium.service"],
       ["start", "tsumugium.service"],
     ])
@@ -189,7 +189,8 @@ class InstallFlowTest(InstallTestCase):
     )
     self.assertTrue(record.auto_update)
     self.assertIn(
-      ["systemctl", "enable", "--now", "tsumugium-beta-update.timer"], self.runner.calls
+      ["systemctl", "enable", "--now", "tsumugium-beta-update.timer", "tsumugium-beta-update.path"],
+      self.runner.calls
     )
     self.assertEqual(self.calls("usermod"), [["usermod", "-aG", "tsumugium-beta", ADMIN]])
     output = self.output()

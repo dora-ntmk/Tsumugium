@@ -4,6 +4,10 @@
 - last-update.json（更新・入れ直し・戻したときの結果）を読み、まだ知らせていなければ運営者へDMで知らせる。
   インストーラーは新しい版のBotの起動を確かめてから結果を書くので、起動したときだけでなく見張りのたびに読む。
 - 自動更新が人の手を要る状態（前回の更新が途中で止まっているなど）になったら、運営者へDMで知らせる。
+- 自動更新がオフのときにインストーラーが見つけた新しい版（available-update.json）を、
+  「今すぐ更新する」「VCが空いたら更新する」のボタン付きのDMで運営者へ知らせる。
+  ボタンが押されたら update-request.json に依頼を書き、インストーラーの path unit が更新を動かす。
+  「VCが空いたら」のときは pending-update.json に残し、BotがどのVCにもつないでいないときに依頼を書く。
 
 UPDATE_STATE_DIR が空欄（インストーラーを使わずに動かしている）なら何もしない。
 """
@@ -14,6 +18,7 @@ import asyncio
 import json
 import os
 import tempfile
+import time
 from typing import Callable
 
 import discord
@@ -26,6 +31,11 @@ UPDATING_FILE = "updating.json"
 LAST_UPDATE_FILE = "last-update.json"
 AUTO_UPDATE_FILE = "auto-update.json"
 NOTICE_FILE = "update-notice.json"
+AVAILABLE_FILE = "available-update.json"
+REQUEST_FILE = "update-request.json"
+PENDING_FILE = "pending-update.json"
+MODE_NOW = "now"
+MODE_IDLE = "idle"
 
 UPDATING_TEXT = "📥アップデート中…　操作を受け付けない場合があります"
 CHECK_INTERVAL = 5.0
@@ -76,6 +86,53 @@ def attention_embed(data: dict) -> discord.Embed:
   )
 
 
+def available_embed(data: dict) -> discord.Embed:
+  version = data.get("version")
+  text = f"新しい版 {version} があります。更新すると、Botが数分止まります。"
+  if data.get("skipped"):
+    text += f"\n\n{version} は、前に起動を確かめられなかった（または戻した）版です。"
+  return make_embed("新しい版があります", text)
+
+
+def update_view(version: str, *, idle: bool = True) -> discord.ui.View:
+  view = discord.ui.View(timeout=None)
+  view.add_item(UpdateButton(MODE_NOW, version))
+  if idle:
+    view.add_item(UpdateButton(MODE_IDLE, version))
+  return view
+
+
+class UpdateButton(
+    discord.ui.DynamicItem[discord.ui.Button],
+    template=r"tsumugium:update:(?P<mode>now|idle):(?P<version>.+)",
+):
+  """運営者へのDMにつける「更新する」ボタン。Botを再起動しても押せるように、custom_id に版を入れる。
+
+  押されたときは、client.update_watch（UpdateWatchService）に処理を任せる。
+  """
+
+  def __init__(self, mode: str, version: str):
+    now = mode == MODE_NOW
+    super().__init__(discord.ui.Button(
+      label="今すぐ更新する" if now else "VCが空いたら更新する",
+      style=discord.ButtonStyle.primary if now else discord.ButtonStyle.secondary,
+      custom_id=f"tsumugium:update:{mode}:{version}",
+    ))
+    self.mode = mode
+    self.version = version
+
+  @classmethod
+  async def from_custom_id(cls, interaction, item, match):
+    return cls(match["mode"], match["version"])
+
+  async def callback(self, interaction) -> None:
+    watch = getattr(interaction.client, "update_watch", None)
+    if watch is None or not watch.enabled:
+      await interaction.response.send_message("今は更新を受け付けられません", ephemeral=True)
+      return
+    await watch.handle_button(interaction, self.mode, self.version)
+
+
 class UpdateWatchService:
   def __init__(
       self,
@@ -85,10 +142,12 @@ class UpdateWatchService:
       error_notifier=None,
       *,
       operator_user_id: int | None = None,
+      current_version: str | None = None,
       interval: float = CHECK_INTERVAL,
       process_exists: Callable[[int], bool] = process_exists,
   ):
     self.client = client
+    self.current_version = current_version
     self.state_dir = state_dir or ""
     self.status_service = status_service
     self.error_notifier = ensure_error_notifier(error_notifier)
@@ -128,6 +187,8 @@ class UpdateWatchService:
     await self.check_updating()
     await self.notify_last_update()
     await self.check_auto_update()
+    await self.offer_available_update()
+    self.check_pending_update()
 
   # ファイル
 
@@ -141,6 +202,18 @@ class UpdateWatchService:
     except (OSError, ValueError):
       return None
     return data if isinstance(data, dict) else None
+
+  def _write(self, name: str, data: dict) -> None:
+    # 一時ファイルからの置き換えではなく、直接書く（インストーラーの path unit が、書き終わりで動くため）
+    with open(self._path(name), "w", encoding="utf-8") as file:
+      json.dump(data, file, ensure_ascii=False)
+      file.write("\n")
+
+  def _remove(self, name: str) -> None:
+    try:
+      os.remove(self._path(name))
+    except FileNotFoundError:
+      pass
 
   def _write_notice(self, **changes) -> None:
     notice = {**(self._read(NOTICE_FILE) or {}), **changes}
@@ -184,14 +257,17 @@ class UpdateWatchService:
 
   # D 運営者へのDM
 
-  async def _send_to_operator(self, embed: discord.Embed) -> bool:
+  async def _send_to_operator(self, embed: discord.Embed, *, view=None) -> bool:
     if self.operator_user_id is None:
       return False
     try:
       user = self.client.get_user(self.operator_user_id)
       if user is None:
         user = await self.client.fetch_user(self.operator_user_id)
-      await user.send(embed=embed)
+      if view is None:
+        await user.send(embed=embed)
+      else:
+        await user.send(embed=embed, view=view)
     except Exception as error:
       print(f"更新の知らせを送れませんでした（Discord DM）: {type(error).__name__}: {error}")
       return False
@@ -223,3 +299,80 @@ class UpdateWatchService:
       return
     if await self._send_to_operator(attention_embed(data)):
       self._write_notice(auto_update_attention=key)
+
+  # E 「更新する」ボタン
+
+  async def offer_available_update(self) -> None:
+    """新しい版があり、まだ知らせていなければ、ボタン付きのDMを送る。"""
+    if self.operator_user_id is None:
+      return
+    data = self._read(AVAILABLE_FILE)
+    version = (data or {}).get("version")
+    if not isinstance(version, str) or version == self.current_version:
+      return
+    if (self._read(NOTICE_FILE) or {}).get("offered_version") == version:
+      return
+    if await self._send_to_operator(available_embed(data), view=update_view(version)):
+      self._write_notice(offered_version=version)
+
+  def _request(self, version: str, mode: str, user_id: int | None) -> None:
+    self._write(REQUEST_FILE, {
+      "version": version,
+      "mode": mode,
+      "requested_by": user_id,
+      "requested_at": time.time(),
+    })
+
+  def check_pending_update(self) -> None:
+    """「VCが空いたら更新する」の依頼を、BotがどのVCにもつないでいないときに出す。"""
+    pending = self._read(PENDING_FILE)
+    if pending is None:
+      return
+    version = pending.get("version")
+    if not isinstance(version, str) or version == self.current_version:
+      self._remove(PENDING_FILE)
+      return
+    if any(voice_client.is_connected() for voice_client in self.client.voice_clients):
+      return
+    self._request(version, MODE_IDLE, pending.get("requested_by"))
+    self._remove(PENDING_FILE)
+
+  async def handle_button(self, interaction, mode: str, version: str) -> None:
+    if self.operator_user_id is None or interaction.user.id != self.operator_user_id:
+      await interaction.response.send_message(
+        "この操作は、Botを運営している人だけができます", ephemeral=True
+      )
+      return
+    if version == self.current_version:
+      await interaction.response.edit_message(
+        embed=make_embed("更新は済んでいます", f"すでに {version} です"), view=None
+      )
+      return
+    available = (self._read(AVAILABLE_FILE) or {}).get("version")
+    if available != version:
+      if isinstance(available, str):
+        text = f"新しい版 {available} があります。新しいほうのお知らせから更新してください"
+      else:
+        text = f"{version} への更新は、もう受け付けていません"
+      await interaction.response.send_message(text, ephemeral=True)
+      return
+    if mode == MODE_NOW:
+      self._remove(PENDING_FILE)
+      self._request(version, MODE_NOW, interaction.user.id)
+      await interaction.response.edit_message(
+        embed=make_embed(
+          "更新を受け付けました",
+          f"まもなく {version} への更新を始めます。数分のあいだ、Botが止まります",
+          embed_type=EmbedType.SUCCESS,
+        ),
+        view=None,
+      )
+      return
+    self._write(PENDING_FILE, {"version": version, "requested_by": interaction.user.id})
+    await interaction.response.edit_message(
+      embed=make_embed(
+        "VCが空いたら更新します",
+        f"BotがどのVCにもつないでいないときに、{version} に更新します。待たずに更新するときは、下のボタンを押してください",
+      ),
+      view=update_view(version, idle=False),
+    )

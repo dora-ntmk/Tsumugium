@@ -15,7 +15,7 @@ from installer.service import ServiceError, UNIT_MARKER
 from installer.system import CommandResult, RecordingRunner, System
 from installer.ui import UI
 from tests.support import TempDirTestCase
-from tests.test_installer_upgrade import NEW, OLD, UpgradeTestCase
+from tests.test_installer_upgrade import NEW, OLD, UpgradeTestCase, release_zip
 
 
 def make_record(**changes):
@@ -83,20 +83,30 @@ class UnitTest(TempDirTestCase):
     ):
       self.assertIn(expected, text.splitlines())
 
-  def test_apply_enables_timer(self):
+  def test_apply_enables_timer_and_path(self):
     autoupdate.apply_auto_update(self.system, make_record(auto_update=True))
-    self.assertTrue(self.unit("tsumugium-update.service").is_file())
-    self.assertTrue(self.unit("tsumugium-update.timer").is_file())
+    for name in ("tsumugium-update.service", "tsumugium-update.timer", "tsumugium-update.path"):
+      self.assertTrue(self.unit(name).is_file(), name)
     self.assertEqual(self.runner.calls, [
       ["systemctl", "daemon-reload"],
-      ["systemctl", "enable", "--now", "tsumugium-update.timer"],
+      ["systemctl", "enable", "--now", "tsumugium-update.timer", "tsumugium-update.path"],
     ])
 
-  def test_apply_disables_timer_and_skips_reload_when_unchanged(self):
+  def test_timer_stays_enabled_when_off_and_reload_is_skipped_when_unchanged(self):
+    # オフでも timer は止めない（新しい版を見つけたら知らせるため）
     autoupdate.apply_auto_update(self.system, make_record(auto_update=True))
     self.runner.calls.clear()
     autoupdate.apply_auto_update(self.system, make_record(auto_update=False))
-    self.assertEqual(self.runner.calls, [["systemctl", "disable", "--now", "tsumugium-update.timer"]])
+    self.assertEqual(self.runner.calls, [["systemctl", "enable", "--now", "tsumugium-update.timer", "tsumugium-update.path"]])
+
+  def test_path_contents(self):
+    text = autoupdate.render_update_path(make_record())
+    for expected in (
+        "PathChanged=/opt/tsumugium/data/state/update-request.json",
+        "Unit=tsumugium-update.service",
+        "WantedBy=paths.target",
+    ):
+      self.assertIn(expected, text.splitlines())
 
   def test_foreign_unit_is_not_overwritten(self):
     path = self.unit("tsumugium-update.timer")
@@ -111,10 +121,10 @@ class UnitTest(TempDirTestCase):
     autoupdate.apply_auto_update(self.system, make_record(auto_update=True))
     self.runner.calls.clear()
     self.assertTrue(autoupdate.remove_auto_update(self.system, "tsumugium"))
-    self.assertFalse(self.unit("tsumugium-update.timer").exists())
-    self.assertFalse(self.unit("tsumugium-update.service").exists())
+    for name in ("tsumugium-update.timer", "tsumugium-update.service", "tsumugium-update.path"):
+      self.assertFalse(self.unit(name).exists(), name)
     self.assertEqual(self.runner.calls, [
-      ["systemctl", "disable", "--now", "tsumugium-update.timer"],
+      ["systemctl", "disable", "--now", "tsumugium-update.timer", "tsumugium-update.path"],
       ["systemctl", "daemon-reload"],
     ])
 
@@ -133,11 +143,12 @@ class ModeTest(TempDirTestCase):
   def test_on_and_off(self):
     self.assertEqual(self.run_mode("on"), cli.EXIT_OK)
     self.assertTrue(load_record(self.system, "tsumugium").auto_update)
-    self.assertIn(["systemctl", "enable", "--now", "tsumugium-update.timer"], self.runner.calls)
+    self.assertIn(["systemctl", "enable", "--now", "tsumugium-update.timer", "tsumugium-update.path"], self.runner.calls)
     self.assertIn("有効にしました", self.ui.stdout.getvalue())
     self.assertEqual(self.run_mode("off"), cli.EXIT_OK)
     self.assertFalse(load_record(self.system, "tsumugium").auto_update)
-    self.assertEqual(self.runner.calls[-1], ["systemctl", "disable", "--now", "tsumugium-update.timer"])
+    self.assertEqual(self.runner.calls[-1], ["systemctl", "enable", "--now", "tsumugium-update.timer", "tsumugium-update.path"])
+    self.assertIn("DMで知らせます", self.ui.stdout.getvalue())
 
   def test_state_is_required(self):
     self.ui = UI(assume_yes=True, stdin=io.StringIO(), stdout=io.StringIO(), stderr=io.StringIO())
@@ -176,18 +187,34 @@ class AutoUpgradeTest(AutoUpgradeTestCase):
       (last["result"], last["from"], last["to"], last["auto"], last["started"]),
       ("updated", OLD, NEW, True, True),
     )
-    self.assertIn(["systemctl", "enable", "--now", "tsumugium-update.timer"], self.runner.calls)
+    self.assertIn(["systemctl", "enable", "--now", "tsumugium-update.timer", "tsumugium-update.path"], self.runner.calls)
 
-  def test_off(self):
+  def available(self):
+    return self.state(autoupdate.AVAILABLE_FILE)
+
+  def test_off_only_notifies(self):
     save_record(self.system, replace(self.record, auto_update=False))
     self.assertEqual(self.auto(), cli.EXIT_OK)
-    self.assert_not_upgraded(autoupdate.RESULT_OFF)
-    self.assertEqual(self.github.requests, [])
+    self.assert_not_upgraded(autoupdate.RESULT_NOTIFIED)
+    available = self.available()
+    self.assertEqual((available["version"], available["current"], available["skipped"]), (NEW, OLD, False))
+
+  def test_off_marks_skipped_version(self):
+    save_record(self.system, with_skipped(replace(self.record, auto_update=False), NEW))
+    self.auto()
+    self.assertTrue(self.available()["skipped"])
 
   def test_stable_channel_default_is_off(self):
     save_record(self.system, replace(self.record, auto_update=None))
     self.assertEqual(self.auto(), cli.EXIT_OK)
-    self.assert_not_upgraded(autoupdate.RESULT_OFF)
+    self.assert_not_upgraded(autoupdate.RESULT_NOTIFIED)
+
+  def test_latest_clears_old_notice(self):
+    save_record(self.system, replace(self.record, auto_update=False))
+    self.auto()
+    save_record(self.system, replace(self.record, auto_update=False, version=NEW))
+    self.auto()
+    self.assertFalse(self.exists("/opt/tsumugium/data/state/available-update.json"))
 
   def test_stopped_bot(self):
     self.runner.responses[("systemctl", "is-active")] = CommandResult(3)
@@ -336,3 +363,74 @@ class RestartReasonTest(UpgradeTestCase):
     self.ui = UI(assume_yes=True, stdin=io.StringIO(), stdout=io.StringIO(), stderr=io.StringIO())
     self.assertEqual(cli.main(["stop"], system=self.system, ui=self.ui), cli.EXIT_OK)
     self.assertEqual(json.loads(self.read(self.REASON))["reason"], "manual_stop")
+
+
+class RequestTest(AutoUpgradeTestCase):
+  REQUEST = "/opt/tsumugium/data/state/update-request.json"
+
+  def setUp(self):
+    super().setUp()
+    # ボタンは自動更新がオフのときに使う
+    self.record = replace(self.record, auto_update=False)
+    save_record(self.system, self.record)
+
+  def request(self, version, mode="now"):
+    self.write(self.REQUEST, json.dumps({"version": version, "mode": mode}))
+
+  def test_requested_update(self):
+    self.write("/opt/tsumugium/data/state/available-update.json", json.dumps({"version": NEW}))
+    self.request(NEW)
+    self.assertEqual(self.auto(), cli.EXIT_OK, self.output())
+    self.assertEqual(load_record(self.system, "tsumugium").version, NEW)
+    self.assertFalse(self.exists(self.REQUEST))
+    self.assertFalse(self.exists("/opt/tsumugium/data/state/available-update.json"))
+    self.assertFalse(self.handoff_data["auto"], "人が決めた更新として扱う")
+    last = self.state(autoupdate.LAST_UPDATE_FILE)
+    self.assertEqual((last["result"], last["to"], last["auto"]), ("updated", NEW, False))
+
+  def test_skipped_version_is_installed_when_requested(self):
+    save_record(self.system, with_skipped(self.record, NEW))
+    self.request(NEW)
+    self.assertEqual(self.auto(), cli.EXIT_OK, self.output())
+    record = load_record(self.system, "tsumugium")
+    self.assertEqual((record.version, record.skip_versions), (NEW, []))
+
+  def assert_rejected(self, text):
+    self.assertEqual(self.auto(), cli.EXIT_OK, self.output())
+    self.assertEqual(self.read("/opt/tsumugium/app/main.py"), "old\n")
+    self.assertEqual(self.state()["result"], autoupdate.RESULT_REJECTED)
+    self.assertIn(text, self.state()["message"])
+    self.assertFalse(self.exists(self.REQUEST))
+
+  def test_not_newer_is_rejected(self):
+    self.request(OLD)
+    self.assert_rejected("より新しくない")
+
+  def test_bad_version_is_rejected(self):
+    self.request("latest please")
+    self.assert_rejected("書き方が正しくない")
+
+  def test_unknown_release_is_rejected(self):
+    self.request("v9.9.9.99")
+    self.assert_rejected("見つけられない")
+
+  def test_beta_on_stable_channel_is_rejected(self):
+    beta = "v4.2.0.72-beta.1"
+    self.github.add_release(beta, prerelease=True, data=release_zip(beta))
+    self.request("v4.2.0.72 (beta 1)")
+    self.assert_rejected("ベータ版")
+
+  def test_busy_keeps_the_request(self):
+    self.request(NEW)
+    with InstanceLock(self.system, "tsumugium"):
+      self.assertEqual(self.auto(), cli.EXIT_OK)
+    self.assertTrue(self.exists(self.REQUEST), "次の機会に回す")
+    self.assertEqual(self.state()["result"], autoupdate.RESULT_BUSY)
+    self.assertEqual(load_record(self.system, "tsumugium").version, OLD)
+
+  def test_failed_requested_update_is_reported(self):
+    self.fail_versions = {NEW}
+    self.request(NEW)
+    self.assertEqual(self.auto(), cli.EXIT_ERROR)
+    self.assertFalse(self.exists(self.REQUEST))
+    self.assertEqual(self.state(autoupdate.LAST_UPDATE_FILE)["result"], "rolled_back")

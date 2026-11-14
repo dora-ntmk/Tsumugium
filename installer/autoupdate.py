@@ -39,6 +39,10 @@ UPDATING_FILE = "updating.json"
 # Botを止める前に置く、止める理由。Botは止まるときと次に起動したときにこれを見て、
 # VCにいた人への知らせ方と、起動したあとにつなぎ直すかを決める
 RESTART_REASON_FILE = "restart-reason.json"
+# 自動更新がオフのときに見つけた新しい版。Botはこれを見て、ボタン付きのDMで知らせる
+AVAILABLE_FILE = "available-update.json"
+# Botの「更新する」ボタンからの依頼。path unit がこれを見て、更新を動かす
+REQUEST_FILE = "update-request.json"
 REASON_UPDATE = "update"
 REASON_MANUAL_STOP = "manual_stop"
 
@@ -52,8 +56,12 @@ RESULT_SKIPPED = "skipped"
 RESULT_UPDATED = "updated"
 RESULT_FAILED = "failed"
 RESULT_ERROR = "error"
+RESULT_NOTIFIED = "notified"
+RESULT_REJECTED = "rejected"
 
 RESULT_LABELS = {
+  RESULT_NOTIFIED: "新しい版があることをDMで知らせた",
+  RESULT_REJECTED: "頼まれた更新を断った",
   RESULT_OFF: "自動更新はオフ",
   RESULT_STOPPED: "Botが止まっているので更新しなかった",
   RESULT_UNFINISHED: "前回の更新が途中で止まっているので更新しなかった",
@@ -78,6 +86,10 @@ def update_service_name(service: str) -> str:
 
 def update_timer_name(service: str) -> str:
   return f"{service}-update.timer"
+
+
+def update_path_name(service: str) -> str:
+  return f"{service}-update.path"
 
 
 def render_update_service(record: InstanceRecord) -> str:
@@ -116,25 +128,47 @@ WantedBy=timers.target
 """
 
 
+def render_update_path(record: InstanceRecord) -> str:
+  return f"""\
+{UNIT_MARKER}
+# このファイルは tsumugium-setup が作りました。直接書き換えても、次の更新で元に戻ります。
+[Unit]
+Description=Tsumugium の更新の依頼 ({record.instance})
+
+[Path]
+PathChanged={record.layout.state}/{REQUEST_FILE}
+Unit={update_service_name(record.service)}
+
+[Install]
+WantedBy=paths.target
+"""
+
+
 def apply_auto_update(system: System, record: InstanceRecord) -> None:
-  """timer と service を書き、記録のオン・オフに合わせて timer を有効・無効にする。"""
-  changed = write_managed_file(system, update_service_name(record.service), render_update_service(record))
-  changed = write_managed_file(system, update_timer_name(record.service), render_update_timer(record)) or changed
+  """timer・path・service を書き、有効にする。
+
+  自動更新がオフでも timer は止めない。オフのときは、新しい版を見つけたら知らせるだけにする。
+  """
+  changed = False
+  for name, text in (
+      (update_service_name(record.service), render_update_service(record)),
+      (update_timer_name(record.service), render_update_timer(record)),
+      (update_path_name(record.service), render_update_path(record)),
+  ):
+    changed = write_managed_file(system, name, text) or changed
   if changed:
     Systemctl(system).daemon_reload()
-  timer = update_timer_name(record.service)
-  if record.auto_update_enabled:
-    system.run(["systemctl", "enable", "--now", timer])
-  else:
-    system.run(["systemctl", "disable", "--now", timer], check=False)
+  system.run(["systemctl", "enable", "--now", update_timer_name(record.service), update_path_name(record.service)])
 
 
 def remove_auto_update(system: System, service: str) -> bool:
-  """timer と service を止めて消す。消したときは True を返す。"""
+  """timer・path・service を止めて消す。消したときは True を返す。"""
   timer = update_timer_name(service)
-  system.run(["systemctl", "disable", "--now", timer], check=False)
-  removed = remove_managed_file(system, timer)
-  removed = remove_managed_file(system, update_service_name(service)) or removed
+  path = update_path_name(service)
+  system.run(["systemctl", "disable", "--now", timer, path], check=False)
+  removed = False
+  for name in (timer, path, update_service_name(service)):
+    removed = remove_managed_file(system, name) or removed
   if removed:
     Systemctl(system).daemon_reload()
   return removed
@@ -205,6 +239,31 @@ def clear_updating(system: System, layout: Layout) -> None:
   system.path(str(layout.state / UPDATING_FILE)).unlink(missing_ok=True)
 
 
+def write_available_update(system: System, record: InstanceRecord, version: str, *, skipped: bool) -> None:
+  write_state(system, record.layout, record.user, AVAILABLE_FILE, {
+    "version": version,
+    "current": record.version,
+    "skipped": skipped,
+    "checked_at": now_text(),
+  })
+
+
+def clear_available_update(system: System, layout: Layout) -> None:
+  system.path(str(layout.state / AVAILABLE_FILE)).unlink(missing_ok=True)
+
+
+def read_update_request(system: System, layout: Layout) -> dict | None:
+  return read_state(system, layout, REQUEST_FILE)
+
+
+def clear_update_request(system: System, layout: Layout) -> None:
+  system.path(str(layout.state / REQUEST_FILE)).unlink(missing_ok=True)
+
+
+def read_check_result_code(system: System, record: InstanceRecord) -> str | None:
+  return (read_state(system, record.layout, STATE_FILE) or {}).get("result")
+
+
 def mark_restart_reason(system: System, record: InstanceRecord, reason: str) -> None:
   """Botを止める理由を残す。書けなくても止める処理は続ける（Botは再起動として扱う）。"""
   try:
@@ -227,13 +286,17 @@ def run_mode(args: argparse.Namespace, system: System, ui: UI) -> int:
   if record.auto_update:
     ui.info(f"インスタンス {instance} の自動更新を有効にしました（{record.channel} の新しい版を10分おきに確かめます）")
   else:
-    ui.info(f"インスタンス {instance} の自動更新を無効にしました。更新は sudo tsumugium-setup upgrade で行います")
+    ui.info(
+      f"インスタンス {instance} の自動更新を無効にしました。新しい版を見つけたら、"
+      "OPERATOR_USER_ID の人へ「更新する」ボタン付きのDMで知らせます"
+    )
   return EXIT_OK
 
 
 def describe(system: System, record: InstanceRecord) -> list[str]:
   """status に出す自動更新の行。"""
-  lines = [f"  自動更新    {'オン（10分おき）' if record.auto_update_enabled else 'オフ'}"]
+  enabled = record.auto_update_enabled
+  lines = [f"  自動更新    {'オン（10分おき）' if enabled else 'オフ（新しい版を見つけたらDMで知らせます）'}"]
   state = read_state(system, record.layout, STATE_FILE)
   if state and isinstance(state.get("checked_at"), str):
     label = RESULT_LABELS.get(state.get("result"), str(state.get("result")))

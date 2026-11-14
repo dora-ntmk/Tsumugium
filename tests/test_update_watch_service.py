@@ -290,3 +290,206 @@ class StatusActivityTypeTest(unittest.TestCase):
       self.assertIsInstance(activity, discord.CustomActivity)
       self.assertEqual(activity.type, discord.ActivityType.custom)
     self.assertEqual(activities[0].name, "0/0個のVCに接続中")
+
+
+from services.update_watch_service import (  # noqa: E402
+  AVAILABLE_FILE,
+  PENDING_FILE,
+  REQUEST_FILE,
+  UpdateButton,
+)
+
+
+NEW_VERSION = "v4.3.0.71 (beta 8)"
+CURRENT_VERSION = "v4.3.0.71 (beta 7)"
+
+
+class ViewUser(FakeUser):
+  def __init__(self):
+    super().__init__()
+    self.views = []
+
+  async def send(self, *, embed, view=None):
+    self.sent.append(embed)
+    self.views.append(view)
+
+
+class FakeResponse:
+  def __init__(self):
+    self.edits = []
+    self.messages = []
+
+  async def edit_message(self, *, embed, view):
+    self.edits.append((embed, view))
+
+  async def send_message(self, text, *, ephemeral):
+    self.messages.append((text, ephemeral))
+
+
+class FakeInteraction:
+  def __init__(self, user_id, client=None):
+    self.user = type("U", (), {"id": user_id})()
+    self.client = client
+    self.response = FakeResponse()
+
+
+class FakeVoiceClient:
+  def __init__(self, connected=True):
+    self.connected = connected
+
+  def is_connected(self):
+    return self.connected
+
+
+class UpdateButtonTestCase(WatchTestCase):
+  def setUp(self):
+    super().setUp()
+    self.client.user_obj = ViewUser()
+    self.watch = self.make_watch(current_version=CURRENT_VERSION)
+
+  def offer(self, **extra):
+    self.write(AVAILABLE_FILE, {"version": NEW_VERSION, "skipped": False, **extra})
+
+  def exists(self, name):
+    return os.path.exists(os.path.join(self.tmp_dir, name))
+
+  def read(self, name):
+    with open(os.path.join(self.tmp_dir, name), encoding="utf-8") as file:
+      return json.load(file)
+
+
+class OfferTest(UpdateButtonTestCase):
+  def test_offers_once_with_two_buttons(self):
+    self.offer()
+
+    async def scenario():
+      await self.watch.offer_available_update()
+      await self.watch.offer_available_update()
+      view = self.client.user_obj.views[0]
+      return [(item.item.label, item.item.custom_id) for item in view.children]
+
+    buttons = asyncio.run(scenario())
+    self.assertEqual(len(self.sent()), 1)
+    self.assertIn(f"新しい版 {NEW_VERSION} があります", self.sent()[0].description)
+    self.assertEqual(buttons, [
+      ("今すぐ更新する", f"tsumugium:update:now:{NEW_VERSION}"),
+      ("VCが空いたら更新する", f"tsumugium:update:idle:{NEW_VERSION}"),
+    ])
+
+  def test_skipped_version_is_mentioned(self):
+    self.offer(skipped=True)
+    asyncio.run(self.watch.offer_available_update())
+    self.assertIn("前に起動を確かめられなかった", self.sent()[0].description)
+
+  def test_nothing_when_no_new_version(self):
+    asyncio.run(self.watch.offer_available_update())
+    self.write(AVAILABLE_FILE, {"version": CURRENT_VERSION})
+    asyncio.run(self.watch.offer_available_update())
+    self.assertEqual(self.sent(), [])
+
+  def test_newer_version_is_offered_again(self):
+    self.offer()
+    asyncio.run(self.watch.offer_available_update())
+    self.write(AVAILABLE_FILE, {"version": "v4.3.0.71 (beta 9)"})
+    asyncio.run(self.watch.offer_available_update())
+    self.assertEqual(len(self.sent()), 2)
+
+
+class ButtonTest(UpdateButtonTestCase):
+  def press(self, mode, version=NEW_VERSION, user_id=DUMMY_USER_ID):
+    interaction = FakeInteraction(user_id)
+
+    async def scenario():
+      await self.watch.handle_button(interaction, mode, version)
+
+    asyncio.run(scenario())
+    return interaction.response
+
+  def test_now_writes_request(self):
+    self.offer()
+    response = self.press("now")
+    request = self.read(REQUEST_FILE)
+    self.assertEqual((request["version"], request["mode"], request["requested_by"]), (NEW_VERSION, "now", DUMMY_USER_ID))
+    embed, view = response.edits[0]
+    self.assertEqual(embed.title, "更新を受け付けました")
+    self.assertIsNone(view)
+
+  def test_idle_waits_until_no_voice_connection(self):
+    self.offer()
+    response = asyncio.run(self._press_idle())
+    self.assertFalse(self.exists(REQUEST_FILE))
+    self.assertEqual(self.read(PENDING_FILE)["version"], NEW_VERSION)
+    self.assertEqual(response.edits[0][0].title, "VCが空いたら更新します")
+
+    self.client.voice_clients = [FakeVoiceClient()]
+    self.watch.check_pending_update()
+    self.assertFalse(self.exists(REQUEST_FILE), "VCにつないでいるあいだは待つ")
+    self.client.voice_clients = [FakeVoiceClient(connected=False)]
+    self.watch.check_pending_update()
+    self.assertEqual(self.read(REQUEST_FILE)["mode"], "idle")
+    self.assertFalse(self.exists(PENDING_FILE))
+
+  async def _press_idle(self):
+    interaction = FakeInteraction(DUMMY_USER_ID)
+    await self.watch.handle_button(interaction, "idle", NEW_VERSION)
+    _, view = interaction.response.edits[0]
+    self.assertEqual([item.item.label for item in view.children], ["今すぐ更新する"])
+    return interaction.response
+
+  def test_now_after_idle_cancels_waiting(self):
+    self.offer()
+    asyncio.run(self._press_idle())
+    self.press("now")
+    self.assertFalse(self.exists(PENDING_FILE))
+    self.assertTrue(self.exists(REQUEST_FILE))
+
+  def test_only_operator_can_press(self):
+    self.offer()
+    response = self.press("now", user_id=DUMMY_USER_ID + 1)
+    self.assertFalse(self.exists(REQUEST_FILE))
+    self.assertIn("運営している人だけ", response.messages[0][0])
+    self.assertTrue(response.messages[0][1])
+
+  def test_already_updated(self):
+    response = self.press("now", version=CURRENT_VERSION)
+    self.assertEqual(response.edits[0][0].description, f"すでに {CURRENT_VERSION} です")
+    self.assertFalse(self.exists(REQUEST_FILE))
+
+  def test_old_notice_points_to_newer_version(self):
+    self.write(AVAILABLE_FILE, {"version": "v4.3.0.71 (beta 9)"})
+    response = self.press("now")
+    self.assertIn("新しい版 v4.3.0.71 (beta 9) があります", response.messages[0][0])
+    self.assertFalse(self.exists(REQUEST_FILE))
+
+  def test_pending_for_installed_version_is_dropped(self):
+    self.write(PENDING_FILE, {"version": CURRENT_VERSION})
+    self.watch.check_pending_update()
+    self.assertFalse(self.exists(PENDING_FILE))
+    self.assertFalse(self.exists(REQUEST_FILE))
+
+
+class DynamicItemTest(unittest.TestCase):
+  def test_custom_id_round_trip(self):
+    async def scenario():
+      match = UpdateButton.__discord_ui_compiled_template__.fullmatch(f"tsumugium:update:idle:{NEW_VERSION}")
+      return await UpdateButton.from_custom_id(None, None, match)
+
+    button = asyncio.run(scenario())
+    self.assertEqual((button.mode, button.version), ("idle", NEW_VERSION))
+    self.assertLessEqual(len(button.item.custom_id), 100)
+
+  def test_callback_delegates_to_service(self):
+    calls = []
+
+    class Watch:
+      enabled = True
+
+      async def handle_button(self, interaction, mode, version):
+        calls.append((mode, version))
+
+    async def scenario():
+      client = type("C", (), {"update_watch": Watch()})()
+      await UpdateButton("now", NEW_VERSION).callback(FakeInteraction(DUMMY_USER_ID, client))
+
+    asyncio.run(scenario())
+    self.assertEqual(calls, [("now", NEW_VERSION)])

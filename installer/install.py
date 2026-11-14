@@ -343,7 +343,7 @@ class Installer:
     write_unit(self.system, record)
     self.ui.info(f"systemd unit を作成しました: {unit_name(record.service)}")
     apply_auto_update(self.system, record)
-    self.ui.info(f"自動更新の timer を作成しました（{'有効' if record.auto_update else '無効'}）")
+    self.ui.info(f"自動更新の timer を作成しました（自動更新は{'オン' if record.auto_update else 'オフ'}）")
     save_record(self.system, record)
     self.ui.info(f"記録を作成しました: /etc/tsumugium/{record.instance}.json")
     install_entry(self.system)
@@ -385,7 +385,7 @@ class Installer:
     if record.auto_update_enabled:
       self.ui.info("  自動更新:     オン（10分おきに新しい版を確かめます。止めるときは sudo tsumugium-setup auto-update off）")
     else:
-      self.ui.info("  自動更新:     オフ（使うときは sudo tsumugium-setup auto-update on）")
+      self.ui.info("  自動更新:     オフ（新しい版はDMで知らせます。自動にするときは sudo tsumugium-setup auto-update on）")
 
   def run(self) -> int:
     build = read_build_info(self.source)
