@@ -133,7 +133,7 @@ Ctrl+Cで表示を終えます。
 | `/opt/tsumugium/data/db/` | DB | `tsumugium`、750 |
 | `/opt/tsumugium/data/backup/` | DBのバックアップ | `tsumugium`、750 |
 | `/opt/tsumugium/data/tmp/` | 読み上げ音声の一時ファイル | `tsumugium`、750 |
-| `/opt/tsumugium/data/state/` | Botとインストーラーがやり取りするファイル（`ready.json`、更新中の印の`updating.json`、更新の結果の`last-update.json`、自動更新が確かめた結果の`auto-update.json`など） | `tsumugium`、750 |
+| `/opt/tsumugium/data/state/` | Botとインストーラーがやり取りするファイル（`ready.json`、更新中の印の`updating.json`、更新の結果の`last-update.json`、自動更新が確かめた結果の`auto-update.json`、止める理由の`restart-reason.json`、つないでいたVCの`voice-sessions.json`など） | `tsumugium`、750 |
 | `/etc/tsumugium/tsumugium.json` | インストールで選んだ値の記録 | `root`、644 |
 | `/etc/systemd/system/tsumugium.service` | systemdのunit | `root`、644 |
 | `/etc/systemd/system/tsumugium-update.timer`・`tsumugium-update.service` | 自動更新のtimerとservice | `root`、644 |
@@ -166,6 +166,11 @@ Botを止めている間に`upgrade`すると、更新のあとで起動して�
 定時のバックアップは既定で毎日12:00に取ります。時刻は`.env`の`BACKUP_TIMES`で変えられます。
 
 `rollback`では、戻すバージョンから更新したときのバックアップを使って、DBも戻すかを聞きます。既定は「戻す」です。新しいバージョンがDBの形を変えていると、古いバージョンがそのDBを読めないことがあるためです。
+
+## 止めるときと再起動のあと
+
+- 更新・`rollback`・`systemctl restart`・マシンの再起動でBotが止まるときは、読み上げチャンネルに「再起動します」と知らせてからVCを抜けます。起動したあと、止まっていた時間が3分以内なら、人がいるVCに自動でつなぎ直します。
+- `sudo tsumugium-setup stop`で止めたときは、知らせずにVCを抜け、次に起動してもつなぎ直しません。
 
 ## 更新の知らせ
 

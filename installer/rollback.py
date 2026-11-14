@@ -13,7 +13,7 @@ import shutil
 from dataclasses import replace
 from pathlib import Path
 
-from installer.autoupdate import apply_auto_update, write_last_update
+from installer.autoupdate import REASON_UPDATE, apply_auto_update, mark_restart_reason, write_last_update
 from installer.entry import install_entry
 from installer.instance import (
   InstanceError,
@@ -87,6 +87,8 @@ def run_rollback(args: argparse.Namespace, system: System, ui: UI, *, wait=None)
     systemctl = Systemctl(system)
     was_active = systemctl.is_active(record.service)
     ui.step("ロールバック")
+    if was_active:
+      mark_restart_reason(system, record, REASON_UPDATE)
     systemctl.stop(record.service, check=False)
     # app/ と app.prev/ を入れ替える。新しい版も消さないので、upgrade でまた進められる
     swap = system.path(str(layout.prefix / "app.swap"))

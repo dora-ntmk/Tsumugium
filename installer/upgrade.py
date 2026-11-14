@@ -35,7 +35,9 @@ from installer.autoupdate import (
   RESULT_UNFINISHED,
   RESULT_UPDATED,
   apply_auto_update,
+  REASON_UPDATE,
   clear_updating,
+  mark_restart_reason,
   mark_updating,
   write_check_result,
   write_last_update,
@@ -455,6 +457,7 @@ class Continuation:
       "started_at": datetime.datetime.now().isoformat(timespec="seconds"),
     }))
     if state.was_active:
+      mark_restart_reason(self.system, record, REASON_UPDATE)
       self.systemctl.stop(record.service)
       state.stopped = True
       ui.info(f"{unit_name(record.service)} を止めました")

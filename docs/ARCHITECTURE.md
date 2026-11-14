@@ -144,6 +144,8 @@ stateDiagram-v2
 
 自発的な切断は`ConnectionService.voluntary_disconnects`で識別し、一時読み上げチャンネルを破棄します。
 
+Botを止めるときは、`ReconnectService`がつないでいたVCを`data/state/voice-sessions.json`に書き残し、読み上げチャンネルへ知らせてからVCを抜けます。次に起動したとき、手で止めたのでなく3分以内なら、人がいるVCにつなぎ直します。止める理由は、インストーラーが`data/state/restart-reason.json`で渡します。
+
 ## Discordステータス
 
 `StatusService`は`STATUS_MESSAGE`を起動時に検証し、`{voice_connections}`、`{voice_users}`、`{guilds}`を現在のDiscordキャッシュから展開します。起動時は即時反映し、VC状態または参加サーバーが変化した場合は連続イベントを1秒間まとめて更新します。展開結果が変わらない場合はDiscord APIを呼びません。

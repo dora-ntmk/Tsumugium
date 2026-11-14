@@ -4,11 +4,12 @@ import discord
 
 
 class ConnectionCog:
-  def __init__(self, client, tree, connection_service, status_service):
+  def __init__(self, client, tree, connection_service, status_service, reconnect_service=None):
     self.client = client
     self.tree = tree
     self.connection_service = connection_service
     self.status_service = status_service
+    self.reconnect_service = reconnect_service
     self._register()
 
   def _register(self) -> None:
@@ -47,3 +48,6 @@ class ConnectionCog:
         )
       finally:
         self.status_service.schedule_update()
+        # Bot自身がVCにつないだ・抜けたら、つなぎ直し用に書き残す
+        if self.reconnect_service is not None and member.id == getattr(self.client.user, "id", None):
+          self.reconnect_service.save()

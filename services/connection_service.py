@@ -86,6 +86,10 @@ class ConnectionService:
           await asyncio.sleep(2 ** attempt)
     return None
 
+  async def connect_voice(self, voice_channel):
+    """VCにつなぐ（再起動のあとのつなぎ直しで使う）。"""
+    return await self._connect_voice(voice_channel, retry=True)
+
   def get_notify_channel(self, guild, voice_channel=None):
     session = self.voice_service.get_session(guild.id)
     text_target = session.temporary_text_channel_id
