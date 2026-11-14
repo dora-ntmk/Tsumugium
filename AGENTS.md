@@ -162,9 +162,9 @@ CREATE TABLE user_dictionary (
 
 `_apply_regex` / `_apply_dict` は `(text, protected: bool)` のセグメントリストで動作。`protected=True` のセグメントは以降の処理でスキップされる。
 
-`swap.preprocess_text(text, dictionary, emoji_ja, guild, attachments, mentions, author_id=None, user_readings=None)` は `PreprocessResult(text, replaced_ranges, sound_id, spaced_out)` を返す。`dictionary` は`DictionaryRepository`が生成した`DictionarySnapshot`、`user_readings`は`SpeechService`が`UserReadingService`で解決したユーザーIDと読み方のマッピング。`swap.py`はSQLite接続を受け取らない。
+`swap.preprocess_text(text, dictionary, emoji_ja, guild, attachments, mentions, author_id=None, user_readings=None, use_sounds=True)` は `PreprocessResult(text, replaced_ranges, sound_id, spaced_out)` を返す。`dictionary` は`DictionaryRepository`が生成した`DictionarySnapshot`、`user_readings`は`SpeechService`が`UserReadingService`で解決したユーザーIDと読み方のマッピング。`use_sounds=False`のときは手順1a・1bを飛ばす（`!t`で音声ファイルを作るとき）。`swap.py`はSQLite接続を受け取らない。
 
-`DictManager.preprocess_text(text, guild_id, guild, attachments, mentions, author_id=None, user_readings=None)` は辞書サービスの窓口であり、内部でRepositoryからスナップショットを取得して`swap.preprocess_text`を呼ぶ。最大文字数チェック・トリミングは前処理後に`SpeechService`が行う。
+`DictManager.preprocess_text(text, guild_id, guild, attachments, mentions, author_id=None, user_readings=None, use_sounds=True)` は辞書サービスの窓口であり、内部でRepositoryからスナップショットを取得して`swap.preprocess_text`を呼ぶ。最大文字数チェック・トリミングは前処理後に`SpeechService`が行う。
 
 ---
 
@@ -210,6 +210,8 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/clear` | `instant: bool` | 全員 |
 | `/user-reading` | `reading: str (1〜50文字)` | 全員（DM可・ephemeral応答） |
 | `/user-reading-reset` | — | 全員（DM可・ephemeral応答） |
+| `/tsumugi-tts` | `text: str` | 全員（BotがVCに接続しているときだけ） |
+| `/t` | `text: str` | 全員（`/tsumugi-tts`の短縮） |
 | `/skip` | — | 全員 |
 | `/s` | — | 全員（`/skip`の短縮） |
 | `/c` | — | 全員（`/clear instant:True`の短縮） |
@@ -241,6 +243,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - `s`: 現在再生中をスキップ
 - `c`: 読み上げキューをすべてクリア（`/clear instant:True` と同じ）。クリアのたびに`GuildSession.clear_generation`を上げ、クリアの時点で音声を生成中だったメッセージも読み上げない
 - `!s `・`!skip ` プレフィックスまたは silent フラグ: 読み上げをスキップ
+- `!t `・`!tts ` プレフィックス: 続く文章を読み上げ、その音声をWAVファイルにしてメッセージへ返信する（`/tsumugi-tts`も同じ）。処理は`SpeechService.speak_and_export()`にまとめ、ふつうの読み上げと同じ設定・前処理・最大文字数を使うが、音声辞書には反応させない（`use_sounds=False`）。WAVは再生が終わると消えるので、キューへ入れる前に中身を読む。ファイル名は`YYYYMMDD-HHMMSS-<文章の先頭40文字>.wav`（日本時間）。クリアされたときは読み上げずにファイルだけ送り、メッセージが削除されたときはどちらもしない
 - メッセージの削除: 読み上げ中なら止め、読み上げ待ちなら再生しない（`VoiceService.cancel_message()`）
 
 ---

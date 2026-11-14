@@ -248,13 +248,16 @@ def preprocess_text(
     mentions=None,
     author_id=None,
     user_readings=None,
+    use_sounds=True,
 ) -> PreprocessResult:
   text, spaced_out = _normalize_spaced_text(text, emoji_ja)
   segments = [(text, False)]
   author_str = str(author_id) if author_id is not None else None
+  # 音声ファイルを作るとき（!t など）は、音声辞書に一致してもSoundboardにしない
+  sounds = dictionary.sounds if use_sounds else ()
 
   # 1a. 全文一致 (full_match=1)
-  for entry in dictionary.sounds:
+  for entry in sounds:
     user_matches = (
       author_str is None
       or entry.trigger_user_id is None
@@ -264,7 +267,7 @@ def preprocess_text(
       return PreprocessResult(text, sound_id=entry.sound_id, spaced_out=spaced_out)
 
   # 1b. 部分一致 (full_match=0)
-  for entry in dictionary.sounds:
+  for entry in sounds:
     user_matches = (
       author_str is None
       or entry.trigger_user_id is None

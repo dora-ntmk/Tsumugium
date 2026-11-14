@@ -220,6 +220,7 @@ class DictManager:
       mentions=None,
       author_id: Optional[int] = None,
       user_readings=None,
+      use_sounds: bool = True,
   ) -> PreprocessResult:
     dictionary = self.repository.get_preprocessing_snapshot(guild_id)
     return swap.preprocess_text(
@@ -231,6 +232,7 @@ class DictManager:
       mentions,
       author_id=author_id,
       user_readings=user_readings,
+      use_sounds=use_sounds,
     )
 
 
