@@ -14,6 +14,7 @@ from cogs.lifecycle_cog import LifecycleCog
 from cogs.playback_cog import PlaybackCog
 from cogs.user_cog import UserCog
 from config import (
+  DEFAULT_SPEAKER,
   DICT_DB,
   DISCORD_BOT_TOKEN,
   LAST_UPDATED,
@@ -61,6 +62,10 @@ voicevox_client = VoicevoxClient(
 speaker_service = SpeakerService(SPEAKERS_JSON, error_notifier)
 
 
+# 事前読み込みのタスク。参照を持たないとガベージコレクションで消えることがある
+speaker_warm_up_task = None
+
+
 class VoicevoxStartupError(RuntimeError):
   """VOICEVOX疎通失敗によってBotの起動を中止する例外。"""
 
@@ -73,6 +78,12 @@ async def check_voicevox_on_startup() -> None:
       f"VOICEVOXへ接続できないため起動を中止します: {VOICEVOX_URL}"
     ) from None
   print(f"VOICEVOX接続確認完了: {engine_version}")
+  # 既定の話者の声のモデルを裏で読み込み、起動直後の最初の読み上げが遅れないようにする
+  global speaker_warm_up_task
+  speaker_warm_up_task = error_notifier.create_task(
+    voicevox_client.warm_up_speaker(DEFAULT_SPEAKER),
+    "VOICEVOX speaker warm-up",
+  )
   if await speaker_service.refresh(voicevox_client):
     print(f"VOICEVOX話者一覧を取得しました: {len(speaker_service.speakers)}件")
   else:
