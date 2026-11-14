@@ -49,7 +49,7 @@ MIGRATION_NOTE = "# [移行ツール] {reason}。元の行を無効にして残�
 _ASSIGN_RE = re.compile(r"^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$")
 _TOKEN_RE = re.compile(r"^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$")
 _VERSION_RE = re.compile(r'^VERSION\s*=\s*"([^"]+)"', re.MULTILINE)
-_MAJOR_RE = re.compile(r"^v(\d+)\.")
+_MAJOR_RE = re.compile(r"^v?(\d+)\.")  # v4.0.0.68までは先頭に v が付かない
 
 
 class MigrationError(RuntimeError):
