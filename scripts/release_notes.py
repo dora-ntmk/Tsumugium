@@ -26,8 +26,8 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 
-# vX.X.X.XX と、ベータの vX.X.X.XX-beta.X
-TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)\.(\d+)(?:-beta\.([1-9]\d*))?$")
+# vX.X.X.XX と、ベータの vX.X.X.XX-beta.X。ベータ番号は3桁のゼロ埋め（-beta.00X）へ移行する途中なので、どちらも受け付ける
+TAG_RE = re.compile(r"^v(\d+)\.(\d+)\.(\d+)\.(\d+)(?:-beta\.0*([1-9]\d*))?$")
 
 _spec = importlib.util.spec_from_file_location("build_release", ROOT / "scripts" / "build_release.py")
 _build_release = importlib.util.module_from_spec(_spec)

@@ -43,6 +43,20 @@ class PreviousTagTest(TempDirTestCase):
       "v4.2.0.70-beta.1",
     )
 
+  def test_zero_padded_beta_tags(self):
+    # タグ名のベータ番号を3桁のゼロ埋めへ移す途中なので、混ざっていても番号の大小で比べる
+    tags = ["v4.2.0.70", "v4.3.0.71-beta.9", "v4.3.0.71-beta.10", "v4.3.0.71-beta.011"]
+    self.assertEqual(
+      release_notes.previous_tag(tags, "v4.3.0.71-beta.012", stable_only=False),
+      "v4.3.0.71-beta.011",
+    )
+    self.assertEqual(
+      release_notes.previous_tag(tags, "v4.3.0.71-beta.011", stable_only=False),
+      "v4.3.0.71-beta.10",
+    )
+    self.assertFalse(release_notes.is_stable("v4.3.0.71-beta.011"))
+    self.assertIsNone(release_notes.tag_key("v4.3.0.71-beta.000"))
+
   def test_no_previous_tag(self):
     self.assertIsNone(release_notes.previous_tag(self.TAGS, "v4.1.0.69", stable_only=True))
 

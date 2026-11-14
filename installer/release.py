@@ -26,15 +26,20 @@ HTTP_TIMEOUT = 30.0
 # 配布用zipの大きさの上限（これより大きければ、取得の途中で止める）
 MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024
 
-# v4.2.0.70、v4.2.0.70 (beta 9)、v4.2.0.70-beta.9 のどれも受け付ける
+# v4.2.0.70、v4.2.0.70 (beta 9)、v4.2.0.70-beta.9、v4.2.0.70-beta.009 のどれも受け付ける
+# タグ名のベータ番号は、ゼロ埋めした3桁（-beta.009）へ移行する途中なので、ゼロ埋めの有無を問わない
 _VERSION_RE = re.compile(
-  r"^v(\d+)\.(\d+)\.(\d+)\.(\d+)(?:(?: \(beta ([1-9]\d*)\))|(?:-beta\.([1-9]\d*)))?$"
+  r"^v(\d+)\.(\d+)\.(\d+)\.(\d+)(?:(?: \(beta ([1-9]\d*)\))|(?:-beta\.0*([1-9]\d*)))?$"
 )
 _SHA256_RE = re.compile(r"^([0-9a-f]{64})\s+\*?(\S+)\s*$")
 
 
 class ReleaseError(RuntimeError):
   """版の選択・取得・照合・展開ができないことを表す。"""
+
+
+class NotFoundError(ReleaseError):
+  """GitHubが404を返したことを表す。"""
 
 
 # バージョン
@@ -69,6 +74,15 @@ class Version:
   def tag(self) -> str:
     base = "v" + ".".join(str(part) for part in self.numbers)
     return f"{base}-beta.{self.beta}" if self.is_beta else base
+
+  @property
+  def tags(self) -> tuple[str, ...]:
+    """GitHubでこの版に付きうるタグ名。ベータは、ゼロ埋めしないものと3桁にゼロ埋めしたもの。"""
+    if not self.is_beta:
+      return (self.tag,)
+    base = "v" + ".".join(str(part) for part in self.numbers)
+    padded = f"{base}-beta.{self.beta:03d}"
+    return (self.tag,) if padded == self.tag else (self.tag, padded)
 
   def __str__(self) -> str:
     base = "v" + ".".join(str(part) for part in self.numbers)
@@ -115,7 +129,7 @@ class GitHubClient:
           "しばらく待ってから、もう一度実行してください"
         ) from None
       if error.code == 404:
-        raise ReleaseError(f"見つかりません（404）: {url}") from None
+        raise NotFoundError(f"見つかりません（404）: {url}") from None
       raise ReleaseError(f"{url} が {error.code} を返しました") from None
     except (urllib.error.URLError, OSError) as error:
       raise ReleaseError(f"{url} に接続できません: {getattr(error, 'reason', error)}") from None
@@ -142,7 +156,7 @@ class GitHubClient:
       for asset in data.get("assets") or []
       if isinstance(asset, dict)
     }
-    name = zip_name(version.tag)
+    name = zip_name(tag)
     if not assets.get(name) or not assets.get(name + ".sha256"):
       return None
     return Release(version, tag, bool(data.get("prerelease")), assets[name], assets[name + ".sha256"])
@@ -154,7 +168,15 @@ class GitHubClient:
     return [release for release in map(self._to_release, data) if release is not None]
 
   def release(self, repo: str, version: Version) -> Release:
-    data = self._get_json(f"/repos/{repo}/releases/tags/{urllib.parse.quote(version.tag)}")
+    data = None
+    for index, tag in enumerate(version.tags):
+      try:
+        data = self._get_json(f"/repos/{repo}/releases/tags/{urllib.parse.quote(tag)}")
+        break
+      except NotFoundError:
+        # 見つからなければ、もう一方の書き方のタグを探す
+        if index == len(version.tags) - 1:
+          raise
     release = self._to_release(data)
     if release is None:
       raise ReleaseError(f"{version.tag} には配布用のzipと .sha256 がありません")
@@ -331,7 +353,7 @@ def fetch_release(
 
   取得したファイルは入れる場所の中に置き（app.new/ と同じディスクにするため）、展開後に消す。
   """
-  name = zip_name(release.version.tag)
+  name = zip_name(release.tag)
   work = system.path(str(layout.prefix / ".download"))
   if work.exists():
     shutil.rmtree(work)

@@ -127,6 +127,19 @@ class VersionTest(unittest.TestCase):
     self.assertEqual(str(Version.parse("v4.2.0.70-beta.9")), "v4.2.0.70 (beta 9)")
     self.assertEqual(Version.parse("v4.2.0.70").tag, "v4.2.0.70")
 
+  def test_zero_padded_tag_is_the_same(self):
+    # タグ名のベータ番号を3桁のゼロ埋めへ移す途中なので、どちらの書き方も同じ版として読む
+    self.assertEqual(Version.parse("v4.3.0.71-beta.011"), Version.parse("v4.3.0.71 (beta 11)"))
+    self.assertEqual(Version.parse("v4.3.0.71-beta.011"), Version.parse("v4.3.0.71-beta.11"))
+    self.assertEqual(str(Version.parse("v4.3.0.71-beta.011")), "v4.3.0.71 (beta 11)")
+    self.assertLess(Version.parse("v4.3.0.71-beta.10"), Version.parse("v4.3.0.71-beta.011"))
+    self.assertLess(Version.parse("v4.3.0.71-beta.999"), Version.parse("v4.3.0.71"))
+
+  def test_tags(self):
+    self.assertEqual(Version.parse("v4.3.0.71").tags, ("v4.3.0.71",))
+    self.assertEqual(Version.parse("v4.3.0.71 (beta 11)").tags, ("v4.3.0.71-beta.11", "v4.3.0.71-beta.011"))
+    self.assertEqual(Version.parse("v4.3.0.71 (beta 123)").tags, ("v4.3.0.71-beta.123",))
+
   def test_ordering(self):
     ordered = [
       "v4.1.0.69",
@@ -141,7 +154,10 @@ class VersionTest(unittest.TestCase):
     self.assertEqual(sorted(reversed(versions)), versions)
 
   def test_invalid(self):
-    for text in ("4.2.0.70", "v4.2.0", "v4.2.0.70 (beta 0)", "v4.2.0.70-beta", "latest"):
+    for text in (
+      "4.2.0.70", "v4.2.0", "v4.2.0.70 (beta 0)", "v4.2.0.70 (beta 011)",
+      "v4.2.0.70-beta", "v4.2.0.70-beta.0", "v4.2.0.70-beta.000", "latest",
+    ):
       with self.subTest(text=text):
         with self.assertRaises(ReleaseError):
           Version.parse(text)
@@ -183,6 +199,27 @@ class SelectReleaseTest(unittest.TestCase):
       self.assertEqual(release.tag, "v4.2.0.70-beta.8")
       with self.assertRaisesRegex(ReleaseError, "404"):
         select_release(github.client(), REPO, "stable", requested="v4.2.0.99")
+
+  def test_zero_padded_tags(self):
+    with FakeGitHub() as github:
+      github.add_release("v4.3.0.71-beta.9", prerelease=True)
+      github.add_release("v4.3.0.71-beta.10", prerelease=True)
+      github.add_release("v4.3.0.71-beta.011", prerelease=True)
+      client = github.client()
+      latest = select_release(client, REPO, "beta")
+      self.assertEqual(latest.tag, "v4.3.0.71-beta.011")
+      self.assertTrue(latest.zip_url.endswith("/tsumugium-v4.3.0.71-beta.011.zip"))
+      # 版を指定したときは、ゼロ埋めしないタグが見つからなければ、ゼロ埋めしたタグを探す
+      self.assertEqual(
+        select_release(client, REPO, "beta", requested="v4.3.0.71 (beta 11)").tag,
+        "v4.3.0.71-beta.011",
+      )
+      self.assertEqual(
+        select_release(client, REPO, "beta", requested="v4.3.0.71-beta.010").tag,
+        "v4.3.0.71-beta.10",
+      )
+      with self.assertRaisesRegex(ReleaseError, "404"):
+        select_release(client, REPO, "beta", requested="v4.3.0.71 (beta 12)")
 
   def test_no_release(self):
     with FakeGitHub() as github:
