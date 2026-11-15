@@ -239,7 +239,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/setting spaced-speed` | `speed: int (50〜200)` | manage_guild |
 | `/setting spaced-speed-reset` | — | manage_guild |
 | `/setting max-char` | `chars: int (30〜500、0で既定の100へ戻す)` | manage_guild |
-| `/setting auto-join` | `enabled: bool`（有効にするとき`VoiceTarget`が未設定なら、実行者が入っているVCを記録する。VCに入っていなければ断る） | manage_guild |
+| `/setting auto-join` | `enabled: bool`, `channel: TextChannel`（有効にするとき`VoiceTarget`が未設定なら、実行者が入っているVCを記録する。VCに入っていなければ断る。`channel`を指定したらそのチャンネルを`TextTarget`にする。省略したときは、`TextTarget`が未設定なら実行したチャンネルを記録し、設定済みなら変えない。`TextTarget`を記録したら一時的な読み上げ先を消す） | manage_guild |
 | `/setting access-notice` | `enabled: bool` | manage_guild |
 
 メッセージトリガー:
