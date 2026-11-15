@@ -86,6 +86,10 @@ class ConnectionService:
           await asyncio.sleep(2 ** attempt)
     return None
 
+  @staticmethod
+  def _has_humans(channel) -> bool:
+    return any(not m.bot for m in getattr(channel, "members", []))
+
   async def connect_voice(self, voice_channel):
     """VCにつなぐ（再起動のあとのつなぎ直しで使う）。"""
     return await self._connect_voice(voice_channel, retry=True)
@@ -240,6 +244,7 @@ class ConnectionService:
 
     if member == guild.me:
       if before.channel is None and after.channel is not None:
+        session.auto_join_suppressed_channel_id = None
         saved = session.pending_text_channel_id
         session.pending_text_channel_id = None
         if saved is not None:
@@ -248,6 +253,10 @@ class ConnectionService:
         self.voice_service.reset_speaking_soon(guild)
       elif before.channel is not None and after.channel is None:
         self._voice_state_stages[guild.id] = "bot_disconnect_cleanup"
+        # 人が残っているVCから抜けた（/leave・メンション・Discord上での切断など）なら、
+        # そのVCから人がいなくなるまで、誰かが来てもAutoJoinでつなぎ直さない
+        if self._has_humans(before.channel):
+          session.auto_join_suppressed_channel_id = before.channel.id
         if guild.id in self.voluntary_disconnects:
           self.voluntary_disconnects.discard(guild.id)
           session.temporary_text_channel_id = None
@@ -262,6 +271,12 @@ class ConnectionService:
 
     user_joined = before.channel is None and after.channel is not None
     user_left = before.channel is not None and after.channel != before.channel
+    if (
+        user_left
+        and session.auto_join_suppressed_channel_id == before.channel.id
+        and not self._has_humans(before.channel)
+    ):
+      session.auto_join_suppressed_channel_id = None
     if user_left and guild.voice_client is not None:
       bot_channel = guild.voice_client.channel
       if before.channel == bot_channel:
@@ -302,7 +317,9 @@ class ConnectionService:
     auto_join = self.server_config.get(guild.id, "AutoJoin")
     if (
         auto_join
+        and not member.bot
         and guild.voice_client is None
+        and session.auto_join_suppressed_channel_id != voice_target
         and voice_target is not None
         and after.channel.id == voice_target
         and human_count == 1
@@ -345,6 +362,7 @@ class ConnectionService:
             self.server_config.get(guild.id, "AutoJoin")
             and configured_target == target_channel.id
             and bool(humans)
+            and session.auto_join_suppressed_channel_id != target_channel.id
             and (
               guild.voice_client is None
               or not guild.voice_client.is_connected()

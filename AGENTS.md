@@ -195,6 +195,10 @@ temp_text_targets（一時設定）→ TextTarget（永続設定）の順で参�
 
 `GuildSession.temporary_text_channel_id` は `/join` 実行時にコマンドチャンネルへ設定する。`/setting text-target`を実行すると一時設定を消し、設定したチャンネルをすぐに読み上げ対象にする。VCのテキストチャットは一時設定や`TextTarget`に関係なく常に読む。`ConnectionService`はBotが強制切断された場合に`pending_text_channel_id`へ退避し、再接続時に復元する。自発的な切断は`voluntary_disconnects`で識別し、一時設定を破棄する。
 
+**AutoJoinの抑止:**
+
+AutoJoinは、`VoiceTarget`のVCへ人間ユーザーが入り、そのVCの人間が1人になったときだけ動く。Botが入ってきてもつながない。人が残っているVCからBotが抜けたとき（`/leave`・メンション・Discord上での切断など、理由を問わない）は、そのVCを`GuildSession.auto_join_suppressed_channel_id`に記録し、そのVCから人間がいなくなるか、Botがどこかへつなぐまで、誰が来てもAutoJoinしない。
+
 **Botメッセージの扱い（2026-06-27 追加）:**  
 Bot からのメッセージは通常 TTS をスキップするが、sounddict に一致する場合のみサウンドボードを再生する。チャンネル判定は人間ユーザーと同じロジック（`TextTarget` / VC テキストチャット）を適用。`SpeechService.add_message(sounddict_only=True)` で呼び出される。
 
