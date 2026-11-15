@@ -114,17 +114,18 @@ class ClearWhileGeneratingTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase
 
 
 class FakeSettingConfig:
-  def __init__(self, voice_target=None):
-    self.values = {"VoiceTarget": voice_target}
+  def __init__(self, voice_target=None, text_target=None):
+    self.values = {"VoiceTarget": voice_target, "TextTarget": text_target}
 
   def get(self, guild_id, key):
     return self.values[key]
 
 
-def make_setting(voice_service=None, voice_target=None):
+def make_setting(voice_service=None, voice_target=None, text_target=None):
   with mock.patch.object(Setting, "_register", lambda self: None):
     return Setting(
-      client=None, tree=None, server_config=FakeSettingConfig(voice_target),
+      client=None, tree=None,
+      server_config=FakeSettingConfig(voice_target, text_target),
       error_notifier=RecordingNotifier(), speaker_service=mock.MagicMock(),
       voice_service=voice_service,
     )
@@ -171,6 +172,38 @@ class AutoJoinTargetTest(unittest.TestCase):
     user = SimpleNamespace(voice=None)
     setting = make_setting(voice_target=DUMMY_VOICE_CHANNEL_ID)
     self.assertEqual(setting.resolve_auto_join_target(self.guild, user), (None, None))
+
+
+def make_text_channel(channel_id=DUMMY_TEXT_CHANNEL_ID, view=True, send=True):
+  perms = SimpleNamespace(view_channel=view, send_messages=send)
+  return SimpleNamespace(id=channel_id, mention="#text", permissions_for=lambda _: perms)
+
+
+class AutoJoinTextTargetTest(unittest.TestCase):
+  def setUp(self):
+    self.guild = SimpleNamespace(id=DUMMY_GUILD_ID, me=object())
+
+  def test_command_channel_is_recorded_when_unset(self):
+    command_channel = make_text_channel()
+    result = make_setting().resolve_auto_join_text_target(self.guild, command_channel)
+    self.assertEqual(result, (command_channel, None))
+
+  def test_existing_text_target_is_kept_without_argument(self):
+    setting = make_setting(text_target=DUMMY_TEXT_CHANNEL_ID)
+    result = setting.resolve_auto_join_text_target(self.guild, make_text_channel())
+    self.assertEqual(result, (None, None))
+
+  def test_argument_replaces_existing_text_target(self):
+    setting = make_setting(text_target=DUMMY_TEXT_CHANNEL_ID)
+    chosen = make_text_channel(channel_id=DUMMY_TEXT_CHANNEL_ID + 1)
+    result = setting.resolve_auto_join_text_target(self.guild, make_text_channel(), chosen)
+    self.assertEqual(result, (chosen, None))
+
+  def test_rejected_without_permission(self):
+    chosen = make_text_channel(send=False)
+    channel, problem = make_setting().resolve_auto_join_text_target(self.guild, None, chosen)
+    self.assertIsNone(channel)
+    self.assertIn("権限", problem)
 
 
 class SpeakingResetTest(unittest.IsolatedAsyncioTestCase):
