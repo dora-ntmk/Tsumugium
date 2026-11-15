@@ -14,6 +14,8 @@ class GuildSession:
   keepalive_task: asyncio.Task | None = None
   temporary_text_channel_id: int | None = None
   pending_text_channel_id: int | None = None
+  # 人が残っているVCからBotが抜けたときのVC。そのVCから人がいなくなるまでAutoJoinしない
+  auto_join_suppressed_channel_id: int | None = None
   skipping: bool = False
   clearing: bool = False
   # クリアのたびに1つ上がる。音声を作っている途中にクリアされたメッセージを捨てるために使う

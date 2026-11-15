@@ -98,5 +98,120 @@ class ConnectionServiceTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
     self.assertFalse(os.path.exists(path))
 
 
+class AutoJoinAfterLeaveTest(unittest.IsolatedAsyncioTestCase):
+  """人が残っているVCから抜けたあとは、そのVCが空になるまでAutoJoinしない。"""
+
+  def setUp(self):
+    self.voice_service = VoiceService(client=None, error_notifier=RecordingNotifier())
+    config = {"AutoJoin": True, "VoiceTarget": DUMMY_VOICE_CHANNEL_ID,
+              "TextTarget": None, "AccessNotice": False}
+    server_config = mock.MagicMock()
+    server_config.get.side_effect = lambda guild_id, key: config[key]
+    self.service = ConnectionService(
+      server_config=server_config,
+      dict_manager=None,
+      speech_service=None,
+      voice_service=self.voice_service,
+      error_notifier=RecordingNotifier(),
+    )
+    permissions = SimpleNamespace(
+      connect=True, speak=True, view_channel=True, send_messages=True,
+    )
+    self.voice_channel = SimpleNamespace(
+      id=DUMMY_VOICE_CHANNEL_ID,
+      members=[],
+      mention="<#vc>",
+      permissions_for=lambda member: permissions,
+      send=mock.AsyncMock(),
+    )
+    self.bot_member = SimpleNamespace(bot=True)
+    self.guild = SimpleNamespace(
+      id=DUMMY_GUILD_ID,
+      me=self.bot_member,
+      voice_client=None,
+      get_channel=lambda channel_id: self.voice_channel,
+    )
+    self.bot_member.guild = self.guild
+    self.connect = mock.AsyncMock(return_value=object())
+    self.service._connect_voice = self.connect
+    self.session = self.voice_service.get_session(DUMMY_GUILD_ID)
+
+  def member(self, user_id, bot=False):
+    return SimpleNamespace(id=user_id, bot=bot, guild=self.guild, send=mock.AsyncMock())
+
+  async def join(self, member):
+    self.voice_channel.members.append(member)
+    await self.service.handle_voice_state_update(
+      member, SimpleNamespace(channel=None), SimpleNamespace(channel=self.voice_channel),
+    )
+
+  async def leave(self, member):
+    self.voice_channel.members.remove(member)
+    await self.service.handle_voice_state_update(
+      member, SimpleNamespace(channel=self.voice_channel), SimpleNamespace(channel=None),
+    )
+
+  async def bot_left(self):
+    await self.service.handle_voice_state_update(
+      self.bot_member,
+      SimpleNamespace(channel=self.voice_channel),
+      SimpleNamespace(channel=None),
+    )
+
+  async def test_auto_join_when_first_human_joins(self):
+    with mock.patch("asyncio.sleep", mock.AsyncMock()):
+      await self.join(self.member(1))
+    self.connect.assert_awaited_once()
+
+  async def test_bot_joining_does_not_trigger_auto_join(self):
+    self.voice_channel.members.append(self.member(1))
+    with mock.patch("asyncio.sleep", mock.AsyncMock()):
+      await self.join(self.member(2, bot=True))
+    self.connect.assert_not_awaited()
+
+  async def test_no_auto_join_after_leaving_while_humans_remain(self):
+    human = self.member(1)
+    self.voice_channel.members.append(human)
+    await self.bot_left()
+    self.assertEqual(
+      self.session.auto_join_suppressed_channel_id, DUMMY_VOICE_CHANNEL_ID,
+    )
+
+    with mock.patch("asyncio.sleep", mock.AsyncMock()):
+      # 古いキャッシュなどで人数が1人に見えても、つなぎ直さない
+      self.voice_channel.members.remove(human)
+      await self.join(self.member(2))
+      await self.join(self.member(3, bot=True))
+    self.connect.assert_not_awaited()
+
+  async def test_auto_join_resumes_after_channel_becomes_empty(self):
+    human = self.member(1)
+    self.voice_channel.members.append(human)
+    await self.bot_left()
+
+    await self.leave(human)
+    self.assertIsNone(self.session.auto_join_suppressed_channel_id)
+
+    with mock.patch("asyncio.sleep", mock.AsyncMock()):
+      await self.join(self.member(2))
+    self.connect.assert_awaited_once()
+
+  async def test_leaving_empty_channel_does_not_suppress(self):
+    await self.bot_left()
+    self.assertIsNone(self.session.auto_join_suppressed_channel_id)
+
+  async def test_bot_reconnect_clears_suppression(self):
+    self.voice_channel.members.append(self.member(1))
+    await self.bot_left()
+    with mock.patch.object(self.voice_service, "start_keepalive"), \
+        mock.patch.object(self.voice_service, "reset_speaking_soon"):
+      await self.service.handle_voice_state_update(
+        self.bot_member,
+        SimpleNamespace(channel=None),
+        SimpleNamespace(channel=self.voice_channel),
+      )
+    self.assertIsNone(self.session.auto_join_suppressed_channel_id)
+
+
 if __name__ == "__main__":
   unittest.main()
