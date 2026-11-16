@@ -28,6 +28,15 @@ def _optional_user_id(value: str | None) -> int | None:
     return None
   return user_id
 
+def _on_off(name: str, value: str | None) -> bool:
+  """on・off（true・false、1・0、yes・noも可）を読む。読めない値はオフにする。"""
+  text = (value or "").strip().lower()
+  if text in ("on", "true", "1", "yes"):
+    return True
+  if text not in ("", "off", "false", "0", "no"):
+    print(f"{name} must be on or off; it is treated as off")
+  return False
+
 STATUS_MESSAGE = os.getenv("STATUS_MESSAGE", "")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 OPERATOR_USER_ID = _optional_user_id(os.getenv("OPERATOR_USER_ID"))
@@ -40,6 +49,10 @@ SPEAKERS_JSON     = os.getenv("SPEAKERS_JSON", "db/speakers.json")
 DEFAULT_SPEAKER      = int(os.getenv("DEFAULT_SPEAKER", "8"))
 TMP_DIR           = os.getenv("TMP_DIR", "tmp")
 VOICEVOX_URL      = os.getenv("VOICEVOX_URL", "http://127.0.0.1:50021")
+# 実験的な機能: VOICEVOXの/streaming_synthesisで、音声を作り終える前に読み上げを始める
+VOICEVOX_STREAMING = _on_off(
+  "VOICEVOX_STREAMING", os.getenv("VOICEVOX_STREAMING", "off")
+)
 BACKUP_DIR           = os.getenv("BACKUP_DIR", "backup")
 # インストーラーへ起動の準備完了を知らせる ready.json の置き場所（空欄なら書かない）
 UPDATE_STATE_DIR     = os.getenv("UPDATE_STATE_DIR", "")
@@ -48,5 +61,5 @@ BACKUP_INTERVAL_DAYS = os.getenv("BACKUP_INTERVAL_DAYS", "1")
 BACKUP_KEEP          = os.getenv("BACKUP_KEEP", "7")
 
 # バージョン情報
-VERSION      = "v4.4.0.72 (beta 3)"
+VERSION      = "v4.4.0.72 (beta 5)"
 LAST_UPDATED = "2026/11/16"

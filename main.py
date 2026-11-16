@@ -28,6 +28,7 @@ from config import (
   UPDATE_STATE_DIR,
   USER_CONFIG_DB,
   VERSION,
+  VOICEVOX_STREAMING,
   VOICEVOX_URL,
 )
 from repositories.guild_config_repository import GuildConfigRepository
@@ -63,6 +64,7 @@ voicevox_client = VoicevoxClient(
   tmp_dir=TMP_DIR,
   error_notifier=error_notifier,
   generation_log=generation_log,
+  streaming_enabled=VOICEVOX_STREAMING,
 )
 speaker_service = SpeakerService(SPEAKERS_JSON, error_notifier)
 

@@ -4,6 +4,7 @@
 
 import asyncio
 import unittest
+from models.streaming_audio import StreamingAudio
 from types import SimpleNamespace
 from unittest import mock
 
@@ -93,6 +94,21 @@ class GenerationLogServiceTest(unittest.TestCase):
     self.assertAlmostEqual(summary.wait_average, 0.9)
     self.assertEqual(summary.wait_max, 2.5)
 
+  def test_summary_of_first_audio(self):
+    log = make_log()
+    log.record_success(10, 8, 0.0, 2.0, 1, streamed=True, first_audio_seconds=0.25)
+    log.record_success(10, 8, 0.0, 3.0, 1, streamed=True, first_audio_seconds=0.75)
+    # ストリーミングしなかったものは、生成し終えたときが最初の音になる
+    log.record_success(10, 8, 0.0, 1.0, 1)
+    summary = log.summarize()
+    self.assertEqual(summary.streamed, 2)
+    self.assertAlmostEqual(summary.first_audio_average, 2.0 / 3)
+    self.assertEqual(summary.first_audio_median, 0.75)
+    self.assertEqual(summary.first_audio_max, 1.0)
+    [last, *_] = log.recent(10)
+    self.assertFalse(last.streamed)
+    self.assertEqual(last.first_audio_seconds, 1.0)
+
 
 class SpeechServiceSkipRecordTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
   async def asyncSetUp(self):
@@ -110,7 +126,7 @@ class SpeechServiceSkipRecordTest(TempDirTestCase, unittest.IsolatedAsyncioTestC
         path = owner.tmp_path(f"{message_id}.wav")
         with open(path, "wb") as file:
           file.write(b"RIFF")
-        return path
+        return StreamingAudio.completed(path)
 
     config = SimpleNamespace(
       get=lambda guild_id, key: {"Speaker": 8, "MaxChar": 100}[key],
@@ -169,6 +185,17 @@ class FormatTest(unittest.TestCase):
       "01/15 17:00:00 成功 10字 生成1.50秒 (150ms/字) 待ち0.25秒 話者8",
     )
 
+  def test_streamed_line_has_first_audio(self):
+    record = GenerationRecord(
+      at=1_800_000_000.0, outcome=SUCCESS, chars=10,
+      speaker=8, wait_seconds=0.25, synth_seconds=1.5, attempts=1,
+      streamed=True, first_audio_seconds=0.3,
+    )
+    self.assertEqual(
+      format_record(record),
+      "01/15 17:00:00 成功 10字 生成1.50秒 (150ms/字) 最初の音0.30秒 待ち0.25秒 話者8",
+    )
+
   def test_failure_line_has_attempts_and_error(self):
     record = GenerationRecord(
       at=1_800_000_000.0, outcome=FAILED, chars=3,
@@ -190,6 +217,7 @@ class FormatTest(unittest.TestCase):
     fields = dict(format_summary_fields(make_log().summarize(), 500))
     self.assertIn("記録はまだありません", fields["記録の範囲"])
     self.assertIn("平均 —", fields["生成時間（成功のみ）"])
+    self.assertIn("ストリーミング 0件", fields["最初の音まで（成功のみ）"])
 
 
 class FakeResponse:

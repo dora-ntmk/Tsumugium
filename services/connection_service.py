@@ -142,7 +142,7 @@ class ConnectionService:
     speaker = self.server_config.get(guild.id, "Speaker")
     volume = self.server_config.volume_to_vvtts(guild.id)
     speed = self.server_config.speed_to_vvtts(guild.id)
-    src = await self.speech_service.generate(
+    audio = await self.speech_service.generate(
       notice_text,
       guild.id,
       member.id,
@@ -150,8 +150,8 @@ class ConnectionService:
       speed=speed,
       volume=volume,
     )
-    if src is not None:
-      await self.voice_service.enqueue(guild, TTSItem(src))
+    if audio is not None:
+      await self.voice_service.enqueue(guild, TTSItem(audio.path, audio=audio))
 
   async def handle_mention_toggle(self, message) -> None:
     try:

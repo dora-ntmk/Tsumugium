@@ -68,6 +68,13 @@ def format_summary_fields(summary, capacity: int) -> list[tuple[str, str]]:
     ),
     ("1文字あたり（成功のみ）", f"平均 {_milliseconds(summary.seconds_per_char_average)}"),
     (
+      "最初の音まで（成功のみ）",
+      f"平均 {_seconds(summary.first_audio_average)}"
+      f" / 中央値 {_seconds(summary.first_audio_median)}"
+      f" / 最大 {_seconds(summary.first_audio_max)}"
+      f"（ストリーミング {summary.streamed}件）",
+    ),
+    (
       "順番待ち",
       f"平均 {_seconds(summary.wait_average)} / 最大 {_seconds(summary.wait_max)}",
     ),
@@ -89,6 +96,8 @@ def format_record(record) -> str:
   ]
   if record.seconds_per_char is not None:
     parts.append(f"({record.seconds_per_char * 1000:.0f}ms/字)")
+  if record.streamed and record.first_audio_seconds is not None:
+    parts.append(f"最初の音{record.first_audio_seconds:.2f}秒")
   parts.append(f"待ち{record.wait_seconds:.2f}秒")
   parts.append(f"話者{record.speaker}")
   if record.attempts > 1:

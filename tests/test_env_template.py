@@ -28,6 +28,8 @@ OLD_TEMPLATE_KEYS = [
   "EMOJI_JA_JSON", "SPEAKERS_JSON", "DEFAULT_SPEAKER", "TMP_DIR", "VOICEVOX_URL",
   "BACKUP_DIR", "BACKUP_TIMES", "BACKUP_INTERVAL_DAYS", "BACKUP_KEEP",
 ]
+# テンプレートを改良したあとに足した項目。今までの .env を更新すると、これだけが書き足される
+ADDED_KEYS = ["VOICEVOX_STREAMING"]
 
 
 def _config_default(name):
@@ -76,10 +78,14 @@ class EnvTemplateTest(unittest.TestCase):
     self.assertEqual(self.config["BACKUP_TIMES"], "12:00")
     self.assertEqual(self.active["BACKUP_TIMES"], "12:00")
 
-  def test_old_env_gets_nothing_added_on_upgrade(self):
+  def test_old_env_gets_only_added_keys_on_upgrade(self):
     present = set(OLD_TEMPLATE_KEYS)
     missing = [entry.key for entry in self.entries if entry.key not in present]
-    self.assertEqual(missing, [])
+    self.assertEqual(missing, ADDED_KEYS)
+
+  def test_streaming_is_off_in_template(self):
+    # 実験的な機能なので、更新で書き足されてもオフのままにする
+    self.assertEqual(self.active["VOICEVOX_STREAMING"], "off")
 
   def test_copied_template_passes_after_writing_token(self):
     env = EnvFile.parse(TEMPLATE_TEXT.replace(

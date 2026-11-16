@@ -5,6 +5,7 @@ VOICEVOXへ渡さない（speech_service.py・voicevox_client.py）。
 """
 
 import unittest
+from models.streaming_audio import StreamingAudio
 from types import SimpleNamespace
 from unittest import mock
 
@@ -70,7 +71,7 @@ class EmptySpeechTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
         path = owner.tmp_path(f"{guild_id}-{message_id}.wav")
         with open(path, "wb") as file:
           file.write(b"RIFF-dummy")
-        return path
+        return StreamingAudio.completed(path)
 
     dictionary = DictionarySnapshot(sounds=(SoundEntry("やあ", DUMMY_SOUND_ID),))
     self.speech = SpeechService(

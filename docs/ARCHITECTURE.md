@@ -106,9 +106,10 @@ sequenceDiagram
     else TTS対象
         Speech->>Speech: 最大文字数処理
         Speech->>VV: generate(text)
-        VV-->>Speech: WAVファイルパス
+        VV-->>Speech: StreamingAudio（最初の音が届いた時点）
         Speech->>Voice: enqueue(TTSItem)
-        Voice->>Discord: FFmpeg音声再生
+        Voice->>Discord: FFmpeg音声再生（届いた分からパイプで渡す）
+        VV-->>VV: 残りを受け取ってWAVへ書き足す
     end
 ```
 
@@ -120,6 +121,7 @@ sequenceDiagram
 
 - 起動時はDiscord Gatewayへ接続する前にVOICEVOXの`/version`へHTTP疎通確認します。応答が得られない、2xx以外、または空の応答の場合は、起動中止理由をCLIへ1行で表示して終了します。
 - `VoicevoxClient`は全ギルドの音声生成を1件ずつ処理します。タイムアウト・接続切断などの一時的な通信障害に限り、受付から最大30秒、0.5秒から最大5秒のバックオフを挟んで再試行します。一時切断後は所有するHTTPセッションを再生成し、HTTP 4xxなどの恒久エラーは再試行しません。
+- `/streaming_synthesis`で最初の音が届いたあとに接続が切れたときはやり直さず、届いた分だけ再生して失敗として通知します。エンジンや話者がストリーミングに対応していないときは`/synthesis`へ切り替えます。
 - `VoiceService`は再生中のTTSファイルを`GuildSession`で追跡します。`s`または`/clear instant`による意図的なFFmpeg停止はエラー通知せず、意図しない終了だけを通知します。
 
 ## 接続状態

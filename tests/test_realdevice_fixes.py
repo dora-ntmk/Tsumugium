@@ -9,6 +9,7 @@
 import asyncio
 import os
 import unittest
+from models.streaming_audio import StreamingAudio
 from types import SimpleNamespace
 from unittest import mock
 
@@ -85,7 +86,7 @@ class ClearWhileGeneratingTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase
           file.write(b"RIFF")
         owner.generation_started.set()
         await owner.release_generation.wait()
-        return owner.wav
+        return StreamingAudio.completed(owner.wav)
 
     self.speech = SpeechService(SlowVoicevox(), FakeServerConfig(), None, self.voice_service)
     self.guild = SimpleNamespace(id=DUMMY_GUILD_ID, voice_client=None)

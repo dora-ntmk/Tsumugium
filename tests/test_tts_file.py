@@ -3,6 +3,7 @@
 import asyncio
 import os
 import unittest
+from models.streaming_audio import StreamingAudio
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest import mock
@@ -101,7 +102,7 @@ class SpeakAndExportTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
         path = owner.tmp_path(f"{guild_id}-{message_id}.wav")
         with open(path, "wb") as file:
           file.write(b"RIFF-dummy")
-        return path
+        return StreamingAudio.completed(path)
 
     self.config = FakeServerConfig()
     self.speech = SpeechService(FakeVoicevox(), self.config, None, self.voice_service)
