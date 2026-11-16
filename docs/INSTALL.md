@@ -208,7 +208,7 @@ Botを止めている間に`upgrade`すると、更新のあとで起動して�
 |---|---|
 | VOICEVOXに接続できません | VOICEVOX ENGINEが動いているか、URLが合っているかを確かめます。`curl -s http://127.0.0.1:50021/version`でバージョン番号が返れば動いています |
 | 60秒待ちましたが、Botの準備が終わりませんでした | `sudo journalctl -u tsumugium -n 50`でBotのログを見ます。トークンの誤りやDiscordへの接続の失敗がよくある原因です |
-| Botのログに`PrivilegedIntentsRequired: Shard ID None is requesting privileged intents that have not been explicitly enabled in the developer portal.`と出て止まる | BotのMessage Content Intentがオフです。Developer PortalでBotを選び、「Bot」の「MESSAGE CONTENT INTENT」をオンにして保存してから、`sudo systemctl restart tsumugium`を実行します。Botを新しく作ったときは、初めはオフになっています |
+| Botのログに`Shard ID None session has been invalidated.`と出て止まる | BotのMessage Content Intentがオフである可能性があります。Developer PortalでBotを選び、「Bot」の「MESSAGE CONTENT INTENT」をオンにして保存してから、`sudo systemctl restart tsumugium`を実行してください。それでも解決しない場合は、同一TOKENで起動しているBotがないことや、インターネット接続が正常かを確認してください。 |
 | 前回の更新が途中で止まっています | `upgrade`を実行すると、`repair`（記録のバージョンを入れ直す）と`rollback`（1つ前のバージョンに戻す）のどちらで直すかを聞かれます |
 | ほかの処理が実行中です | 同じインスタンスで別の操作が動いています。終わってから実行し直します |
 | tsumugium-setup が作ったものではないため、上書きしません | 同じ名前のunitがすでにあります。インストールのときに別のサービス名を選ぶか、元のunitの名前を変えます |
