@@ -236,7 +236,7 @@ class VoicevoxLogCommandTest(unittest.TestCase):
 
   def test_operator_sees_log(self):
     interaction = self.run_command(DUMMY_USER_ID)
-    self.assertEqual(interaction.response.deferred, {"ephemeral": True})
+    self.assertEqual(interaction.response.deferred, {})
     [embed] = interaction.embeds
     self.assertIn("直近2件", embed.description)
     self.assertIn("成功 10字", embed.description)
