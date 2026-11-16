@@ -264,13 +264,14 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - VOICEVOX通信は`VoicevoxClient`、Discord Soundboard通信は`DiscordSoundboardClient`だけが担当する。
 - Discord Gateway接続前に`VoicevoxClient.check_health()`で`/version`へ疎通確認し、失敗した場合はBotの起動を中止する。このときは終了コード1で終わり、systemdの`Restart=on-failure`で10秒後に起動し直す（マシンの起動直後にVOICEVOXより先に起動しても、VOICEVOXが立ち上がればつながる）。
 - 疎通確認のあと、`VoicevoxClient.warm_up_speaker()`が裏で`/initialize_speaker`を呼び、`DEFAULT_SPEAKER`の声のモデルだけを前もって読み込む。VOICEVOXは話者を最初に使うときにモデルを読み込むため、起動直後の最初の読み上げが遅れないようにする。合成用のロックは取らず、起動も待たせない。失敗しても表示するだけでBotは止めない。サーバーごとに設定した話者は読み込まない。
-- 稼働中の音声生成は全ギルドで1件ずつ処理し、一時的なHTTP障害だけを受付から最大30秒再試行する。一時切断後はClient所有のHTTPセッションを再生成する。
+- 稼働中の音声生成は全ギルドで1件ずつ処理し、一時的なHTTP障害だけを、順番が来てから最大30秒再試行する。ほかの生成の順番を待った時間はこの30秒に数えない（長い文章の生成のあとに並んだメッセージが、待っただけで落ちないようにするため）。一時切断後はClient所有のHTTPセッションを再生成する。
 
 ### ストリーミングでの音声合成（`/streaming_synthesis`）
 
 - 実験的な機能として、`.env`の`VOICEVOX_STREAMING`が`on`のときだけ使う（既定は`off`）。`config.py`が読み、`main.py`が`VoicevoxClient(streaming_enabled=...)`へ渡す。`off`のときも`generate()`は`StreamingAudio`を返すが、`/synthesis`で全体を作ってから返す（書き終えた状態）。
 - `VoicevoxClient.generate()`は`StreamingAudio`を返す（作れなかったときはNone）。VOICEVOX Engine 0.26.0以降の`/streaming_synthesis`（`segment_length`は`STREAM_SEGMENT_SECONDS`＝1.0秒）を使い、最初の部分が届いた時点で返す。残りは裏のタスクで受け取り、`TMP_DIR`の同じWAVファイルへ書き足す。WAVのヘッダーには全体の大きさが最初から入っている。
 - 生成の順番（全ギルドで1件ずつ）は、残りを受け取り終えるまで持ち続ける。最初の部分が届くまでは今までどおり再試行し、届いたあとに切れたときはやり直さずに失敗として記録・通知する（`VOICEVOX streaming`）。再生は届いた分までで終わる。
+- 順番が来てから30秒の期限で縛るのは、最初の部分が届くまで。残りは長い文章ほど時間がかかるので全体の時間では縛らず、`STREAM_READ_TIMEOUT_SECONDS`（15秒）届かなかったときだけ打ち切る。
 - エンジンが`/streaming_synthesis`を持たない（404・405）と分かったら、以後はBotを再起動するまで`/synthesis`を使う。話者がストリーミングに対応していない（422）ときは、その話者だけ`/synthesis`を使う。どちらも全体を作ってから、書き終えた`StreamingAudio`を返す。
 - `VoiceService.play()`は、書き終えていない音声を`StreamingAudio.open_reader()`で開き、`discord.FFmpegOpusAudio(reader, pipe=True, before_options="-f wav")`へ渡す。読み手は届いていない分を待ち、書き終えたら残りを読んで終わる。30秒届かなければ打ち切る。再生が終わったとき・再生しなかったときは読み手を閉じ、待っているスレッドを終わらせる。書き終えた音声は今までどおり`from_probe()`でファイルから再生する。
 - クリア・削除・`!t`の扱いは今までと同じ。WAVファイルは書きかけでも同じ名前にあるので、消す処理はそのまま動く。`speak_and_export()`はファイルにするため、最後まで届くのを待ち、途中で切れたらNoneを返す。

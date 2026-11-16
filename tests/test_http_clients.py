@@ -175,6 +175,22 @@ class VoicevoxClientTest(LocalServerTestCase):
     self.assertGreaterEqual(record.wait_seconds, 0.15)
     self.assertLess(record.synth_seconds, record.wait_seconds + 1)
 
+  async def test_waiting_for_turn_does_not_count_toward_deadline(self):
+    # 前の長い生成を30秒以上待っても、順番が来てから30秒あるので落ちない
+    self.client.RETRY_WINDOW_SECONDS = 0.3
+    log = self.client.generation_log = GenerationLogService()
+    await self.client._generation_lock.acquire()
+    task = asyncio.create_task(self.client.generate("こんにちは", DUMMY_GUILD_ID, 19))
+    await asyncio.sleep(0.6)
+    self.client._generation_lock.release()
+    audio = await task
+    self.assertIsNotNone(audio)
+    self.assertTrue(audio.succeeded)
+    self.assertEqual(self.notifier.exceptions, [])
+    [record] = log.recent(10)
+    self.assertEqual(record.outcome, SUCCESS)
+    self.assertGreaterEqual(record.wait_seconds, 0.5)
+
   async def test_empty_text_is_recorded_as_skip(self):
     log = self.client.generation_log = GenerationLogService()
     await self.client.generate(" ", DUMMY_GUILD_ID, 18)
@@ -275,6 +291,8 @@ class VoicevoxStreamingTest(LocalServerTestCase):
       generation_log=self.log,
     )
     self.addAsyncCleanup(self.client.close)
+    # 残りを待っているハンドラーを、サーバーを閉じる前に終わらせる
+    self.addCleanup(self.release_rest.set)
 
   def kinds(self):
     return [request[0] for request in self.requests]
@@ -378,6 +396,29 @@ class VoicevoxStreamingTest(LocalServerTestCase):
     self.cut_after_head = False
     next_audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 30)
     self.assertTrue(await next_audio.wait())
+
+  async def test_rest_may_take_longer_than_retry_window(self):
+    # 長い文章は、最初の音のあとに、順番が来てから30秒を超えて届くことがある
+    self.client.RETRY_WINDOW_SECONDS = 0.3
+    audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 32)
+    await asyncio.sleep(0.6)
+    self.release_rest.set()
+    self.assertTrue(await audio.wait())
+    [record] = self.log.recent(10)
+    self.assertEqual(record.outcome, SUCCESS)
+    self.assertEqual(self.notifier.exceptions, [])
+
+  async def test_stalled_stream_is_cut_off(self):
+    self.client.STREAM_READ_TIMEOUT_SECONDS = 0.2
+    audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 33)
+    # 残りが届かないまま
+    self.assertFalse(await asyncio.wait_for(audio.wait(), timeout=5))
+    [record] = self.log.recent(10)
+    self.assertEqual(record.outcome, FAILED)
+    [(error, context)] = self.notifier.exceptions
+    self.assertIsInstance(error, asyncio.TimeoutError)
+    self.assertEqual(context, "VOICEVOX streaming")
+    self.assertFalse(self.client._generation_lock.locked())
 
   async def test_close_stops_receiving(self):
     audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 31)
