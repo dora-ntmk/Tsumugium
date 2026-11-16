@@ -268,6 +268,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ### ストリーミングでの音声合成（`/streaming_synthesis`）
 
+- 実験的な機能として、`.env`の`VOICEVOX_STREAMING`が`on`のときだけ使う（既定は`off`）。`config.py`が読み、`main.py`が`VoicevoxClient(streaming_enabled=...)`へ渡す。`off`のときも`generate()`は`StreamingAudio`を返すが、`/synthesis`で全体を作ってから返す（書き終えた状態）。
 - `VoicevoxClient.generate()`は`StreamingAudio`を返す（作れなかったときはNone）。VOICEVOX Engine 0.26.0以降の`/streaming_synthesis`（`segment_length`は`STREAM_SEGMENT_SECONDS`＝1.0秒）を使い、最初の部分が届いた時点で返す。残りは裏のタスクで受け取り、`TMP_DIR`の同じWAVファイルへ書き足す。WAVのヘッダーには全体の大きさが最初から入っている。
 - 生成の順番（全ギルドで1件ずつ）は、残りを受け取り終えるまで持ち続ける。最初の部分が届くまでは今までどおり再試行し、届いたあとに切れたときはやり直さずに失敗として記録・通知する（`VOICEVOX streaming`）。再生は届いた分までで終わる。
 - エンジンが`/streaming_synthesis`を持たない（404・405）と分かったら、以後はBotを再起動するまで`/synthesis`を使う。話者がストリーミングに対応していない（422）ときは、その話者だけ`/synthesis`を使う。どちらも全体を作ってから、書き終えた`StreamingAudio`を返す。
@@ -443,6 +444,7 @@ Botが接続し直したときは、`VoiceService.reset_speaking_soon()`が1秒�
 | `OPERATOR_USER_ID` | `""` | エラー通知DMを受け取る運営者のDiscordユーザーID（未設定・空欄で無効） |
 | `VOICEVOX_URL` | `http://127.0.0.1:50021` | VOICEVOX エンドポイント |
 | `DEFAULT_SPEAKER` | `8` | デフォルト話者ID（Speaker=NULL時に使用） |
+| `VOICEVOX_STREAMING` | `off` | 実験的な機能。`on`なら`/streaming_synthesis`で、音声を作り終える前に読み上げを始める。`on`・`off`のほか`true`・`false`・`1`・`0`・`yes`・`no`を読み、読めない値は表示してオフにする |
 | `SERVER_CONFIG_DB` | `db/config.db` | サーバー設定DB |
 | `DICT_DB` | `db/dict.db` | 辞書DB |
 | `SOUND_BOARDS_DB` | `db/soundboards.db` | サウンドボードキャッシュDB |
