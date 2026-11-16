@@ -170,6 +170,9 @@ class VoicevoxClient:
         raise ValueError("guildid cannot be None")
       if msgid is None:
         raise ValueError("msgid cannot be None")
+      if not msg.strip():
+        # 空の文章はVOICEVOXへ送らない（無音の音声を作り、生成の順番も待たせるため）
+        return None
 
       wav = await self._generate_serially(
         msg,

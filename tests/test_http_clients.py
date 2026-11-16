@@ -130,6 +130,13 @@ class VoicevoxClientTest(LocalServerTestCase):
     self.assertEqual(len(self.requests), 1)
     self.assertEqual(len(self.notifier.exceptions), 1)
 
+  async def test_empty_text_is_not_sent(self):
+    for text in ("", "  \n"):
+      with self.subTest(text=text):
+        self.assertIsNone(await self.client.generate(text, DUMMY_GUILD_ID, 14))
+    self.assertEqual(self.requests, [])
+    self.assertEqual(self.notifier.exceptions, [])
+
   async def test_warm_up_initializes_speaker_without_reinit(self):
     with contextlib.redirect_stdout(io.StringIO()) as output:
       elapsed = await self.client.warm_up_speaker(3)

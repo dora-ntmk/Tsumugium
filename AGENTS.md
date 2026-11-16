@@ -164,6 +164,8 @@ CREATE TABLE user_dictionary (
 
 `swap.preprocess_text(text, dictionary, emoji_ja, guild, attachments, mentions, author_id=None, user_readings=None, use_sounds=True)` は `PreprocessResult(text, replaced_ranges, sound_id, spaced_out)` を返す。`dictionary` は`DictionaryRepository`が生成した`DictionarySnapshot`、`user_readings`は`SpeechService`が`UserReadingService`で解決したユーザーIDと読み方のマッピング。`use_sounds=False`のときは手順1a・1bを飛ばす（`!t`で音声ファイルを作るとき）。`swap.py`はSQLite接続を受け取らない。
 
+前処理と音声辞書の判定のあとに、読む文字（空白・区切り記号・制御文字以外）が残らなければ、`SpeechService`は音声を作らない（embedだけのメッセージ、カスタム絵文字だけのメッセージ、前処理で空になる`!t`など）。`speak_and_export()`はこのときNoneを返す。`VoicevoxClient.generate()`も、空白だけの文章はVOICEVOXへ送らずにNoneを返す。
+
 `DictManager.preprocess_text(text, guild_id, guild, attachments, mentions, author_id=None, user_readings=None, use_sounds=True)` は辞書サービスの窓口であり、内部でRepositoryからスナップショットを取得して`swap.preprocess_text`を呼ぶ。最大文字数チェック・トリミングは前処理後に`SpeechService`が行う。
 
 ---
