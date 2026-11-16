@@ -224,7 +224,7 @@ class VoicevoxClient:
         self._record_skip_empty()
         return None
       path = os.path.join(self.tmp_dir, f"{guildid}-{msgid}.wav")
-      await self._acquire_turn(started_at, timing)
+      await self._acquire_turn(timing)
     except VoicevoxGenerationError as e:
       self._report_failure(e, msg, speaker, started_at, timing, guildid, msgid)
       return None
@@ -242,8 +242,9 @@ class VoicevoxClient:
         pitch,
         intonation,
         volume,
-        deadline=started_at + self.RETRY_WINDOW_SECONDS,
-        started_at=started_at,
+        # 期限は順番が来てから数える（ほかの生成を待った時間は数えない）
+        deadline=timing.acquired_at + self.RETRY_WINDOW_SECONDS,
+        started_at=timing.acquired_at,
         timing=timing,
       )
       audio = StreamingAudio(path)
@@ -378,19 +379,14 @@ class VoicevoxClient:
     else:
       self.generation_log.record_failure(**values, reason=type(error).__name__)
 
-  async def _acquire_turn(self, started_at, timing) -> None:
-    """生成の順番（全サーバーで1件ずつ）を、受付から期限内で待つ。"""
-    loop = asyncio.get_running_loop()
-    deadline = started_at + self.RETRY_WINDOW_SECONDS
-    remaining = deadline - loop.time()
-    if remaining <= 0:
-      timeout = asyncio.TimeoutError("VOICEVOX generation lock deadline exceeded")
-      raise VoicevoxGenerationError(0, loop.time() - started_at, timeout)
-    try:
-      await asyncio.wait_for(self._generation_lock.acquire(), timeout=remaining)
-    except asyncio.TimeoutError as error:
-      raise VoicevoxGenerationError(0, loop.time() - started_at, error) from None
-    timing.acquired_at = loop.time()
+  async def _acquire_turn(self, timing) -> None:
+    """生成の順番（全サーバーで1件ずつ）を待つ。
+
+    待つ時間は期限に数えない。前の生成は、それぞれ順番が来てからの期限と、
+    ストリーミングの届かない時間の上限で終わるので、待ちが止まることはない。
+    """
+    await self._generation_lock.acquire()
+    timing.acquired_at = asyncio.get_running_loop().time()
 
   def _can_stream(self, speaker) -> bool:
     return (
@@ -509,7 +505,7 @@ class VoicevoxClient:
 
     async def start() -> _SynthesisStart | None:
       nonlocal response
-      # 期限（受付から30秒）で縛るのは最初の音が届くまで。残りは長い文章ほど
+      # 期限（順番が来てから30秒）で縛るのは最初の音が届くまで。残りは長い文章ほど
       # 時間がかかるので、全体の時間ではなく、届かない時間だけで打ち切る
       response = await session.post(
         f"{self.url}/streaming_synthesis",

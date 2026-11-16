@@ -175,6 +175,22 @@ class VoicevoxClientTest(LocalServerTestCase):
     self.assertGreaterEqual(record.wait_seconds, 0.15)
     self.assertLess(record.synth_seconds, record.wait_seconds + 1)
 
+  async def test_waiting_for_turn_does_not_count_toward_deadline(self):
+    # 前の長い生成を30秒以上待っても、順番が来てから30秒あるので落ちない
+    self.client.RETRY_WINDOW_SECONDS = 0.3
+    log = self.client.generation_log = GenerationLogService()
+    await self.client._generation_lock.acquire()
+    task = asyncio.create_task(self.client.generate("こんにちは", DUMMY_GUILD_ID, 19))
+    await asyncio.sleep(0.6)
+    self.client._generation_lock.release()
+    audio = await task
+    self.assertIsNotNone(audio)
+    self.assertTrue(audio.succeeded)
+    self.assertEqual(self.notifier.exceptions, [])
+    [record] = log.recent(10)
+    self.assertEqual(record.outcome, SUCCESS)
+    self.assertGreaterEqual(record.wait_seconds, 0.5)
+
   async def test_empty_text_is_recorded_as_skip(self):
     log = self.client.generation_log = GenerationLogService()
     await self.client.generate(" ", DUMMY_GUILD_ID, 18)
@@ -382,7 +398,7 @@ class VoicevoxStreamingTest(LocalServerTestCase):
     self.assertTrue(await next_audio.wait())
 
   async def test_rest_may_take_longer_than_retry_window(self):
-    # 長い文章は、最初の音のあとに受付から30秒を超えて届くことがある
+    # 長い文章は、最初の音のあとに、順番が来てから30秒を超えて届くことがある
     self.client.RETRY_WINDOW_SECONDS = 0.3
     audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 32)
     await asyncio.sleep(0.6)
