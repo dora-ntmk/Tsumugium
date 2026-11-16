@@ -91,6 +91,8 @@ Developer Portalで以下のスコープを有効にします。
 
 Privileged Gateway Intentsは、Message Content Intentのみ有効にしてください。Server Members IntentとPresence Intentは不要です。Soundboardの追加・更新・削除イベントは特権でないインテントで受信します。
 
+Message Content Intentは、Botを新しく作ったときはオフになっています。Developer PortalでBotを選び、「Bot」の「Privileged Gateway Intents」にある「MESSAGE CONTENT INTENT」をオンにして保存してください。オフのままだと、Botは起動したところで`PrivilegedIntentsRequired`のエラーで止まります。テスト用などにBotを別に作ったときも、そのBotで同じ設定が要ります。
+
 ## ドキュメント
 
 - [ユーザーガイド](USERGUIDE.md)
