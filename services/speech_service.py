@@ -9,6 +9,7 @@ from datetime import datetime, timedelta, timezone
 import discord
 
 from models.audio_item import SoundboardItem, TTSItem
+from models.generation_record import SKIP_CLEARED, SKIP_DELETED, SKIP_EMPTY
 
 
 # 音声ファイルの名前に付ける時刻は日本時間にする（サーバーの時間帯に左右されない）
@@ -63,12 +64,19 @@ class SpeechService:
       dict_manager,
       voice_service,
       user_reading_service=None,
+      generation_log=None,
   ):
     self.vvtts = vvtts
     self.server_config = server_config
     self.dict_manager = dict_manager
     self.voice_service = voice_service
     self.user_reading_service = user_reading_service
+    # 生成の記録（GenerationLogService）。スキップだけをここで記録する
+    self.generation_log = generation_log
+
+  def _record_skip(self, reason, chars: int = 0) -> None:
+    if self.generation_log is not None:
+      self.generation_log.record_skip(reason, chars)
 
   def _preprocess(
       self,
@@ -151,15 +159,18 @@ class SpeechService:
       return
     # embedだけのメッセージなど、読む文字がなければ音声を作らない
     if not has_speakable_text(text):
+      self._record_skip(SKIP_EMPTY)
       return
     text = self._limit_length(guild_id, text, replaced_ranges)
     path = await self._synthesize(guild_id, message.id, text, spaced_out)
     if path is None:
       return
     if session.clear_generation != clear_generation:
+      self._record_skip(SKIP_CLEARED, len(text))
       await self.voice_service.safe_remove(path)
       return
     if self.voice_service.consume_cancelled(guild_id, message.id):
+      self._record_skip(SKIP_DELETED, len(text))
       await self.voice_service.safe_remove(path)
       return
     await self.voice_service.enqueue(
@@ -199,6 +210,7 @@ class SpeechService:
       use_sounds=False,
     )
     if not has_speakable_text(text):
+      self._record_skip(SKIP_EMPTY)
       return None
     text = self._limit_length(guild.id, text, replaced_ranges)
     path = await self._synthesize(guild.id, request_id, text, spaced_out)
@@ -212,6 +224,7 @@ class SpeechService:
       await self.voice_service.safe_remove(path)
       raise
     if self.voice_service.consume_cancelled(guild.id, message_id):
+      self._record_skip(SKIP_DELETED, len(text))
       await self.voice_service.safe_remove(path)
       return None
     tts_file = TTSFile(build_tts_file_name(original_text, created_at), data)

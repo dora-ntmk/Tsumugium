@@ -11,6 +11,7 @@ from clients.voicevox_client import VoicevoxClient
 from cogs.connection_cog import ConnectionCog
 from cogs.general_cog import GeneralCog
 from cogs.lifecycle_cog import LifecycleCog
+from cogs.operator_cog import OperatorCog
 from cogs.playback_cog import PlaybackCog
 from cogs.user_cog import UserCog
 from config import (
@@ -33,6 +34,7 @@ from repositories.guild_config_repository import GuildConfigRepository
 from repositories.user_config_repository import UserConfigRepository
 from services.connection_service import ConnectionService
 from services.error_notification_service import ErrorNotificationService
+from services.generation_log_service import GenerationLogService
 from services.message_service import MessageService
 from services.ready_state_service import ReadyStateService
 from services.speaker_service import SpeakerService
@@ -54,10 +56,13 @@ tree = discord.app_commands.CommandTree(client)
 error_notifier = ErrorNotificationService(client, OPERATOR_USER_ID)
 client.set_error_notifier(error_notifier)
 
+# VOICEVOXの生成の記録。運営者が /voicevox-log で見る。メモリだけに持つ
+generation_log = GenerationLogService()
 voicevox_client = VoicevoxClient(
   VOICEVOX_URL,
   tmp_dir=TMP_DIR,
   error_notifier=error_notifier,
+  generation_log=generation_log,
 )
 speaker_service = SpeakerService(SPEAKERS_JSON, error_notifier)
 
@@ -131,6 +136,7 @@ speech_service = SpeechService(
   dict_manager,
   voice_service,
   user_reading_service=user_reading_service,
+  generation_log=generation_log,
 )
 connection_service = ConnectionService(
   server_config,
@@ -191,6 +197,12 @@ connection_cog = ConnectionCog(
 )
 general_cog = GeneralCog(tree, VERSION, LAST_UPDATED, error_notifier)
 user_cog = UserCog(tree, user_config, error_notifier)
+operator_cog = OperatorCog(
+  tree,
+  generation_log,
+  OPERATOR_USER_ID,
+  error_notifier,
+)
 lifecycle_cog = LifecycleCog(
   client,
   tree,

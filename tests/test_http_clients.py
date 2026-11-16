@@ -16,6 +16,8 @@ from aiohttp.test_utils import TestServer
 
 from clients.discord_soundboard_client import DiscordSoundboardClient
 from clients.voicevox_client import VoicevoxClient, VoicevoxGenerationError
+from models.generation_record import FAILED, SKIP_EMPTY, SKIPPED, SUCCESS
+from services.generation_log_service import GenerationLogService
 from tests.support import (
   DUMMY_GUILD_ID,
   DUMMY_SOUND_ID,
@@ -136,6 +138,43 @@ class VoicevoxClientTest(LocalServerTestCase):
         self.assertIsNone(await self.client.generate(text, DUMMY_GUILD_ID, 14))
     self.assertEqual(self.requests, [])
     self.assertEqual(self.notifier.exceptions, [])
+
+  async def test_success_is_recorded_with_chars_and_attempts(self):
+    log = self.client.generation_log = GenerationLogService()
+    self.audio_query_failures = 1
+    await self.client.generate("こんにちは", DUMMY_GUILD_ID, 15, speaker=3)
+    [record] = log.recent(10)
+    self.assertEqual(record.outcome, SUCCESS)
+    self.assertEqual((record.chars, record.speaker), (5, 3))
+    self.assertEqual(record.attempts, 2)
+    self.assertGreater(record.synth_seconds, 0)
+    self.assertGreaterEqual(record.wait_seconds, 0)
+
+  async def test_failure_is_recorded_with_error_name(self):
+    log = self.client.generation_log = GenerationLogService()
+    self.audio_query_status = 400
+    await self.client.generate("こんにちは", DUMMY_GUILD_ID, 16)
+    [record] = log.recent(10)
+    self.assertEqual(record.outcome, FAILED)
+    self.assertEqual(record.reason, "ClientResponseError")
+    self.assertEqual(record.attempts, 1)
+
+  async def test_wait_for_other_generation_is_separated(self):
+    log = self.client.generation_log = GenerationLogService()
+    await self.client._generation_lock.acquire()
+    task = asyncio.create_task(self.client.generate("こんにちは", DUMMY_GUILD_ID, 17))
+    await asyncio.sleep(0.2)
+    self.client._generation_lock.release()
+    await task
+    [record] = log.recent(10)
+    self.assertGreaterEqual(record.wait_seconds, 0.15)
+    self.assertLess(record.synth_seconds, record.wait_seconds + 1)
+
+  async def test_empty_text_is_recorded_as_skip(self):
+    log = self.client.generation_log = GenerationLogService()
+    await self.client.generate(" ", DUMMY_GUILD_ID, 18)
+    [record] = log.recent(10)
+    self.assertEqual((record.outcome, record.reason), (SKIPPED, SKIP_EMPTY))
 
   async def test_warm_up_initializes_speaker_without_reinit(self):
     with contextlib.redirect_stdout(io.StringIO()) as output:
