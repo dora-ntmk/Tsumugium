@@ -219,4 +219,3 @@ class StreamingPlaybackTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
     source.cleanup.assert_called_once()
     await asyncio.sleep(0.05)
     self.assertFalse(os.path.exists(audio.path))
-
