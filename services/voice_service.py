@@ -172,7 +172,7 @@ class VoiceService:
           if self.consume_cancelled(guild_id, item.message_id):
             await self.safe_remove(item.path)
             continue
-          await self.play(guild, item.path, item.message_id)
+          await self.play(guild, item.path, item.message_id, audio=item.audio)
         else:
           raise TypeError(f"未対応の音声アイテムです: {type(item).__name__}")
       except asyncio.TimeoutError:
@@ -295,11 +295,35 @@ class VoiceService:
     finally:
       self._delayed_cleanup_paths.discard(path)
 
-  async def play(self, guild, path: str, message_id: int | None = None):
+  def _open_source(self, path: str, audio):
+    """再生する音声を開き、`(音源, 書きかけの読み手)`を返す。
+
+    書き終えていない音声は、届いた分からFFmpegへパイプで渡す。
+    書き終えた音声は今までどおりファイルから再生する。
+    """
+    if audio is not None and not audio.finished:
+      reader = audio.open_reader()
+      try:
+        source = discord.FFmpegOpusAudio(
+          reader, pipe=True, before_options="-f wav"
+        )
+      except BaseException:
+        reader.close()
+        raise
+      return source, reader
+    return None, None
+
+  async def play(
+      self, guild, path: str, message_id: int | None = None, *, audio=None
+  ):
     playback_started = False
+    voice = None
+    reader = None
     try:
       session = self.get_session(guild.id)
-      voice = await discord.FFmpegOpusAudio.from_probe(path)
+      voice, reader = self._open_source(path, audio)
+      if voice is None:
+        voice = await discord.FFmpegOpusAudio.from_probe(path)
       if session.skipping:
         session.skipping = False
         self.error_notifier.create_task(
@@ -328,7 +352,7 @@ class VoiceService:
       voice_client.play(
         voice,
         after=lambda error: asyncio.run_coroutine_threadsafe(
-          self._finish_playback(guild, path, error), self.client.loop
+          self._finish_playback(guild, path, error, reader), self.client.loop
         ),
       )
       playback_started = True
@@ -343,13 +367,21 @@ class VoiceService:
         )
     finally:
       if not playback_started:
+        if reader is not None:
+          reader.close()
+        if voice is not None and reader is not None:
+          # パイプで渡すFFmpegは、再生しないなら止めておく
+          voice.cleanup()
         session = self.get_session(guild.id)
         if session.current_tts_path == path:
           session.current_tts_path = None
           session.current_message_id = None
         await self.safe_remove(path)
 
-  async def _finish_playback(self, guild, path: str, error) -> None:
+  async def _finish_playback(self, guild, path: str, error, reader=None) -> None:
+    if reader is not None:
+      # 書きかけの音声を待っている読み手を起こし、FFmpegへ渡すスレッドを終わらせる
+      reader.close()
     session = self.get_session(guild.id)
     expected_stop = path in session.expected_stop_paths
     session.expected_stop_paths.discard(path)

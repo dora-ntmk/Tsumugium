@@ -45,6 +45,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `models/audio_item.py` | 再生キュー要素（`TTSItem` / `SoundboardItem`）の型定義 |
 | `models/guild_session.py` | ギルド単位のキュー・タスク・一時チャンネル・スキップ状態を保持する `GuildSession` |
 | `models/dictionary_snapshot.py` | Repositoryから純粋な前処理へ渡す読み辞書・Soundboard条件のスナップショット |
+| `models/streaming_audio.py` | VOICEVOXから少しずつ届く音声をWAVファイルへ書きながら、別スレッド（FFmpegへ渡す側）に書かれた分だけ読ませる`StreamingAudio` |
 | `models/generation_record.py` | VOICEVOXの生成1回分の記録（`GenerationRecord`）と集計結果（`GenerationSummary`）の型 |
 | `models/preprocess_result.py` | 前処理済みテキスト・置換範囲・Soundboard ID・空白区切り文章フラグを保持する結果型 |
 | `config.py` | `.env` から環境変数をロードし定数として公開 |
@@ -265,12 +266,20 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - 疎通確認のあと、`VoicevoxClient.warm_up_speaker()`が裏で`/initialize_speaker`を呼び、`DEFAULT_SPEAKER`の声のモデルだけを前もって読み込む。VOICEVOXは話者を最初に使うときにモデルを読み込むため、起動直後の最初の読み上げが遅れないようにする。合成用のロックは取らず、起動も待たせない。失敗しても表示するだけでBotは止めない。サーバーごとに設定した話者は読み込まない。
 - 稼働中の音声生成は全ギルドで1件ずつ処理し、一時的なHTTP障害だけを受付から最大30秒再試行する。一時切断後はClient所有のHTTPセッションを再生成する。
 
+### ストリーミングでの音声合成（`/streaming_synthesis`）
+
+- `VoicevoxClient.generate()`は`StreamingAudio`を返す（作れなかったときはNone）。VOICEVOX Engine 0.26.0以降の`/streaming_synthesis`（`segment_length`は`STREAM_SEGMENT_SECONDS`＝1.0秒）を使い、最初の部分が届いた時点で返す。残りは裏のタスクで受け取り、`TMP_DIR`の同じWAVファイルへ書き足す。WAVのヘッダーには全体の大きさが最初から入っている。
+- 生成の順番（全ギルドで1件ずつ）は、残りを受け取り終えるまで持ち続ける。最初の部分が届くまでは今までどおり再試行し、届いたあとに切れたときはやり直さずに失敗として記録・通知する（`VOICEVOX streaming`）。再生は届いた分までで終わる。
+- エンジンが`/streaming_synthesis`を持たない（404・405）と分かったら、以後はBotを再起動するまで`/synthesis`を使う。話者がストリーミングに対応していない（422）ときは、その話者だけ`/synthesis`を使う。どちらも全体を作ってから、書き終えた`StreamingAudio`を返す。
+- `VoiceService.play()`は、書き終えていない音声を`StreamingAudio.open_reader()`で開き、`discord.FFmpegOpusAudio(reader, pipe=True, before_options="-f wav")`へ渡す。読み手は届いていない分を待ち、書き終えたら残りを読んで終わる。30秒届かなければ打ち切る。再生が終わったとき・再生しなかったときは読み手を閉じ、待っているスレッドを終わらせる。書き終えた音声は今までどおり`from_probe()`でファイルから再生する。
+- クリア・削除・`!t`の扱いは今までと同じ。WAVファイルは書きかけでも同じ名前にあるので、消す処理はそのまま動く。`speak_and_export()`はファイルにするため、最後まで届くのを待ち、途中で切れたらNoneを返す。
+
 ### 生成の記録（`/voicevox-log`）
 
 - `GenerationLogService`が、VOICEVOXの生成の記録を直近500件までメモリに持つ。DBには書かず、Botを再起動すると消える。運営者が発言の内容を推し量れないよう、読み上げた文章と、どのサーバーの生成か（サーバーID・サーバー名）は持たず、文字数だけを残す。
-- 成功・失敗は`VoicevoxClient.generate()`が記録する。時間は、生成の順番（全ギルドで1件ずつ）を待った時間と、順番が来てから生成し終える（失敗なら諦める）までの時間に分け、試した回数と、失敗なら例外の名前も残す。
+- 成功・失敗は`VoicevoxClient.generate()`が記録する。時間は、生成の順番（全ギルドで1件ずつ）を待った時間と、順番が来てから生成し終える（失敗なら諦める）までの時間に分け、試した回数と、失敗なら例外の名前も残す。ストリーミングしたかと、順番が来てから最初の音が届くまでの時間も残す（ストリーミングしないときは生成時間と同じ）。ストリーミングの成功は、残りを受け取り終えたときに記録する。
 - スキップは`SpeechService`が記録する。理由は、読む文字がない（`empty`）、生成中にクリアされた（`cleared`）、生成中にメッセージが消された（`deleted`）の3つ。クリア・削除のスキップは、生成の成功とは別の記録として残る（生成の時間は使っているため）。生成を始める前にクリア中だったメッセージと、`!t`でクリアされてファイルだけを送ったものは記録しない。
-- `/voicevox-log`は、直近`count`件の一覧（新しい順）と、記録全体の集計（件数とスキップの内訳、成功の生成時間の平均・中央値・95パーセンタイル・最大、1文字あたりの平均、順番待ちの平均・最大）を表示する。サーバーの情報は表示しない。
+- `/voicevox-log`は、直近`count`件の一覧（新しい順）と、記録全体の集計（件数とスキップの内訳、成功の生成時間の平均・中央値・95パーセンタイル・最大、1文字あたりの平均、最初の音までの平均・中央値・最大とストリーミングした件数、順番待ちの平均・最大）を表示する。サーバーの情報は表示しない。
 - 両Clientは`aiohttp.ClientSession`を初回通信時に生成して再利用する。通常実行経路で同期`requests`は使用しない。
 - `VoiceService`と`UpdateSoundBoards`はHTTPのURL・認証方法を知らず、Clientのメソッドだけを呼ぶ。
 - Bot終了時は`ManagedDiscordClient.close()`がHTTPセッションと4つのSQLite接続を閉じる。
@@ -353,7 +362,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 | 型 | 形式 | 説明 |
 |---|---|---|
-| TTS | `TTSItem(path: str)` | VOICEVOX 生成 WAV ファイルパス |
+| TTS | `TTSItem(path: str, message_id, audio: StreamingAudio \| None)` | VOICEVOX 生成 WAV ファイルパス。`audio`があれば書き終える前でも届いた分から再生する |
 | Soundboard | `SoundboardItem(sound_id: str)` | Discord サウンドボード |
 
 `isinstance(item, TTSItem)` / `isinstance(item, SoundboardItem)` で判別する。
@@ -364,7 +373,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 2. `item` が `SoundboardItem` の場合:
    - `voice_client.is_playing()` が False になるまで 0.1秒ポーリングで待機（TTS 完了待ち）
    - `_play_soundboard()` で Discord API を呼び出し、即 `task_done()`
-3. `item` が `TTSItem` の場合: `play()` で FFmpeg 再生、完了後 `task_done()`
+3. `item` が `TTSItem` の場合: `play()` で FFmpeg 再生、完了後 `task_done()`（書きかけの音声はパイプで渡す）
 
 Botが接続し直したときは、`VoiceService.reset_speaking_soon()`が1秒後に無音のOpusフレームを5つ送ってから「話していない」状態を送る。話している途中で強制切断されたあと、Discord上で「話している」表示が残らないようにするため。
 

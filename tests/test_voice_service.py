@@ -3,12 +3,14 @@
 AGENTS.md「音声再生アーキテクチャ」のキューの型と /clear の動きを確かめる。
 """
 
+import asyncio
 import os
 import unittest
 from types import SimpleNamespace
 from unittest import mock
 
 from models.audio_item import SoundboardItem, TTSItem
+from models.streaming_audio import StreamingAudio
 from services.voice_service import VoiceService
 from tests.support import (
   DUMMY_GUILD_ID,
@@ -124,3 +126,97 @@ class VoiceServiceTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
   unittest.main()
+
+
+class PlayingVoiceClient:
+  """再生を始めたら、渡した音源と終わったときの処理を覚えておく。"""
+
+  def __init__(self):
+    self.source = None
+    self.after = None
+
+  def is_connected(self):
+    return True
+
+  def is_playing(self):
+    return False
+
+  def play(self, source, after=None):
+    self.source = source
+    self.after = after
+
+
+class StreamingPlaybackTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
+  """書きかけの音声は、届いた分からFFmpegへパイプで渡す。"""
+
+  async def asyncSetUp(self):
+    self.notifier = RecordingNotifier()
+    loop = asyncio.get_running_loop()
+    self.service = VoiceService(
+      client=SimpleNamespace(loop=loop), error_notifier=self.notifier
+    )
+    self.voice_client = PlayingVoiceClient()
+    self.guild = SimpleNamespace(id=DUMMY_GUILD_ID, voice_client=self.voice_client)
+    self.session = self.service.get_session(DUMMY_GUILD_ID)
+
+  def streaming_audio(self):
+    audio = StreamingAudio(self.tmp_path("tmp", "stream.wav"))
+    audio.open_for_write()
+    audio.write(b"RIFF-head")
+    self.addCleanup(audio.finish)
+    return audio
+
+  async def test_unfinished_audio_is_piped_to_ffmpeg(self):
+    audio = self.streaming_audio()
+    source = mock.Mock()
+    with mock.patch(
+        "services.voice_service.discord.FFmpegOpusAudio", return_value=source
+    ) as ffmpeg:
+      await self.service.play(self.guild, audio.path, 1, audio=audio)
+    args, kwargs = ffmpeg.call_args
+    reader = args[0]
+    self.assertTrue(kwargs["pipe"])
+    self.assertEqual(kwargs["before_options"], "-f wav")
+    self.assertIs(self.voice_client.source, source)
+    self.assertEqual(self.session.current_message_id, 1)
+    self.assertFalse(reader.closed)
+
+    # 再生が終わったら読み手を閉じ、ファイルを消す
+    self.voice_client.after(None)
+    await asyncio.sleep(0.05)
+    self.assertTrue(reader.closed)
+    self.assertFalse(os.path.exists(audio.path))
+    self.assertIsNone(self.session.current_message_id)
+
+  async def test_finished_audio_is_played_from_file(self):
+    path = self.tmp_path("tmp", "done.wav")
+    with open(path, "wb") as file:
+      file.write(b"RIFF")
+    audio = StreamingAudio.completed(path)
+    source = mock.Mock()
+    with mock.patch(
+        "services.voice_service.discord.FFmpegOpusAudio"
+    ) as ffmpeg:
+      ffmpeg.from_probe = mock.AsyncMock(return_value=source)
+      await self.service.play(self.guild, path, 2, audio=audio)
+    ffmpeg.from_probe.assert_awaited_once_with(path)
+    ffmpeg.assert_not_called()
+    self.assertIs(self.voice_client.source, source)
+    self.voice_client.after(None)
+    await asyncio.sleep(0.05)
+
+  async def test_skipped_stream_stops_ffmpeg_and_reader(self):
+    audio = self.streaming_audio()
+    self.session.skipping = True
+    source = mock.Mock()
+    with mock.patch(
+        "services.voice_service.discord.FFmpegOpusAudio", return_value=source
+    ) as ffmpeg:
+      await self.service.play(self.guild, audio.path, 3, audio=audio)
+    reader = ffmpeg.call_args.args[0]
+    self.assertIsNone(self.voice_client.source)
+    self.assertTrue(reader.closed)
+    source.cleanup.assert_called_once()
+    await asyncio.sleep(0.05)
+    self.assertFalse(os.path.exists(audio.path))
+

@@ -162,20 +162,21 @@ class SpeechService:
       self._record_skip(SKIP_EMPTY)
       return
     text = self._limit_length(guild_id, text, replaced_ranges)
-    path = await self._synthesize(guild_id, message.id, text, spaced_out)
-    if path is None:
+    # ストリーミングできるときは、最初の音が届いた時点で戻る。残りは裏で届く
+    audio = await self._synthesize(guild_id, message.id, text, spaced_out)
+    if audio is None:
       return
     if session.clear_generation != clear_generation:
       self._record_skip(SKIP_CLEARED, len(text))
-      await self.voice_service.safe_remove(path)
+      await self.voice_service.safe_remove(audio.path)
       return
     if self.voice_service.consume_cancelled(guild_id, message.id):
       self._record_skip(SKIP_DELETED, len(text))
-      await self.voice_service.safe_remove(path)
+      await self.voice_service.safe_remove(audio.path)
       return
     await self.voice_service.enqueue(
       message.guild,
-      TTSItem(path, message_id=message.id),
+      TTSItem(audio.path, message_id=message.id, audio=audio),
     )
 
   async def speak_and_export(
@@ -213,8 +214,13 @@ class SpeechService:
       self._record_skip(SKIP_EMPTY)
       return None
     text = self._limit_length(guild.id, text, replaced_ranges)
-    path = await self._synthesize(guild.id, request_id, text, spaced_out)
-    if path is None:
+    audio = await self._synthesize(guild.id, request_id, text, spaced_out)
+    if audio is None:
+      return None
+    path = audio.path
+    # ファイルにするので、最後まで届くのを待つ。途中で切れたら送らない
+    if not await audio.wait():
+      await self.voice_service.safe_remove(path)
       return None
     # 再生が終わるとWAVは消えるので、キューへ入れる前に中身を読んでおく
     try:
@@ -231,10 +237,13 @@ class SpeechService:
     if session.clearing or session.clear_generation != clear_generation:
       await self.voice_service.safe_remove(path)
       return tts_file
-    await self.voice_service.enqueue(guild, TTSItem(path, message_id=message_id))
+    await self.voice_service.enqueue(
+      guild, TTSItem(path, message_id=message_id, audio=audio)
+    )
     return tts_file
 
   async def generate(self, message, guild_id, message_id, speaker, speed=1.0, volume=1.0):
+    """音声を作る。書きかけでも返る`StreamingAudio`か、作れなかったときはNone。"""
     return await self.vvtts.generate(
       message,
       guild_id,

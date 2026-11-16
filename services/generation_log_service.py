@@ -33,8 +33,11 @@ class GenerationLogService:
     self._records.append(GenerationRecord(at=self._clock(), **values))
 
   def record_success(
-      self, chars, speaker, wait_seconds, synth_seconds, attempts
+      self, chars, speaker, wait_seconds, synth_seconds, attempts,
+      *, streamed=False, first_audio_seconds=None,
   ) -> None:
+    if first_audio_seconds is None:
+      first_audio_seconds = synth_seconds
     self._add(
       outcome=SUCCESS,
       chars=chars,
@@ -42,10 +45,13 @@ class GenerationLogService:
       wait_seconds=wait_seconds,
       synth_seconds=synth_seconds,
       attempts=attempts,
+      streamed=streamed,
+      first_audio_seconds=first_audio_seconds,
     )
 
   def record_failure(
-      self, chars, speaker, wait_seconds, synth_seconds, attempts, reason
+      self, chars, speaker, wait_seconds, synth_seconds, attempts, reason,
+      *, streamed=False,
   ) -> None:
     self._add(
       outcome=FAILED,
@@ -55,6 +61,7 @@ class GenerationLogService:
       synth_seconds=synth_seconds,
       attempts=attempts,
       reason=reason,
+      streamed=streamed,
     )
 
   def record_skip(self, reason, chars: int = 0) -> None:
@@ -83,6 +90,11 @@ class GenerationLogService:
       if record.seconds_per_char is not None
     ]
     waits = [record.wait_seconds for record in records if record.outcome != SKIPPED]
+    first_audio = sorted(
+      record.first_audio_seconds
+      for record in successes
+      if record.first_audio_seconds is not None
+    )
     return GenerationSummary(
       total=len(records),
       success=outcomes[SUCCESS],
@@ -96,6 +108,10 @@ class GenerationLogService:
       seconds_per_char_average=_average(per_char),
       wait_average=_average(waits),
       wait_max=max(waits) if waits else None,
+      streamed=sum(1 for record in successes if record.streamed),
+      first_audio_average=_average(first_audio),
+      first_audio_median=_percentile(first_audio, 50),
+      first_audio_max=first_audio[-1] if first_audio else None,
       first_at=records[0].at,
     )
 

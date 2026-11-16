@@ -28,6 +28,9 @@ class GenerationRecord:
   synth_seconds: float = 0.0  # 順番が来てから生成し終える（または諦める）までの時間
   attempts: int = 0
   reason: str | None = None   # スキップの理由、または失敗した例外の名前
+  streamed: bool = False      # /streaming_synthesisで少しずつ受け取ったか
+  # 順番が来てから最初の音が届くまでの時間（成功のみ）。ストリーミングしないときは生成時間と同じ
+  first_audio_seconds: float | None = None
 
   @property
   def seconds_per_char(self) -> float | None:
@@ -52,4 +55,8 @@ class GenerationSummary:
   seconds_per_char_average: float | None = None
   wait_average: float | None = None
   wait_max: float | None = None
+  streamed: int = 0
+  first_audio_average: float | None = None
+  first_audio_median: float | None = None
+  first_audio_max: float | None = None
   first_at: float | None = None

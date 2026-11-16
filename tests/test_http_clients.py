@@ -81,10 +81,12 @@ class VoicevoxClientTest(LocalServerTestCase):
       web.post("/synthesis", synthesis),
     ])
     self.notifier = RecordingNotifier()
+    # /synthesisで作る流れを確かめる（ストリーミングはVoicevoxStreamingTestで確かめる）
     self.client = VoicevoxClient(
       base_url,
       tmp_dir=os.path.join(self.tmp_dir, "tmp"),
       error_notifier=self.notifier,
+      streaming_enabled=False,
     )
     self.addAsyncCleanup(self.client.close)
 
@@ -92,11 +94,14 @@ class VoicevoxClientTest(LocalServerTestCase):
     self.assertEqual(await self.client.check_health(), '"0.0.0-test"')
 
   async def test_generate_writes_wav_with_requested_settings(self):
-    path = await self.client.generate(
+    audio = await self.client.generate(
       "こんにちは", DUMMY_GUILD_ID, 10, speaker=3, speed=1.5, volume=0.8
     )
-    self.assertEqual(path, os.path.join(self.tmp_dir, "tmp", f"{DUMMY_GUILD_ID}-10.wav"))
-    with open(path, "rb") as file:
+    self.assertEqual(
+      audio.path, os.path.join(self.tmp_dir, "tmp", f"{DUMMY_GUILD_ID}-10.wav")
+    )
+    self.assertTrue(audio.succeeded)
+    with open(audio.path, "rb") as file:
       self.assertEqual(file.read(), FAKE_WAV)
 
     kind, query = self.requests[0]
@@ -209,6 +214,177 @@ class VoicevoxClientTest(LocalServerTestCase):
         file.write(b"x")
     self.assertEqual(self.client.cleanup_tmp_wav_files(), 2)
     self.assertEqual(os.listdir(tmp_dir), ["keep.txt"])
+
+
+STREAM_HEAD = b"RIFF-head"
+STREAM_REST = (b"-part1", b"-part2")
+
+
+class VoicevoxStreamingTest(LocalServerTestCase):
+  """/streaming_synthesisで少しずつ受け取る流れを確かめる。"""
+
+  async def asyncSetUp(self):
+    self.requests = []
+    self.streaming_status = 200
+    # 最初の部分を送ったあと、これがセットされるまで残りを送らない
+    self.release_rest = asyncio.Event()
+    self.cut_after_head = False
+    self.non_streaming_speakers = set()
+
+    async def audio_query(request):
+      self.requests.append(("audio_query", dict(request.query)))
+      return web.json_response({"speedScale": 1.0, "accent_phrases": []})
+
+    async def synthesis(request):
+      self.requests.append(("synthesis", dict(request.query)))
+      return web.Response(body=FAKE_WAV, content_type="audio/wav")
+
+    async def streaming_synthesis(request):
+      body = json.loads(await request.text())
+      self.requests.append(("streaming_synthesis", dict(request.query), body))
+      if self.streaming_status != 200:
+        return web.Response(status=self.streaming_status)
+      if int(request.query["speaker"]) in self.non_streaming_speakers:
+        return web.json_response({"message": "unsupported"}, status=422)
+      total = len(STREAM_HEAD) + sum(len(part) for part in STREAM_REST)
+      response = web.StreamResponse(headers={"Content-Length": str(total)})
+      response.content_type = "audio/wav"
+      await response.prepare(request)
+      await response.write(STREAM_HEAD)
+      await self.release_rest.wait()
+      if self.cut_after_head:
+        request.transport.close()
+        return response
+      for part in STREAM_REST:
+        await response.write(part)
+      await response.write_eof()
+      return response
+
+    routes = [
+      web.post("/audio_query", audio_query),
+      web.post("/synthesis", synthesis),
+    ]
+    routes.append(web.post("/streaming_synthesis", streaming_synthesis))
+    base_url = await self.start_server(routes)
+    self.notifier = RecordingNotifier()
+    self.log = GenerationLogService()
+    self.client = VoicevoxClient(
+      base_url,
+      tmp_dir=os.path.join(self.tmp_dir, "tmp"),
+      error_notifier=self.notifier,
+      generation_log=self.log,
+    )
+    self.addAsyncCleanup(self.client.close)
+
+  def kinds(self):
+    return [request[0] for request in self.requests]
+
+  async def test_returns_before_whole_audio_arrives(self):
+    audio = await self.client.generate(
+      "こんにちは", DUMMY_GUILD_ID, 20, speaker=3, speed=1.5
+    )
+    # 最初の部分が届いた時点で戻り、まだ書き終えていない
+    self.assertFalse(audio.finished)
+    self.assertEqual(audio.size, len(STREAM_HEAD))
+    self.release_rest.set()
+    self.assertTrue(await audio.wait())
+    with open(audio.path, "rb") as file:
+      self.assertEqual(file.read(), STREAM_HEAD + b"".join(STREAM_REST))
+
+    kind, params, body = self.requests[1]
+    self.assertEqual(kind, "streaming_synthesis")
+    self.assertEqual(params["speaker"], "3")
+    self.assertEqual(
+      float(params["segment_length"]), VoicevoxClient.STREAM_SEGMENT_SECONDS
+    )
+    self.assertEqual(body["speedScale"], 1.5)
+    self.assertNotIn("synthesis", self.kinds())
+
+  async def test_success_is_recorded_after_stream_ends(self):
+    audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 21)
+    self.assertEqual(self.log.recent(10), [])
+    await asyncio.sleep(0.05)
+    self.release_rest.set()
+    await audio.wait()
+    [record] = self.log.recent(10)
+    self.assertEqual(record.outcome, SUCCESS)
+    self.assertTrue(record.streamed)
+    self.assertLess(record.first_audio_seconds, record.synth_seconds)
+
+  async def test_next_generation_waits_until_stream_ends(self):
+    first = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 22)
+    second = asyncio.create_task(
+      self.client.generate("こんばんは", DUMMY_GUILD_ID, 23)
+    )
+    await asyncio.sleep(0.1)
+    # 生成は全サーバーで1件ずつなので、1件目を受け取り終えるまで2件目は始まらない
+    self.assertEqual(self.kinds().count("audio_query"), 1)
+    self.release_rest.set()
+    await first.wait()
+    second_audio = await second
+    self.assertTrue(await second_audio.wait())
+    self.assertEqual(self.kinds().count("audio_query"), 2)
+
+  async def test_old_engine_falls_back_to_synthesis(self):
+    self.streaming_status = 404
+    with contextlib.redirect_stdout(io.StringIO()) as output:
+      audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 24)
+      self.assertTrue(audio.succeeded)
+      await self.client.generate("こんにちは", DUMMY_GUILD_ID, 25)
+    self.assertIn("/streaming_synthesisに対応していない", output.getvalue())
+    with open(audio.path, "rb") as file:
+      self.assertEqual(file.read(), FAKE_WAV)
+    # 対応していないと分かったら、次からは試さない
+    self.assertEqual(
+      self.kinds(),
+      ["audio_query", "streaming_synthesis", "synthesis", "audio_query", "synthesis"],
+    )
+    self.assertEqual(self.notifier.exceptions, [])
+    [second, first] = self.log.recent(10)
+    self.assertFalse(first.streamed)
+    self.assertEqual(first.first_audio_seconds, first.synth_seconds)
+
+  async def test_unsupported_speaker_falls_back_only_for_that_speaker(self):
+    self.non_streaming_speakers = {5}
+    self.release_rest.set()
+    with contextlib.redirect_stdout(io.StringIO()) as output:
+      audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 26, speaker=5)
+      await self.client.generate("こんにちは", DUMMY_GUILD_ID, 27, speaker=5)
+      other = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 28, speaker=3)
+      await other.wait()
+    self.assertIn("話者5はストリーミングに対応していない", output.getvalue())
+    self.assertTrue(audio.succeeded)
+    self.assertEqual(
+      self.kinds(),
+      [
+        "audio_query", "streaming_synthesis", "synthesis",
+        "audio_query", "synthesis",
+        "audio_query", "streaming_synthesis",
+      ],
+    )
+
+  async def test_cut_stream_is_failure_and_releases_turn(self):
+    self.cut_after_head = True
+    audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 29)
+    self.release_rest.set()
+    self.assertFalse(await audio.wait())
+    self.assertTrue(audio.finished)
+    [record] = self.log.recent(10)
+    self.assertEqual(record.outcome, FAILED)
+    self.assertTrue(record.streamed)
+    [(error, context)] = self.notifier.exceptions
+    self.assertEqual(context, "VOICEVOX streaming")
+    # 途中で切れても、次の生成はできる
+    self.cut_after_head = False
+    next_audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 30)
+    self.assertTrue(await next_audio.wait())
+
+  async def test_close_stops_receiving(self):
+    audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 31)
+    await self.client.close()
+    self.assertTrue(audio.finished)
+    self.assertFalse(audio.succeeded)
+    self.assertFalse(self.client._generation_lock.locked())
 
 
 class DiscordSoundboardClientTest(LocalServerTestCase):
