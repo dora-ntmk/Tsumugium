@@ -50,6 +50,8 @@ class VoicevoxClient:
   # /streaming_synthesisで一度に作る音声の長さ（秒）。短いほど最初の音は早く届くが、
   # 区切りごとに前後の余白も作るので、全体の生成は遅くなる
   STREAM_SEGMENT_SECONDS = 1.0
+  # ストリーミングの残りが、この秒数届かなければ打ち切る（全体の時間は縛らない）
+  STREAM_READ_TIMEOUT_SECONDS = 15.0
 
   def __init__(
       self,
@@ -503,17 +505,26 @@ class VoicevoxClient:
     remaining = deadline - loop.time()
     if remaining <= 0:
       raise asyncio.TimeoutError("VOICEVOX generation deadline exceeded")
-    response = await session.post(
-      f"{self.url}/streaming_synthesis",
-      headers={"Content-Type": "application/json"},
-      params={
-        "speaker": speaker,
-        "segment_length": self.STREAM_SEGMENT_SECONDS,
-      },
-      data=body,
-      timeout=aiohttp.ClientTimeout(total=remaining),
-    )
-    try:
+    response = None
+
+    async def start() -> _SynthesisStart | None:
+      nonlocal response
+      # 期限（受付から30秒）で縛るのは最初の音が届くまで。残りは長い文章ほど
+      # 時間がかかるので、全体の時間ではなく、届かない時間だけで打ち切る
+      response = await session.post(
+        f"{self.url}/streaming_synthesis",
+        headers={"Content-Type": "application/json"},
+        params={
+          "speaker": speaker,
+          "segment_length": self.STREAM_SEGMENT_SECONDS,
+        },
+        data=body,
+        timeout=aiohttp.ClientTimeout(
+          total=None,
+          sock_connect=remaining,
+          sock_read=self.STREAM_READ_TIMEOUT_SECONDS,
+        ),
+      )
       if response.status in (404, 405):
         self._streaming_supported = False
         print(
@@ -536,8 +547,12 @@ class VoicevoxClient:
         response.release()
         return _SynthesisStart(first)
       return _SynthesisStart(first, response)
+
+    try:
+      return await asyncio.wait_for(start(), timeout=remaining)
     except BaseException:
-      response.release()
+      if response is not None:
+        response.release()
       raise
 
   async def _reset_owned_session(self) -> None:
