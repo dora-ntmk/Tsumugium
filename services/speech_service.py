@@ -2,6 +2,7 @@
 
 import io
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 
@@ -15,6 +16,18 @@ JST = timezone(timedelta(hours=9), "JST")
 TTS_FILE_NAME_TEXT_LIMIT = 40
 # ファイル名に使えない文字・使うと紛らわしい文字と、空白・制御文字
 _UNSAFE_FILE_NAME_RE = re.compile(r'[\\/:*?"<>|\s\x00-\x1f\x7f]+')
+
+
+def has_speakable_text(text: str) -> bool:
+  """読み上げる文字があるかを返す。
+
+  空白・区切り記号（前処理で入る`,`など）・制御文字しかない文章は、
+  VOICEVOXへ渡しても声にならないので読まない。
+  """
+  return any(
+    unicodedata.category(char)[0] not in ("Z", "P", "C")
+    for char in text
+  )
 
 
 def build_tts_file_name(text: str, created_at: datetime | None = None) -> str:
@@ -136,6 +149,9 @@ class SpeechService:
       return
     if sounddict_only:
       return
+    # embedだけのメッセージなど、読む文字がなければ音声を作らない
+    if not has_speakable_text(text):
+      return
     text = self._limit_length(guild_id, text, replaced_ranges)
     path = await self._synthesize(guild_id, message.id, text, spaced_out)
     if path is None:
@@ -168,7 +184,8 @@ class SpeechService:
     ふだんの読み上げと同じ設定・前処理を通す。ただし音声辞書には反応させない
     （Soundboardはファイルにできないため）。音声を作れなかったときと、
     元のメッセージが消されたときはNoneを返す。クリアされたときは
-    読み上げないが、ファイルは返す。
+    読み上げないが、ファイルは返す。前処理のあとに読む文字が残らなかったときも
+    音声を作らずにNoneを返す。
     """
     session = self.voice_service.get_session(guild.id)
     clear_generation = session.clear_generation
@@ -181,6 +198,8 @@ class SpeechService:
       author_id,
       use_sounds=False,
     )
+    if not has_speakable_text(text):
+      return None
     text = self._limit_length(guild.id, text, replaced_ranges)
     path = await self._synthesize(guild.id, request_id, text, spaced_out)
     if path is None:
