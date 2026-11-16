@@ -15,10 +15,12 @@ SKIP_DELETED = "deleted"  # 生成中にメッセージが消され、再生し�
 
 @dataclass(frozen=True, slots=True)
 class GenerationRecord:
-  """生成1回分の記録。読み上げた文章そのものは持たない（文字数だけ）。"""
+  """生成1回分の記録。
+
+  読み上げた文章とサーバーは持たない（運営者が内容を推し量れないようにするため）。
+  """
 
   at: float                 # 記録した時刻（UNIX時間）
-  guild_id: int
   outcome: str              # SUCCESS / FAILED / SKIPPED
   chars: int = 0
   speaker: int | None = None

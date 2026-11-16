@@ -23,7 +23,6 @@ from services.error_notification_service import ensure_error_notifier
 JST = timezone(timedelta(hours=9), "JST")
 DEFAULT_LOG_COUNT = 10
 MAX_LOG_COUNT = 25
-GUILD_NAME_LIMIT = 12
 
 _OUTCOME_LABELS = {SUCCESS: "成功", FAILED: "失敗", SKIPPED: "スキップ"}
 _SKIP_LABELS = {
@@ -75,18 +74,15 @@ def format_summary_fields(summary, capacity: int) -> list[tuple[str, str]]:
   ]
 
 
-def format_record(record, guild_name: str | None) -> str:
+def format_record(record) -> str:
   """記録1件を1行にする。"""
   at = datetime.fromtimestamp(record.at, JST).strftime("%m/%d %H:%M:%S")
-  name = guild_name if guild_name else str(record.guild_id)
-  if len(name) > GUILD_NAME_LIMIT:
-    name = name[:GUILD_NAME_LIMIT - 1] + "…"
   outcome = _OUTCOME_LABELS.get(record.outcome, record.outcome)
   if record.outcome == SKIPPED:
     detail = _SKIP_LABELS.get(record.reason, record.reason or "")
     if record.chars:
       detail += f" {record.chars}字"
-    return f"{at} {outcome} {detail} [{name}]"
+    return f"{at} {outcome} {detail}"
   parts = [
     f"{record.chars}字",
     f"生成{record.synth_seconds:.2f}秒",
@@ -99,19 +95,17 @@ def format_record(record, guild_name: str | None) -> str:
     parts.append(f"試行{record.attempts}回")
   if record.outcome == FAILED and record.reason:
     parts.append(record.reason)
-  return f"{at} {outcome} {' '.join(parts)} [{name}]"
+  return f"{at} {outcome} {' '.join(parts)}"
 
 
 class OperatorCog:
   def __init__(
       self,
-      client,
       tree,
       generation_log,
       operator_user_id: int | None,
       error_notifier=None,
   ):
-    self.client = client
     self.tree = tree
     self.generation_log = generation_log
     self.operator_user_id = operator_user_id
@@ -121,13 +115,9 @@ class OperatorCog:
   def is_operator(self, user) -> bool:
     return self.operator_user_id is not None and user.id == self.operator_user_id
 
-  def _guild_name(self, guild_id) -> str | None:
-    guild = self.client.get_guild(guild_id)
-    return None if guild is None else guild.name
-
   def build_log_embed(self, count: int) -> discord.Embed:
     records = self.generation_log.recent(count)
-    lines = [format_record(record, self._guild_name(record.guild_id)) for record in records]
+    lines = [format_record(record) for record in records]
     description = None
     if lines:
       description = f"直近{len(lines)}件（新しい順）\n```\n" + "\n".join(lines) + "\n```"

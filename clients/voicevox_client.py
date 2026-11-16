@@ -187,7 +187,7 @@ class VoicevoxClient:
         raise ValueError("msgid cannot be None")
       if not msg.strip():
         # 空の文章はVOICEVOXへ送らない（無音の音声を作り、生成の順番も待たせるため）
-        self._record_skip_empty(guildid)
+        self._record_skip_empty()
         return None
 
       wav = await self._generate_serially(
@@ -200,7 +200,7 @@ class VoicevoxClient:
         started_at,
         timing,
       )
-      self._record(guildid, msg, speaker, started_at, timing)
+      self._record(msg, speaker, started_at, timing)
 
       os.makedirs(self.tmp_dir, exist_ok=True)
       path = os.path.join(self.tmp_dir, f"{guildid}-{msgid}.wav")
@@ -208,7 +208,7 @@ class VoicevoxClient:
         file.write(wav)
       return path
     except VoicevoxGenerationError as e:
-      self._record(guildid, msg, speaker, started_at, timing, error=e.last_error)
+      self._record(msg, speaker, started_at, timing, error=e.last_error)
       self.error_notifier.report_exception(
         e,
         "VOICEVOX generation",
@@ -223,7 +223,7 @@ class VoicevoxClient:
       )
       return None
     except Exception as e:
-      self._record(guildid, msg, speaker, started_at, timing, error=e)
+      self._record(msg, speaker, started_at, timing, error=e)
       self.error_notifier.report_exception(
         e,
         "VOICEVOX generation",
@@ -235,19 +235,20 @@ class VoicevoxClient:
       )
       return None
 
-  def _record_skip_empty(self, guild_id) -> None:
-    if self.generation_log is None:
-      return
-    self.generation_log.record_skip(guild_id, SKIP_EMPTY)
+  def _record_skip_empty(self) -> None:
+    if self.generation_log is not None:
+      self.generation_log.record_skip(SKIP_EMPTY)
 
-  def _record(self, guild_id, msg, speaker, started_at, timing, *, error=None) -> None:
-    """生成の結果を記録する。待ち時間と生成時間は、順番が来た時刻で分ける。"""
+  def _record(self, msg, speaker, started_at, timing, *, error=None) -> None:
+    """生成の結果を記録する。待ち時間と生成時間は、順番が来た時刻で分ける。
+
+    文章とサーバーは記録しない（文字数だけ）。
+    """
     if self.generation_log is None:
       return
     now = asyncio.get_running_loop().time()
     acquired_at = timing.acquired_at if timing.acquired_at is not None else now
     values = {
-      "guild_id": guild_id,
       "chars": len(msg) if isinstance(msg, str) else 0,
       "speaker": speaker,
       "wait_seconds": acquired_at - started_at,

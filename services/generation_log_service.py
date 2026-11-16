@@ -2,7 +2,7 @@
 
 成功・失敗はVoicevoxClientが、スキップ（読む文字がない、クリア・削除で
 捨てた）はSpeechServiceが記録する。Botを再起動すると記録は消える。
-読み上げた文章そのものは持たず、文字数だけを残す。
+読み上げた文章とサーバーは持たず、文字数だけを残す。
 """
 
 import math
@@ -33,10 +33,9 @@ class GenerationLogService:
     self._records.append(GenerationRecord(at=self._clock(), **values))
 
   def record_success(
-      self, guild_id, chars, speaker, wait_seconds, synth_seconds, attempts
+      self, chars, speaker, wait_seconds, synth_seconds, attempts
   ) -> None:
     self._add(
-      guild_id=guild_id,
       outcome=SUCCESS,
       chars=chars,
       speaker=speaker,
@@ -46,10 +45,9 @@ class GenerationLogService:
     )
 
   def record_failure(
-      self, guild_id, chars, speaker, wait_seconds, synth_seconds, attempts, reason
+      self, chars, speaker, wait_seconds, synth_seconds, attempts, reason
   ) -> None:
     self._add(
-      guild_id=guild_id,
       outcome=FAILED,
       chars=chars,
       speaker=speaker,
@@ -59,8 +57,8 @@ class GenerationLogService:
       reason=reason,
     )
 
-  def record_skip(self, guild_id, reason, chars: int = 0) -> None:
-    self._add(guild_id=guild_id, outcome=SKIPPED, chars=chars, reason=reason)
+  def record_skip(self, reason, chars: int = 0) -> None:
+    self._add(outcome=SKIPPED, chars=chars, reason=reason)
 
   def recent(self, count: int) -> list[GenerationRecord]:
     """新しいものから`count`件を返す。"""

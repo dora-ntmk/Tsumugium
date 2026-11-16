@@ -145,7 +145,7 @@ class VoicevoxClientTest(LocalServerTestCase):
     await self.client.generate("こんにちは", DUMMY_GUILD_ID, 15, speaker=3)
     [record] = log.recent(10)
     self.assertEqual(record.outcome, SUCCESS)
-    self.assertEqual((record.guild_id, record.chars, record.speaker), (DUMMY_GUILD_ID, 5, 3))
+    self.assertEqual((record.chars, record.speaker), (5, 3))
     self.assertEqual(record.attempts, 2)
     self.assertGreater(record.synth_seconds, 0)
     self.assertGreaterEqual(record.wait_seconds, 0)

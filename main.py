@@ -198,7 +198,6 @@ connection_cog = ConnectionCog(
 general_cog = GeneralCog(tree, VERSION, LAST_UPDATED, error_notifier)
 user_cog = UserCog(tree, user_config, error_notifier)
 operator_cog = OperatorCog(
-  client,
   tree,
   generation_log,
   OPERATOR_USER_ID,

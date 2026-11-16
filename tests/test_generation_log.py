@@ -45,6 +45,12 @@ def make_log(capacity=500):
 
 
 class GenerationLogServiceTest(unittest.TestCase):
+  def test_record_has_no_server_or_text(self):
+    # 運営者が内容を推し量れないよう、サーバーと文章は持たない
+    fields = set(GenerationRecord.__slots__)
+    self.assertNotIn("guild_id", fields)
+    self.assertNotIn("text", fields)
+
   def test_empty_summary(self):
     summary = make_log().summarize()
     self.assertEqual(summary.total, 0)
@@ -54,13 +60,13 @@ class GenerationLogServiceTest(unittest.TestCase):
   def test_old_records_are_dropped(self):
     log = make_log(capacity=3)
     for chars in range(1, 6):
-      log.record_success(DUMMY_GUILD_ID, chars, 8, 0.0, 1.0, 1)
+      log.record_success(chars, 8, 0.0, 1.0, 1)
     self.assertEqual([record.chars for record in log.recent(10)], [5, 4, 3])
 
   def test_recent_returns_newest_first(self):
     log = make_log()
-    log.record_success(DUMMY_GUILD_ID, 1, 8, 0.0, 1.0, 1)
-    log.record_skip(DUMMY_GUILD_ID, SKIP_EMPTY)
+    log.record_success(1, 8, 0.0, 1.0, 1)
+    log.record_skip(SKIP_EMPTY)
     self.assertEqual([r.outcome for r in log.recent(10)], [SKIPPED, SUCCESS])
     self.assertEqual(len(log.recent(1)), 1)
     self.assertEqual(log.recent(0), [])
@@ -68,11 +74,11 @@ class GenerationLogServiceTest(unittest.TestCase):
   def test_summary_uses_only_successes_for_time(self):
     log = make_log()
     for synth in (1.0, 2.0, 3.0, 4.0):
-      log.record_success(DUMMY_GUILD_ID, 10, 8, 0.5, synth, 1)
-    log.record_failure(DUMMY_GUILD_ID, 10, 8, 2.5, 30.0, 5, "TimeoutError")
-    log.record_skip(DUMMY_GUILD_ID, SKIP_EMPTY)
-    log.record_skip(DUMMY_GUILD_ID, SKIP_CLEARED, 10)
-    log.record_skip(DUMMY_GUILD_ID, SKIP_CLEARED, 10)
+      log.record_success(10, 8, 0.5, synth, 1)
+    log.record_failure(10, 8, 2.5, 30.0, 5, "TimeoutError")
+    log.record_skip(SKIP_EMPTY)
+    log.record_skip(SKIP_CLEARED, 10)
+    log.record_skip(SKIP_CLEARED, 10)
     summary = log.summarize()
     self.assertEqual(
       (summary.total, summary.success, summary.failed, summary.skipped), (8, 4, 1, 3)
@@ -155,29 +161,30 @@ class SpeechServiceSkipRecordTest(TempDirTestCase, unittest.IsolatedAsyncioTestC
 class FormatTest(unittest.TestCase):
   def test_success_line(self):
     record = GenerationRecord(
-      at=1_800_000_000.0, guild_id=DUMMY_GUILD_ID, outcome=SUCCESS, chars=10,
+      at=1_800_000_000.0, outcome=SUCCESS, chars=10,
       speaker=8, wait_seconds=0.25, synth_seconds=1.5, attempts=1,
     )
     self.assertEqual(
-      format_record(record, "テストサーバー"),
-      "01/15 17:00:00 成功 10字 生成1.50秒 (150ms/字) 待ち0.25秒 話者8 [テストサーバー]",
+      format_record(record),
+      "01/15 17:00:00 成功 10字 生成1.50秒 (150ms/字) 待ち0.25秒 話者8",
     )
 
   def test_failure_line_has_attempts_and_error(self):
     record = GenerationRecord(
-      at=1_800_000_000.0, guild_id=DUMMY_GUILD_ID, outcome=FAILED, chars=3,
+      at=1_800_000_000.0, outcome=FAILED, chars=3,
       speaker=8, wait_seconds=0.0, synth_seconds=30.0, attempts=4, reason="TimeoutError",
     )
-    line = format_record(record, None)
-    self.assertIn("失敗 3字 生成30.00秒 待ち0.00秒 話者8 試行4回 TimeoutError", line)
-    self.assertIn(f"[{str(DUMMY_GUILD_ID)[:11]}…]", line)
+    self.assertEqual(
+      format_record(record),
+      "01/15 17:00:00 失敗 3字 生成30.00秒 待ち0.00秒 話者8 試行4回 TimeoutError",
+    )
 
   def test_skip_line(self):
     record = GenerationRecord(
-      at=1_800_000_000.0, guild_id=DUMMY_GUILD_ID, outcome=SKIPPED, chars=7,
+      at=1_800_000_000.0, outcome=SKIPPED, chars=7,
       reason=SKIP_CLEARED,
     )
-    self.assertEqual(format_record(record, "鯖"), "01/15 17:00:00 スキップ クリア 7字 [鯖]")
+    self.assertEqual(format_record(record), "01/15 17:00:00 スキップ クリア 7字")
 
   def test_summary_fields_without_records(self):
     fields = dict(format_summary_fields(make_log().summarize(), 500))
@@ -212,9 +219,9 @@ class VoicevoxLogCommandTest(unittest.TestCase):
     client = discord.Client(intents=discord.Intents.none())
     self.tree = app_commands.CommandTree(client)
     self.log = make_log()
-    self.log.record_success(DUMMY_GUILD_ID, 10, 8, 0.0, 1.0, 1)
-    self.log.record_skip(DUMMY_GUILD_ID, SKIP_EMPTY)
-    OperatorCog(client, self.tree, self.log, DUMMY_USER_ID, RecordingNotifier())
+    self.log.record_success(10, 8, 0.0, 1.0, 1)
+    self.log.record_skip(SKIP_EMPTY)
+    OperatorCog(self.tree, self.log, DUMMY_USER_ID, RecordingNotifier())
     self.command = self.tree.get_command("voicevox-log")
 
   def run_command(self, user_id, count=10):
@@ -246,7 +253,7 @@ class VoicevoxLogCommandTest(unittest.TestCase):
   def test_refused_without_operator_setting(self):
     client = discord.Client(intents=discord.Intents.none())
     tree = app_commands.CommandTree(client)
-    OperatorCog(client, tree, self.log, None, RecordingNotifier())
+    OperatorCog(tree, self.log, None, RecordingNotifier())
     interaction = FakeInteraction(DUMMY_USER_ID)
     asyncio.run(tree.get_command("voicevox-log").callback(interaction, 10))
     self.assertEqual(interaction.embeds, [])
