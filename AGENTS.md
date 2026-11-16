@@ -22,11 +22,13 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `services/update_watch_service.py` | インストーラーが`UPDATE_STATE_DIR`に置くファイルを見張る。更新中はステータスを「アップデート中」にし、更新の結果と、自動更新が人の手を要る状態を運営者へDMで知らせる |
 | `services/reconnect_service.py` | つないでいるVCを`UPDATE_STATE_DIR`に書き残し、止めるときは読み上げチャンネルへ知らせてVCを抜け、再起動・更新のあとに同じVCへつなぎ直す |
 | `services/ready_state_service.py` | 起動の準備が終わったことを、インストーラーへ`ready.json`で知らせる。`UPDATE_STATE_DIR`が空欄なら何もしない |
+| `services/generation_log_service.py` | VOICEVOXの音声生成の記録（成功・スキップ・失敗、文字数、順番待ちと生成にかかった時間）を直近500件までメモリに持ち、集計する |
 | `cogs/connection_cog.py` | `/join`・`/leave`とVC状態イベントを`ConnectionService`へ接続する登録層 |
 | `cogs/playback_cog.py` | `/clear`と`on_message`を読み上げサービスへ接続する登録層 |
 | `cogs/general_cog.py` | `/version`を登録する一般コマンド層 |
 | `cogs/lifecycle_cog.py` | 起動・サーバー参加退出・Soundboard更新イベントを登録するライフサイクル層 |
 | `cogs/user_cog.py` | DMを含むユーザー単位設定コマンドを登録する層 |
+| `cogs/operator_cog.py` | Botの運営者（`OPERATOR_USER_ID`）だけが使うコマンドを登録する層。`/voicevox-log` |
 | `clients/voicevox_client.py` | 再利用可能な非同期HTTPセッションでVOICEVOX生成とWAV保存を担当 |
 | `clients/discord_soundboard_client.py` | Discord Soundboard一覧取得・再生APIを担当する非同期HTTPクライアント |
 | `clients/managed_discord_client.py` | Bot終了時に、登録した終了前の処理（VCから抜けるなど）を動かしてから、外部HTTP・SQLiteリソースを閉じるDiscord Client。SIGTERM・SIGINTを受けたらDiscordとの接続を閉じてから終わる |
@@ -43,6 +45,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `models/audio_item.py` | 再生キュー要素（`TTSItem` / `SoundboardItem`）の型定義 |
 | `models/guild_session.py` | ギルド単位のキュー・タスク・一時チャンネル・スキップ状態を保持する `GuildSession` |
 | `models/dictionary_snapshot.py` | Repositoryから純粋な前処理へ渡す読み辞書・Soundboard条件のスナップショット |
+| `models/generation_record.py` | VOICEVOXの生成1回分の記録（`GenerationRecord`）と集計結果（`GenerationSummary`）の型 |
 | `models/preprocess_result.py` | 前処理済みテキスト・置換範囲・Soundboard ID・空白区切り文章フラグを保持する結果型 |
 | `config.py` | `.env` から環境変数をロードし定数として公開 |
 | `backup.py` | SQLiteの定時バックアップとローテーション管理 |
@@ -216,6 +219,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/clear` | `instant: bool` | 全員 |
 | `/user-reading` | `reading: str (1〜50文字)` | 全員（DM可・ephemeral応答） |
 | `/user-reading-reset` | — | 全員（DM可・ephemeral応答） |
+| `/voicevox-log` | `count: int (1〜25、既定10)` | `OPERATOR_USER_ID`の人だけ（BotとのDMだけに出す・ephemeral応答） |
 | `/tsumugi-tts` | `text: str` | 全員（BotがVCに接続しているときだけ） |
 | `/t` | `text: str` | 全員（`/tsumugi-tts`の短縮） |
 | `/skip` | — | 全員 |
@@ -260,6 +264,13 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - Discord Gateway接続前に`VoicevoxClient.check_health()`で`/version`へ疎通確認し、失敗した場合はBotの起動を中止する。このときは終了コード1で終わり、systemdの`Restart=on-failure`で10秒後に起動し直す（マシンの起動直後にVOICEVOXより先に起動しても、VOICEVOXが立ち上がればつながる）。
 - 疎通確認のあと、`VoicevoxClient.warm_up_speaker()`が裏で`/initialize_speaker`を呼び、`DEFAULT_SPEAKER`の声のモデルだけを前もって読み込む。VOICEVOXは話者を最初に使うときにモデルを読み込むため、起動直後の最初の読み上げが遅れないようにする。合成用のロックは取らず、起動も待たせない。失敗しても表示するだけでBotは止めない。サーバーごとに設定した話者は読み込まない。
 - 稼働中の音声生成は全ギルドで1件ずつ処理し、一時的なHTTP障害だけを受付から最大30秒再試行する。一時切断後はClient所有のHTTPセッションを再生成する。
+
+### 生成の記録（`/voicevox-log`）
+
+- `GenerationLogService`が、VOICEVOXの生成の記録を直近500件までメモリに持つ。DBには書かず、Botを再起動すると消える。読み上げた文章そのものは持たず、文字数だけを残す。
+- 成功・失敗は`VoicevoxClient.generate()`が記録する。時間は、生成の順番（全ギルドで1件ずつ）を待った時間と、順番が来てから生成し終える（失敗なら諦める）までの時間に分け、試した回数と、失敗なら例外の名前も残す。
+- スキップは`SpeechService`が記録する。理由は、読む文字がない（`empty`）、生成中にクリアされた（`cleared`）、生成中にメッセージが消された（`deleted`）の3つ。クリア・削除のスキップは、生成の成功とは別の記録として残る（生成の時間は使っているため）。生成を始める前にクリア中だったメッセージと、`!t`でクリアされてファイルだけを送ったものは記録しない。
+- `/voicevox-log`は、直近`count`件の一覧（新しい順）と、記録全体の集計（件数とスキップの内訳、成功の生成時間の平均・中央値・95パーセンタイル・最大、1文字あたりの平均、順番待ちの平均・最大）を表示する。サーバーはBotが参加していればサーバー名、なければIDで表示する。
 - 両Clientは`aiohttp.ClientSession`を初回通信時に生成して再利用する。通常実行経路で同期`requests`は使用しない。
 - `VoiceService`と`UpdateSoundBoards`はHTTPのURL・認証方法を知らず、Clientのメソッドだけを呼ぶ。
 - Bot終了時は`ManagedDiscordClient.close()`がHTTPセッションと4つのSQLite接続を閉じる。

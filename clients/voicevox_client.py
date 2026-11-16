@@ -5,6 +5,7 @@ import json
 import os
 from typing import Any
 
+from models.generation_record import SKIP_EMPTY
 from services.error_notification_service import ensure_error_notifier
 
 
@@ -20,6 +21,16 @@ class VoicevoxGenerationError(RuntimeError):
     )
 
 
+class _GenerationTiming:
+  """生成1回分の、順番が来た時刻と試した回数（記録用）。"""
+
+  __slots__ = ("acquired_at", "attempts")
+
+  def __init__(self):
+    self.acquired_at: float | None = None
+    self.attempts = 0
+
+
 class VoicevoxClient:
   RETRY_WINDOW_SECONDS = 30.0
   MAX_RETRY_DELAY_SECONDS = 5.0
@@ -31,6 +42,7 @@ class VoicevoxClient:
       tmp_dir: str = "tmp",
       session: Any = None,
       error_notifier=None,
+      generation_log=None,
   ):
     self.url = url.rstrip("/")
     self.tmp_dir = tmp_dir
@@ -38,6 +50,8 @@ class VoicevoxClient:
     self._owns_session = session is None
     self._generation_lock = asyncio.Lock()
     self.error_notifier = ensure_error_notifier(error_notifier)
+    # 生成の記録（GenerationLogService）。Noneなら記録しない
+    self.generation_log = generation_log
 
   def cleanup_tmp_wav_files(self) -> int:
     """起動前に前回実行で残ったTMP_DIR直下のWAVを削除する。"""
@@ -163,6 +177,7 @@ class VoicevoxClient:
   ):
     loop = asyncio.get_running_loop()
     started_at = loop.time()
+    timing = _GenerationTiming()
     try:
       if msg is None:
         raise ValueError("msg cannot be None")
@@ -172,6 +187,7 @@ class VoicevoxClient:
         raise ValueError("msgid cannot be None")
       if not msg.strip():
         # 空の文章はVOICEVOXへ送らない（無音の音声を作り、生成の順番も待たせるため）
+        self._record_skip_empty(guildid)
         return None
 
       wav = await self._generate_serially(
@@ -182,7 +198,9 @@ class VoicevoxClient:
         intonation,
         volume,
         started_at,
+        timing,
       )
+      self._record(guildid, msg, speaker, started_at, timing)
 
       os.makedirs(self.tmp_dir, exist_ok=True)
       path = os.path.join(self.tmp_dir, f"{guildid}-{msgid}.wav")
@@ -190,6 +208,7 @@ class VoicevoxClient:
         file.write(wav)
       return path
     except VoicevoxGenerationError as e:
+      self._record(guildid, msg, speaker, started_at, timing, error=e.last_error)
       self.error_notifier.report_exception(
         e,
         "VOICEVOX generation",
@@ -204,6 +223,7 @@ class VoicevoxClient:
       )
       return None
     except Exception as e:
+      self._record(guildid, msg, speaker, started_at, timing, error=e)
       self.error_notifier.report_exception(
         e,
         "VOICEVOX generation",
@@ -215,6 +235,30 @@ class VoicevoxClient:
       )
       return None
 
+  def _record_skip_empty(self, guild_id) -> None:
+    if self.generation_log is None:
+      return
+    self.generation_log.record_skip(guild_id, SKIP_EMPTY)
+
+  def _record(self, guild_id, msg, speaker, started_at, timing, *, error=None) -> None:
+    """生成の結果を記録する。待ち時間と生成時間は、順番が来た時刻で分ける。"""
+    if self.generation_log is None:
+      return
+    now = asyncio.get_running_loop().time()
+    acquired_at = timing.acquired_at if timing.acquired_at is not None else now
+    values = {
+      "guild_id": guild_id,
+      "chars": len(msg) if isinstance(msg, str) else 0,
+      "speaker": speaker,
+      "wait_seconds": acquired_at - started_at,
+      "synth_seconds": now - acquired_at,
+      "attempts": timing.attempts,
+    }
+    if error is None:
+      self.generation_log.record_success(**values)
+    else:
+      self.generation_log.record_failure(**values, reason=type(error).__name__)
+
   async def _generate_serially(
       self,
       msg,
@@ -224,6 +268,7 @@ class VoicevoxClient:
       intonation,
       volume,
       started_at,
+      timing=None,
   ) -> bytes:
     loop = asyncio.get_running_loop()
     deadline = started_at + self.RETRY_WINDOW_SECONDS
@@ -237,6 +282,8 @@ class VoicevoxClient:
       try:
         await asyncio.wait_for(self._generation_lock.acquire(), timeout=remaining)
         acquired = True
+        if timing is not None:
+          timing.acquired_at = loop.time()
       except asyncio.TimeoutError as error:
         raise VoicevoxGenerationError(
           0, loop.time() - started_at, error
@@ -250,6 +297,7 @@ class VoicevoxClient:
         volume,
         deadline=deadline,
         started_at=started_at,
+        timing=timing,
       )
     finally:
       if acquired:
@@ -266,6 +314,7 @@ class VoicevoxClient:
       *,
       deadline=None,
       started_at=None,
+      timing=None,
   ) -> bytes:
     """VOICEVOXの一時的な切断を期限内で再試行する。"""
     import aiohttp
@@ -287,6 +336,8 @@ class VoicevoxClient:
           attempts, loop.time() - started_at, last_error
         ) from None
       attempts += 1
+      if timing is not None:
+        timing.attempts = attempts
       try:
         session = await self._get_session()
         async with session.post(
