@@ -219,7 +219,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/clear` | `instant: bool` | 全員 |
 | `/user-reading` | `reading: str (1〜50文字)` | 全員（DM可・ephemeral応答） |
 | `/user-reading-reset` | — | 全員（DM可・ephemeral応答） |
-| `/voicevox-log` | `count: int (1〜25、既定10)` | `OPERATOR_USER_ID`の人だけ（BotとのDMだけに出す・ephemeral応答） |
+| `/voicevox-log` | `count: int (1〜25、既定10)` | `OPERATOR_USER_ID`の人だけ（BotとのDMだけに出す。運営者以外への断りだけephemeral応答） |
 | `/tsumugi-tts` | `text: str` | 全員（BotがVCに接続しているときだけ） |
 | `/t` | `text: str` | 全員（`/tsumugi-tts`の短縮） |
 | `/skip` | — | 全員 |

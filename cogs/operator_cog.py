@@ -157,7 +157,7 @@ class OperatorCog:
             ephemeral=True,
           )
           return
-        await ctx.response.defer(ephemeral=True)
+        await ctx.response.defer()
         await ctx.edit_original_response(embed=self.build_log_embed(count))
       except discord.errors.InteractionResponded:
         return
