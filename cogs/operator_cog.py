@@ -133,7 +133,7 @@ def format_summary_fields(summary) -> list[tuple[str, str]]:
     ("生成時間（成功のみ）", synthesis),
     ("最初の音まで（成功のみ・メッセージから・順番待ちを除く）", first),
     (
-      "順番待ち",
+      "待ち時間（生成と再生の順番待ち）",
       f"平均 {_summary_seconds(summary.wait_average)}"
       f" / 最大 {_summary_seconds(summary.wait_max)}",
     ),
