@@ -4,6 +4,7 @@
   python scripts/release_notes.py --tag v4.3.0.71 --out notes.md
   python scripts/release_notes.py --tag v4.3.0.71-beta.002 --out notes.md
   python scripts/release_notes.py --changed-code-since v4.3.0.71-beta.001
+  python scripts/release_notes.py --check-version-bump origin/main
 
 正式版（下書き）の本文には、docs/RELEASE_CHECKLIST.md「リリースノートの書き方」の見出しの
 ひな形と、前の正式版のタグからのコミット名の一覧（参考）を入れる。一覧はHTMLのコメントに
@@ -12,6 +13,10 @@
 
 --changed-code-since は、そのタグから配布物のコードが変わったファイルを表示する。
 VERSIONの (beta X) を上げ忘れたことを見つけるために使う。
+
+--check-version-bump は、PRの確認で使う。比べる元（PRのマージ先）からコードが変わっているのに、
+config.py の VERSION が比べる元より新しくなっていなければ、終了コード1で終える。
+ドキュメントやテストだけの変更なら、VERSIONを上げなくてよい（AGENTS.md「バージョン表記」）。
 """
 
 from __future__ import annotations
@@ -144,12 +149,58 @@ def changed_code_files(root: Path, since: str, until: str = "HEAD") -> list[str]
   return [path for path in output.splitlines() if path and is_code(path)]
 
 
+def version_at(root: Path, revision: str) -> str:
+  """そのコミットの config.py に書かれた VERSION。"""
+  text = git(root, "show", f"{revision}:config.py")
+  match = _build_release.CONFIG_VERSION_RE.search(text)
+  if match is None:
+    raise ValueError(f"{revision} の config.py に VERSION が見つかりません")
+  return match.group(1)
+
+
+def version_key(version: str) -> tuple:
+  return tag_key(_build_release.parse_version(version)["tag"])
+
+
+def check_version_bump(root: Path, base: str, until: str = "HEAD") -> tuple[bool, str]:
+  """コードを変えたのに VERSION を上げていないかを調べる。(よいか, 説明) を返す。"""
+  # 比べる元から分かれたところからの変更だけを見る（マージ先が先に進んでいても、その分は数えない）
+  merge_base = git(root, "merge-base", base, until).strip()
+  changed = changed_code_files(root, merge_base, until)
+  before = version_at(root, base)
+  after = version_at(root, until)
+  if not changed:
+    return True, f"コードの変更はないので、VERSION は上げなくてよい（{after}）"
+  listed = "\n".join(f"  {path}" for path in changed)
+  if version_key(after) > version_key(before):
+    return True, f"VERSION を上げている（{before} → {after}）\n変わったコード:\n{listed}"
+  return False, (
+    f"コードを変えているのに、VERSION が {before} より新しくなっていません（今: {after}）。"
+    "config.py の (beta X) を1つ上げてください。"
+    f"\n変わったコード:\n{listed}"
+  )
+
+
 def main(argv: list[str] | None = None) -> int:
   parser = argparse.ArgumentParser(description="GitHub Releaseの本文を作る")
   parser.add_argument("--tag", help="作るReleaseのタグ名（例 v4.3.0.71、v4.3.0.71-beta.002）")
   parser.add_argument("--out", help="本文を書き出すファイル")
   parser.add_argument("--changed-code-since", metavar="TAG", help="そのタグから変わったコードのファイルを表示する")
+  parser.add_argument(
+    "--check-version-bump",
+    metavar="BASE",
+    help="BASE からコードが変わったのに VERSION を上げていなければ、終了コード1で終える",
+  )
   args = parser.parse_args(argv)
+  if args.check_version_bump:
+    ok, message = check_version_bump(ROOT, args.check_version_bump)
+    if ok:
+      print(message)
+      return 0
+    first, _, rest = message.partition("\n")
+    print(f"::error::{first}")
+    print(rest)
+    return 1
   if args.changed_code_since:
     for path in changed_code_files(ROOT, args.changed_code_since):
       print(path)

@@ -1,8 +1,10 @@
 """Releaseの下書きの本文を作るスクリプト（scripts/release_notes.py）のテスト。"""
 
 import importlib.util
+import io
 import subprocess
 from pathlib import Path
+from unittest import mock
 
 from tests.support import TempDirTestCase
 
@@ -189,3 +191,82 @@ class BuildBetaNotesTest(GitRepoTestCase):
     self.assertIn("v4.3.0.71-beta.1 からの変更", text)
     self.assertIn("- fix: ベータ2\n", text)
     self.assertNotIn("ベータ1", text)
+
+
+class CheckVersionBumpTest(GitRepoTestCase):
+  def setUp(self):
+    super().setUp()
+    self.root = Path(self.tmp_dir)
+    self.git("init", "-q", "-b", "main")
+    self.write_config("v4.4.0.72 (beta 9)", "feat: はじめ")
+
+  def write_config(self, version, subject):
+    self.write_and_commit("config.py", f'VERSION      = "{version}"\n', subject)
+
+  def branch(self):
+    self.git("checkout", "-q", "-b", "feat/x")
+
+  def check(self):
+    return release_notes.check_version_bump(self.root, "main")
+
+  def test_docs_and_tests_only_need_no_bump(self):
+    self.branch()
+    self.write_and_commit("docs/INSTALL.md", "x\n", "docs: 手引き")
+    self.write_and_commit("tests/test_x.py", "x\n", "test: テスト")
+    ok, message = self.check()
+    self.assertTrue(ok)
+    self.assertIn("上げなくてよい", message)
+
+  def test_code_change_without_bump_fails(self):
+    self.branch()
+    self.write_and_commit("main.py", "a\n", "feat: 足した")
+    ok, message = self.check()
+    self.assertFalse(ok)
+    self.assertIn("v4.4.0.72 (beta 9)", message)
+    self.assertIn("main.py", message)
+
+  def test_code_change_with_bump_passes(self):
+    self.branch()
+    self.write_and_commit("main.py", "a\n", "feat: 足した")
+    self.write_config("v4.4.0.72 (beta 10)", "feat: 番号を上げる")
+    ok, message = self.check()
+    self.assertTrue(ok)
+    self.assertIn("beta 9) → v4.4.0.72 (beta 10)", message)
+
+  def test_same_number_taken_by_another_pr_fails(self):
+    self.branch()
+    self.write_and_commit("main.py", "a\n", "feat: 足した")
+    self.write_config("v4.4.0.72 (beta 10)", "feat: 番号を上げる")
+    # 先にほかのPRが beta 10 で main に入った
+    self.git("checkout", "-q", "main")
+    self.write_and_commit("setting.py", "b\n", "feat: ほかのPR")
+    self.write_config("v4.4.0.72 (beta 10)", "feat: ほかのPRの番号")
+    self.git("checkout", "-q", "feat/x")
+    ok, _ = self.check()
+    self.assertFalse(ok)
+
+  def test_main_moving_ahead_with_code_is_not_counted(self):
+    self.branch()
+    self.write_and_commit("docs/INSTALL.md", "x\n", "docs: 手引き")
+    self.git("checkout", "-q", "main")
+    self.write_and_commit("setting.py", "b\n", "feat: ほかのPR")
+    self.write_config("v4.4.0.72 (beta 10)", "feat: ほかのPRの番号")
+    self.git("checkout", "-q", "feat/x")
+    ok, _ = self.check()
+    self.assertTrue(ok)
+
+  def test_release_to_stable_counts_as_newer(self):
+    self.branch()
+    self.write_and_commit("main.py", "a\n", "feat: 足した")
+    self.write_config("v4.4.0.72", "release: v4.4.0.72")
+    ok, _ = self.check()
+    self.assertTrue(ok)
+
+  def test_cli_exit_code(self):
+    self.branch()
+    self.write_and_commit("main.py", "a\n", "feat: 足した")
+    with mock.patch.object(release_notes, "ROOT", self.root), \
+        mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+      code = release_notes.main(["--check-version-bump", "main"])
+    self.assertEqual(code, 1)
+    self.assertTrue(out.getvalue().startswith("::error::"))

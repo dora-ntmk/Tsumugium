@@ -116,6 +116,14 @@ jobs:
           echo "比較の基準: $base"
           git diff --check "$base" HEAD
 
+      - name: コードを変えたのにVERSIONを上げ忘れていないかを確かめる
+        # AGENTS.md「バージョン表記」: コードを書き換えたPRは (beta X) を上げる。
+        # 上げ忘れると、mainに入っても同じタグがあるためベータ版が出ない
+        if: github.event_name == 'pull_request'
+        env:
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: python3 scripts/release_notes.py --check-version-bump "$PR_BASE_SHA"
+
       - name: 削除済み要素が残っていないかを確かめる
         run: |
           status=0
