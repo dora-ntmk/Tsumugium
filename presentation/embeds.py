@@ -20,6 +20,11 @@ _COLOR_FACTORIES = {
 }
 
 
+def embed_color(embed_type: EmbedType) -> discord.Color:
+  """種類ごとの色。Embedと、Components v2の枠（presentation/layouts.py）で同じ色を使う。"""
+  return _COLOR_FACTORIES[embed_type]()
+
+
 def make_embed(
     title: str,
     description: str | None = None,
@@ -30,6 +35,6 @@ def make_embed(
   return discord.Embed(
     title=title,
     description=description or None,
-    color=_COLOR_FACTORIES[embed_type](),
+    color=embed_color(embed_type),
   )
 

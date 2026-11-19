@@ -32,7 +32,7 @@ python -m unittest discover -s tests -v
 
 ## 3. インストーラーと配布物
 
-- [ ] インストーラーの結合テスト（`installer-e2e`）が成功している（CIで確認。`main`へのPRでは必ず実行する）
+- [ ] インストーラーの結合テスト（`installer-e2e`）が成功している（CIで確認。インストーラーに関わる変更があるときだけ実行される。前回のリリースから一度も実行されていなければ、Actionsから手動で実行して確かめる）
 - [ ] 配布物の作成（`build`）が成功し、成果物にzipと`.sha256`がある（CIで確認）
 - [ ] ベータ環境で、成果物のzipを使った`sudo tsumugium-setup upgrade --from-file <zipのパス>`が成功し、`status`が稼働中を表示する
 - [ ] ベータ環境で、`rollback`で1つ前のバージョンに戻り、もう一度`upgrade`で元に戻せる
