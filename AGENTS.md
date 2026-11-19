@@ -4,6 +4,8 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 
 全体の依存関係と処理フローは[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)を参照。
 
+**このプロジェクトに対する応答は基本的に日本語で行うこと。**
+
 ---
 
 ## モジュール構成
