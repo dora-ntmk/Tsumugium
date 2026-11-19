@@ -6,7 +6,7 @@ import aiohttp
 import discord
 
 from models.audio_item import TTSItem
-from presentation.embeds import EmbedType, make_embed
+from presentation.embeds import EmbedType
 from presentation.announcement_layout import add_announcements
 from presentation.layouts import LayoutMessage, make_layout
 from presentation.error_handler import handle_internal_error, handle_os_error
@@ -197,31 +197,28 @@ class ConnectionService:
       if message.guild.voice_client is not None:
         if message.author.voice:
           await self.disconnect(message.guild)
-          await message.channel.send(
-            embed=make_embed(
-              "切断完了",
-              "ボイスチャンネルから切断しました",
-              embed_type=EmbedType.SUCCESS,
-            )
+          layout = make_layout(
+            "切断完了",
+            "ボイスチャンネルから切断しました",
+            layout_type=EmbedType.SUCCESS,
           )
+          await message.channel.send(view=layout.view, files=layout.files)
         else:
-          await message.channel.send(
-            embed=make_embed(
-              "切断失敗",
-              "ボイスチャンネルから切断できませんでした",
-              embed_type=EmbedType.ERROR,
-            )
+          layout = make_layout(
+            "切断失敗",
+            "ボイスチャンネルから切断できませんでした",
+            layout_type=EmbedType.ERROR,
           )
+          await message.channel.send(view=layout.view, files=layout.files)
         return
 
       if not message.author.voice:
-        await message.channel.send(
-          embed=make_embed(
-            "接続失敗",
-            "ボイスチャンネルに接続できませんでした",
-            embed_type=EmbedType.ERROR,
-          )
+        layout = make_layout(
+          "接続失敗",
+          "ボイスチャンネルに接続できませんでした",
+          layout_type=EmbedType.ERROR,
         )
+        await message.channel.send(view=layout.view, files=layout.files)
         return
 
       voice_channel = message.author.voice.channel
@@ -231,13 +228,12 @@ class ConnectionService:
         message.channel,
       )
       if issues:
-        await message.channel.send(
-          embed=make_embed(
-            "権限エラー",
-            "\n".join(issues),
-            embed_type=EmbedType.ERROR,
-          )
+        layout = make_layout(
+          "権限エラー",
+          "\n".join(issues),
+          layout_type=EmbedType.ERROR,
         )
+        await message.channel.send(view=layout.view, files=layout.files)
         return
 
       await self._connect_voice(voice_channel)
@@ -253,13 +249,12 @@ class ConnectionService:
         self.voice_service.connection_context(message.guild),
       )
       try:
-        await message.channel.send(
-          embed=make_embed(
-            "接続失敗",
-            "Discordとの音声接続に失敗しました。時間をおいて再試行してください。",
-            embed_type=EmbedType.ERROR,
-          )
+        layout = make_layout(
+          "接続失敗",
+          "Discordとの音声接続に失敗しました。時間をおいて再試行してください。",
+          layout_type=EmbedType.ERROR,
         )
+        await message.channel.send(view=layout.view, files=layout.files)
       except Exception as response_error:
         self.error_notifier.report_exception(
           response_error,
@@ -328,12 +323,11 @@ class ConnectionService:
           await self.disconnect(guild)
           if notify_channel:
             self._voice_state_stages[guild.id] = "auto_leave_notification"
-            await notify_channel.send(
-              embed=make_embed(
-                "自動退出",
-                "ボイスチャンネルに誰もいなくなったため退出しました",
-              )
+            layout = make_layout(
+              "自動退出",
+              "ボイスチャンネルに誰もいなくなったため退出しました",
             )
+            await notify_channel.send(view=layout.view, files=layout.files)
           return
         if self.server_config.get(guild.id, "AccessNotice"):
           self._voice_state_stages[guild.id] = "access_notice_leave"
@@ -377,13 +371,12 @@ class ConnectionService:
               "あなたが接続したテキストチャンネルに権限がないため、自動接続が失敗しました"
             )
           elif notify_channel:
-            await notify_channel.send(
-              embed=make_embed(
-                "権限エラー",
-                "\n".join(issues),
-                embed_type=EmbedType.ERROR,
-              )
+            layout = make_layout(
+              "権限エラー",
+              "\n".join(issues),
+              layout_type=EmbedType.ERROR,
             )
+            await notify_channel.send(view=layout.view, files=layout.files)
           return
         def auto_join_still_valid():
           configured_target = self.server_config.get(guild.id, "VoiceTarget")
@@ -431,26 +424,24 @@ class ConnectionService:
     try:
       await ctx.response.defer()
       if not ctx.user.voice:
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "接続失敗",
-            "ボイスチャンネルに接続できませんでした",
-            embed_type=EmbedType.ERROR,
-          )
+        layout = make_layout(
+          "接続失敗",
+          "ボイスチャンネルに接続できませんでした",
+          layout_type=EmbedType.ERROR,
         )
+        await ctx.edit_original_response(view=layout.view, attachments=layout.files)
         return
 
       voice_channel = ctx.user.voice.channel
       text_channel = ctx.channel
       issues = self.permission_issues(ctx.guild, voice_channel, text_channel)
       if issues:
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "権限エラー",
-            "\n".join(issues),
-            embed_type=EmbedType.ERROR,
-          )
+        layout = make_layout(
+          "権限エラー",
+          "\n".join(issues),
+          layout_type=EmbedType.ERROR,
         )
+        await ctx.edit_original_response(view=layout.view, attachments=layout.files)
         return
       if ctx.guild.voice_client is not None:
         await self.disconnect(ctx.guild)
@@ -475,21 +466,19 @@ class ConnectionService:
       await ctx.response.defer()
       if ctx.user.voice:
         await self.disconnect(ctx.guild)
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "切断完了",
-            "ボイスチャンネルから切断しました",
-            embed_type=EmbedType.SUCCESS,
-          )
+        layout = make_layout(
+          "切断完了",
+          "ボイスチャンネルから切断しました",
+          layout_type=EmbedType.SUCCESS,
         )
+        await ctx.edit_original_response(view=layout.view, attachments=layout.files)
       else:
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "切断失敗",
-            "ボイスチャンネルから切断できませんでした",
-            embed_type=EmbedType.ERROR,
-          )
+        layout = make_layout(
+          "切断失敗",
+          "ボイスチャンネルから切断できませんでした",
+          layout_type=EmbedType.ERROR,
         )
+        await ctx.edit_original_response(view=layout.view, attachments=layout.files)
     except discord.errors.InteractionResponded:
       return
     except discord.errors.HTTPException as e:

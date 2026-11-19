@@ -215,3 +215,57 @@ class AutoJoinAfterLeaveTest(unittest.IsolatedAsyncioTestCase):
 
 if __name__ == "__main__":
   unittest.main()
+
+
+class ConnectionMessagesLayoutTest(unittest.IsolatedAsyncioTestCase):
+  """接続・切断・エラーのメッセージは、Embedでなく Components v2 で送る。"""
+
+  def setUp(self):
+    self.voice_service = VoiceService(client=None, error_notifier=RecordingNotifier())
+    self.service = ConnectionService(
+      server_config=mock.MagicMock(),
+      dict_manager=None,
+      speech_service=None,
+      voice_service=self.voice_service,
+      error_notifier=RecordingNotifier(),
+    )
+
+  def check_layout(self, kwargs, title, embed_type):
+    import discord
+    from presentation.embeds import EmbedType, embed_color
+    self.assertNotIn("embed", kwargs)
+    view = kwargs["view"]
+    self.assertIsInstance(view, discord.ui.LayoutView)
+    container = view.children[0]
+    self.assertEqual(container.accent_colour, embed_color(getattr(EmbedType, embed_type)))
+    self.assertTrue(container.children[0].content.startswith(f"## {title}\n"))
+
+  async def test_mention_leave_sends_layout(self):
+    voice_client = SimpleNamespace(disconnect=mock.AsyncMock())
+    guild = SimpleNamespace(id=DUMMY_GUILD_ID, voice_client=voice_client)
+    channel = SimpleNamespace(send=mock.AsyncMock())
+    message = SimpleNamespace(
+      guild=guild, channel=channel, author=SimpleNamespace(voice=object()),
+    )
+    await self.service.handle_mention_toggle(message)
+    self.check_layout(channel.send.await_args.kwargs, "切断完了", "SUCCESS")
+
+  async def test_join_without_voice_edits_response_with_layout(self):
+    ctx = SimpleNamespace(
+      response=SimpleNamespace(defer=mock.AsyncMock()),
+      edit_original_response=mock.AsyncMock(),
+      user=SimpleNamespace(voice=None),
+    )
+    await self.service.join(ctx)
+    kwargs = ctx.edit_original_response.await_args.kwargs
+    self.check_layout(kwargs, "接続失敗", "ERROR")
+    self.assertEqual(kwargs["attachments"], [])
+
+  async def test_leave_edits_response_with_layout(self):
+    ctx = SimpleNamespace(
+      response=SimpleNamespace(defer=mock.AsyncMock()),
+      edit_original_response=mock.AsyncMock(),
+      user=SimpleNamespace(voice=None),
+    )
+    await self.service.leave(ctx)
+    self.check_layout(ctx.edit_original_response.await_args.kwargs, "切断失敗", "ERROR")
