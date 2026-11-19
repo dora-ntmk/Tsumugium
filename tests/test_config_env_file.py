@@ -56,10 +56,17 @@ class StreamingModeTest(unittest.TestCase):
       with self.subTest(value=value):
         self.assertEqual(config._streaming_mode(value), "on")
 
-  def test_off_values_and_missing(self):
-    for value in ("off", "false", "0", "no", "", None):
+  def test_off_values(self):
+    for value in ("off", "false", "0", "no"):
       with self.subTest(value=value):
         self.assertEqual(config._streaming_mode(value), "off")
+
+  def test_auto_and_missing_follow_version_default(self):
+    for value in ("auto", " AUTO ", "", None):
+      for default in ("off", "hybrid"):
+        with self.subTest(value=value, default=default):
+          with unittest.mock.patch.object(config, "DEFAULT_VOICEVOX_STREAMING", default):
+            self.assertEqual(config._streaming_mode(value), default)
 
   def test_hybrid(self):
     for value in ("hybrid", " Hybrid "):
@@ -83,7 +90,9 @@ class StreamingModeTest(unittest.TestCase):
 
 class StreamSegmentTest(unittest.TestCase):
   def test_seconds(self):
-    for value, expected in (("0", 0.0), ("", 0.0), (None, 0.0), ("0.5", 0.5), (" 2 ", 2.0)):
+    for value, expected in (
+        ("0", 0.0), ("", 0.0), (None, 0.0), ("Auto", 0.0), ("0.5", 0.5), (" 2 ", 2.0),
+    ):
       with self.subTest(value=value):
         self.assertEqual(config._stream_segment_seconds(value), expected)
 
@@ -97,7 +106,9 @@ class StreamSegmentTest(unittest.TestCase):
 
 class StreamThresholdTest(unittest.TestCase):
   def test_chars(self):
-    for value, expected in (("0", 0), ("", 0), (None, 0), ("50", 50), (" 120 ", 120)):
+    for value, expected in (
+        ("0", 0), ("", 0), (None, 0), ("auto", 0), ("50", 50), (" 120 ", 120),
+    ):
       with self.subTest(value=value):
         self.assertEqual(config._stream_threshold_chars(value), expected)
 

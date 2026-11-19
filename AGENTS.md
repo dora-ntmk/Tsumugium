@@ -300,7 +300,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ### ストリーミングでの音声合成（`/streaming_synthesis`）
 
-- 実験的な機能として、`.env`の`VOICEVOX_STREAMING`で使い方を決める（既定は`off`）。`off`は使わない、`on`は常に使う、`hybrid`は基準の文字数（`.env`の`VOICEVOX_STREAM_THRESHOLD`）以上の文章だけ使う。基準が`0`（既定）は自動調整で、今は基準を決めるためのデータを集めるので、文字数によらず生成1件ごとに五分五分で振り分ける（Botを止めずに、`/synthesis-log`でストリーミングあり・なしを比べるため）。いずれ自動調整は、集めたデータから基準を決める形にする。`config.py`が読み、`main.py`が`VoicevoxClient(streaming=..., stream_threshold_chars=...)`へ渡す。文字数は、前処理と最大文字数の処理のあとの、VOICEVOXへ送る文章の長さ。使うかは、生成の順番が来たときに1回だけ決める（`_wants_stream()`、乱数は`choose`で差し替えられる）。使わないときも`generate()`は`StreamingAudio`を返すが、`/synthesis`で全体を作ってから返す（書き終えた状態）。
+- 実験的な機能として、`.env`の`VOICEVOX_STREAMING`で使い方を決める。`auto`（テンプレートの値。空欄・行がないときも同じ）は、そのバージョンの既定（`config.py`の`DEFAULT_VOICEVOX_STREAMING`、今は`off`）に従う。インストーラーは更新のときにテンプレートの値を`.env`へ書き足すので、既定の値（`off`など）を書き足すと、あとのリリースで既定を変えても効かなくなる。そのため、テンプレートは`auto`にし、既定を変えたいときは`DEFAULT_VOICEVOX_STREAMING`を変える。利用者が`on`・`off`・`hybrid`を書いた環境は、その値のまま。`off`は使わない、`on`は常に使う、`hybrid`は基準の文字数（`.env`の`VOICEVOX_STREAM_THRESHOLD`）以上の文章だけ使う。基準が`0`（既定）は自動調整で、今は基準を決めるためのデータを集めるので、文字数によらず生成1件ごとに五分五分で振り分ける（Botを止めずに、`/synthesis-log`でストリーミングあり・なしを比べるため）。いずれ自動調整は、集めたデータから基準を決める形にする。`config.py`が読み、`main.py`が`VoicevoxClient(streaming=..., stream_threshold_chars=...)`へ渡す。文字数は、前処理と最大文字数の処理のあとの、VOICEVOXへ送る文章の長さ。使うかは、生成の順番が来たときに1回だけ決める（`_wants_stream()`、乱数は`choose`で差し替えられる）。使わないときも`generate()`は`StreamingAudio`を返すが、`/synthesis`で全体を作ってから返す（書き終えた状態）。
 - 一度に作る音声の長さ（`segment_length`）は、`.env`の`VOICEVOX_STREAM_SEGMENT`（秒）で決める。`0`（既定）は自動調整で、今は`VoicevoxClient.STREAM_SEGMENT_SECONDS`（1.0秒）に固定している。読めない値・負の値は`0`として扱う（Engineは0以下を受け付けない）。
 - `VoicevoxClient.generate()`は`StreamingAudio`を返す（作れなかったときはNone）。VOICEVOX Engine 0.26.0以降の`/streaming_synthesis`を使い、最初の部分が届いた時点で返す。残りは裏のタスクで受け取り、`TMP_DIR`の同じWAVファイルへ書き足す。WAVのヘッダーには全体の大きさが最初から入っている。
 - 生成の順番（全ギルドで1件ずつ）は、残りを受け取り終えるまで持ち続ける。最初の部分が届くまでは今までどおり再試行し、届いたあとに切れたときはやり直さずに失敗として記録・通知する（`VOICEVOX streaming`）。再生は届いた分までで終わる。
@@ -526,9 +526,9 @@ Botが接続し直したときは、`VoiceService.reset_speaking_soon()`が1秒�
 | `OPERATOR_USER_ID` | `""` | エラー・更新のDMを受け取り、運営者用のコマンドとボタンを使える人のDiscordユーザーID。カンマ区切りで複数人を書ける（全員へ送り、誰でも使える）。読めない項目は表示して飛ばす。未設定・空欄で無効。`config.py`は`OPERATOR_USER_IDS`（タプル）として公開する |
 | `VOICEVOX_URL` | `http://127.0.0.1:50021` | VOICEVOX エンドポイント |
 | `DEFAULT_SPEAKER` | `8` | デフォルト話者ID（Speaker=NULL時に使用） |
-| `VOICEVOX_STREAMING` | `off` | 実験的な機能。`on`なら`/streaming_synthesis`で、音声を作り終える前に読み上げを始める。`hybrid`なら`VOICEVOX_STREAM_THRESHOLD`の文字数で決める（自動調整のあいだは五分五分。`/synthesis-log`で比べる）。`on`・`off`は`true`・`false`・`1`・`0`・`yes`・`no`でも書け、読めない値は表示してオフにする |
-| `VOICEVOX_STREAM_THRESHOLD` | `0` | 実験的な機能。`hybrid`のとき、この文字数以上の文章をストリーミングする。`0`は自動調整（今は五分五分で振り分ける）。読めない値・負の値は表示して`0`にする |
-| `VOICEVOX_STREAM_SEGMENT` | `0` | 実験的な機能。ストリーミングで一度に作る音声の長さ（秒）。`0`は自動調整（今は1.0秒）。読めない値・負の値は表示して`0`にする |
+| `VOICEVOX_STREAMING` | `auto` | 実験的な機能。`auto`はそのバージョンの既定（今は`off`）に従う。`on`なら`/streaming_synthesis`で、音声を作り終える前に読み上げを始める。`hybrid`なら`VOICEVOX_STREAM_THRESHOLD`の文字数で決める（自動調整のあいだは五分五分。`/synthesis-log`で比べる）。`on`・`off`は`true`・`false`・`1`・`0`・`yes`・`no`でも書け、読めない値は表示してオフにする |
+| `VOICEVOX_STREAM_THRESHOLD` | `0` | 実験的な機能。`hybrid`のとき、この文字数以上の文章をストリーミングする。`0`（`auto`も同じ）は自動調整（今は五分五分で振り分ける）。読めない値・負の値は表示して`0`にする |
+| `VOICEVOX_STREAM_SEGMENT` | `0` | 実験的な機能。ストリーミングで一度に作る音声の長さ（秒）。`0`（`auto`も同じ）は自動調整（今は1.0秒）。読めない値・負の値は表示して`0`にする |
 | `SERVER_CONFIG_DB` | `db/config.db` | サーバー設定DB |
 | `DICT_DB` | `db/dict.db` | 辞書DB |
 | `SOUND_BOARDS_DB` | `db/soundboards.db` | サウンドボードキャッシュDB |
