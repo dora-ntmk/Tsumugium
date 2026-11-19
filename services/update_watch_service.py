@@ -25,7 +25,11 @@ from typing import Callable
 import discord
 
 from presentation.embeds import EmbedType, make_embed
-from services.error_notification_service import ensure_error_notifier
+from services.error_notification_service import (
+  ensure_error_notifier,
+  operator_ids,
+  send_to_users,
+)
 
 
 UPDATING_FILE = "updating.json"
@@ -150,7 +154,7 @@ class UpdateWatchService:
       status_service,
       error_notifier=None,
       *,
-      operator_user_id: int | None = None,
+      operator_user_ids=None,
       current_version: str | None = None,
       interval: float = CHECK_INTERVAL,
       process_exists: Callable[[int], bool] = process_exists,
@@ -160,7 +164,7 @@ class UpdateWatchService:
     self.state_dir = state_dir or ""
     self.status_service = status_service
     self.error_notifier = ensure_error_notifier(error_notifier)
-    self.operator_user_id = operator_user_id
+    self.operator_user_ids = operator_ids(operator_user_ids)
     self.interval = interval
     self.process_exists = process_exists
     self._task: asyncio.Task | None = None
@@ -267,36 +271,28 @@ class UpdateWatchService:
 
   # D 運営者へのDM
 
-  async def _send_to_operator(self, embed: discord.Embed, *, view=None) -> bool:
-    if self.operator_user_id is None:
-      return False
-    try:
-      user = self.client.get_user(self.operator_user_id)
-      if user is None:
-        user = await self.client.fetch_user(self.operator_user_id)
-      if view is None:
-        await user.send(embed=embed)
-      else:
-        await user.send(embed=embed, view=view)
-    except Exception as error:
-      print(f"更新の知らせを送れませんでした（Discord DM）: {type(error).__name__}: {error}")
-      return False
-    return True
+  async def _send_to_operators(self, embed: discord.Embed, *, view=None) -> list[tuple]:
+    """運営者全員へ送り、送れた（ユーザーID, メッセージ）の一覧を返す。
+
+    1人にでも送れたら、知らせたものとして扱う（送れた人へ二度送らないため）。
+    """
+    kwargs = {"embed": embed} if view is None else {"embed": embed, "view": view}
+    return await send_to_users(self.client, self.operator_user_ids, "更新の知らせ", **kwargs)
 
   async def notify_last_update(self) -> None:
     """まだ知らせていない更新の結果があれば、運営者へ送る。"""
     data = self._read(LAST_UPDATE_FILE)
-    if data is None or self.operator_user_id is None:
+    if data is None or not self.operator_user_ids:
       return
     at = data.get("at")
     if (self._read(NOTICE_FILE) or {}).get("last_update_at") == at:
       return
-    if await self._send_to_operator(last_update_embed(data)):
+    if await self._send_to_operators(last_update_embed(data)):
       self._write_notice(last_update_at=at)
 
   async def check_auto_update(self) -> None:
     """自動更新が人の手を要る状態になったら、その状態が続くあいだに1回だけ知らせる。"""
-    if self.operator_user_id is None:
+    if not self.operator_user_ids:
       return
     data = self._read(AUTO_UPDATE_FILE) or {}
     notice = self._read(NOTICE_FILE) or {}
@@ -307,14 +303,14 @@ class UpdateWatchService:
     key = f"{data.get('result')}|{data.get('message')}"
     if notice.get("auto_update_attention") == key:
       return
-    if await self._send_to_operator(attention_embed(data)):
+    if await self._send_to_operators(attention_embed(data)):
       self._write_notice(auto_update_attention=key)
 
   # E 「更新する」ボタン
 
   async def offer_available_update(self) -> None:
     """新しい版があり、まだ知らせていなければ、ボタン付きのDMを送る。"""
-    if self.operator_user_id is None:
+    if not self.operator_user_ids:
       return
     data = self._read(AVAILABLE_FILE)
     version = (data or {}).get("version")
@@ -322,22 +318,40 @@ class UpdateWatchService:
       return
     if (self._read(NOTICE_FILE) or {}).get("offered_version") == version:
       return
-    if await self._send_to_operator(available_embed(data), view=update_view(version)):
-      self._write_notice(offered_version=version)
+    sent = await self._send_to_operators(available_embed(data), view=update_view(version))
+    if sent:
+      self._write_notice(
+        offered_version=version,
+        offered_messages=[
+          {"user_id": user_id, "message_id": message.id}
+          for user_id, message in sent
+          if message is not None
+        ],
+      )
 
   def _remember_button_message(self, interaction, version: str) -> None:
-    """押されたDMを覚えておき、更新が始まったら書き換える。"""
+    """押されたDMと、ほかの運営者へ送った同じお知らせを覚えておき、更新が始まったら書き換える。"""
+    notice = self._read(NOTICE_FILE) or {}
+    messages = []
+    if notice.get("offered_version") == version:
+      messages = [
+        record for record in notice.get("offered_messages") or []
+        if isinstance(record, dict)
+      ]
     message = getattr(interaction, "message", None)
-    if message is None:
-      return
-    self._write_notice(button_message={"message_id": message.id, "version": version})
+    if message is not None:
+      record = {"user_id": interaction.user.id, "message_id": message.id}
+      if record not in messages:
+        messages.append(record)
+    if messages:
+      self._write_notice(button_message={"version": version, "messages": messages})
 
   async def mark_update_started(self) -> None:
     """ボタンを押したDMを、更新が始まったら「更新を開始しました」に書き換える。
 
     更新中（updating.json がある）か、Botがすでにその版で動いている（見張りのすきまで更新が終わった）ときに書き換える。
     """
-    if self.operator_user_id is None:
+    if not self.operator_user_ids:
       return
     record = (self._read(NOTICE_FILE) or {}).get("button_message")
     if not isinstance(record, dict):
@@ -345,19 +359,31 @@ class UpdateWatchService:
     version = record.get("version")
     if not (self._showing_updating or version == self.current_version):
       return
-    try:
-      user = self.client.get_user(self.operator_user_id)
-      if user is None:
-        user = await self.client.fetch_user(self.operator_user_id)
-      channel = user.dm_channel or await user.create_dm()
-      await channel.get_partial_message(record.get("message_id")).edit(
-        embed=started_embed(version), view=None
-      )
-    except discord.NotFound:
-      pass  # DMが消されていれば、書き換えずに忘れる
-    except Exception as error:
-      print(f"更新のお知らせを書き換えられませんでした（Discord DM）: {type(error).__name__}: {error}")
-      return  # 次の見張りでもう一度試す
+    messages = record.get("messages")
+    if not isinstance(messages, list):
+      # 運営者が1人だけだった版の記録（user_id がない）
+      messages = [{"user_id": self.operator_user_ids[0], "message_id": record.get("message_id")}]
+    remaining = []
+    for message in messages:
+      if not isinstance(message, dict):
+        continue
+      try:
+        user = self.client.get_user(message.get("user_id"))
+        if user is None:
+          user = await self.client.fetch_user(message.get("user_id"))
+        channel = user.dm_channel or await user.create_dm()
+        await channel.get_partial_message(message.get("message_id")).edit(
+          embed=started_embed(version), view=None
+        )
+      except discord.NotFound:
+        pass  # DMが消されていれば、書き換えずに忘れる
+      except Exception as error:
+        print(f"更新のお知らせを書き換えられませんでした（Discord DM）: {type(error).__name__}: {error}")
+        remaining.append(message)  # 次の見張りでもう一度試す
+    if remaining:
+      if remaining != messages:
+        self._write_notice(button_message={"version": version, "messages": remaining})
+      return
     self._write_notice(button_message=None)
 
   def _request(self, version: str, mode: str, user_id: int | None) -> None:
@@ -383,7 +409,7 @@ class UpdateWatchService:
     self._remove(PENDING_FILE)
 
   async def handle_button(self, interaction, mode: str, version: str) -> None:
-    if self.operator_user_id is None or interaction.user.id != self.operator_user_id:
+    if interaction.user.id not in self.operator_user_ids:
       await interaction.response.send_message(
         "この操作は、Botを運営している人だけができます", ephemeral=True
       )

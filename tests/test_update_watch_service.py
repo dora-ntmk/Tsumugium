@@ -18,7 +18,7 @@ from services.update_watch_service import (
   UpdateWatchService,
   last_update_embed,
 )
-from tests.support import DUMMY_USER_ID, RecordingNotifier, TempDirTestCase
+from tests.support import DUMMY_OTHER_USER_ID, DUMMY_USER_ID, RecordingNotifier, TempDirTestCase
 
 
 class FakeUser:
@@ -79,7 +79,7 @@ class WatchTestCase(TempDirTestCase):
     self.watch = self.make_watch()
 
   def make_watch(self, notifier=None, **options):
-    options.setdefault("operator_user_id", DUMMY_USER_ID)
+    options.setdefault("operator_user_ids", (DUMMY_USER_ID,))
     return UpdateWatchService(
       self.client,
       self.tmp_dir,
@@ -168,7 +168,7 @@ class LastUpdateTest(WatchTestCase):
     self.assertEqual(len(self.sent()), 1)
 
   def test_without_operator(self):
-    watch = self.make_watch(operator_user_id=None)
+    watch = self.make_watch(operator_user_ids=None)
     self.write(LAST_UPDATE_FILE, self.UPDATED)
     asyncio.run(watch.notify_last_update())
     self.assertEqual(self.sent(), [])
@@ -583,3 +583,82 @@ class StartedTest(UpdateButtonTestCase):
 
     asyncio.run(scenario())
     self.assertEqual(len(self.edits()), 1)
+
+
+class MultiOperatorTest(WatchTestCase):
+  """運営者を複数人にしたとき。"""
+
+  def setUp(self):
+    super().setUp()
+    self.users = {DUMMY_USER_ID: MessageUser(900), DUMMY_OTHER_USER_ID: MessageUser(901)}
+    self.client.get_user = self.users.get
+    self.watch = self.make_watch(
+      operator_user_ids=(DUMMY_USER_ID, DUMMY_OTHER_USER_ID),
+      current_version=CURRENT_VERSION,
+    )
+
+  def test_every_operator_gets_update_result(self):
+    self.write(LAST_UPDATE_FILE, {"at": 1, "result": "success", "to": NEW_VERSION})
+    asyncio.run(self.watch.notify_last_update())
+    asyncio.run(self.watch.notify_last_update())
+    self.assertEqual([len(user.sent) for user in self.users.values()], [1, 1])
+
+  def test_one_failure_does_not_stop_others(self):
+    self.users[DUMMY_USER_ID].error = RuntimeError("DMを送れません")
+    self.write(LAST_UPDATE_FILE, {"at": 1, "result": "success", "to": NEW_VERSION})
+    asyncio.run(self.watch.notify_last_update())
+    self.assertEqual(len(self.users[DUMMY_OTHER_USER_ID].sent), 1)
+    self.assertEqual(self.notice()["last_update_at"], 1)
+
+  def test_any_operator_can_press_and_all_offers_are_rewritten(self):
+    self.write(AVAILABLE_FILE, {"version": NEW_VERSION})
+    asyncio.run(self.watch.offer_available_update())
+    self.assertEqual([len(user.sent) for user in self.users.values()], [1, 1])
+
+    interaction = FakeInteraction(DUMMY_OTHER_USER_ID)
+    interaction.message = type("M", (), {"id": 901})()
+    asyncio.run(self.watch.handle_button(interaction, "now", NEW_VERSION))
+    self.assertEqual(interaction.response.edits[0][0].title, "更新を受け付けました")
+    with open(os.path.join(self.tmp_dir, REQUEST_FILE), encoding="utf-8") as file:
+      self.assertEqual(json.load(file)["requested_by"], DUMMY_OTHER_USER_ID)
+
+    restarted = self.make_watch(
+      operator_user_ids=(DUMMY_USER_ID, DUMMY_OTHER_USER_ID),
+      current_version=NEW_VERSION,
+    )
+    asyncio.run(restarted.mark_update_started())
+    for user_id, message_id in ((DUMMY_USER_ID, 900), (DUMMY_OTHER_USER_ID, 901)):
+      [(edited_id, embed, view)] = self.users[user_id].dm_channel.edits
+      self.assertEqual((edited_id, embed.title, view), (message_id, "更新を開始しました", None))
+    self.assertIsNone(self.notice()["button_message"])
+
+  def test_old_single_operator_record_is_rewritten(self):
+    self.write(NOTICE_FILE, {"button_message": {"message_id": 900, "version": NEW_VERSION}})
+    restarted = self.make_watch(
+      operator_user_ids=(DUMMY_USER_ID, DUMMY_OTHER_USER_ID),
+      current_version=NEW_VERSION,
+    )
+    asyncio.run(restarted.mark_update_started())
+    self.assertEqual(self.users[DUMMY_USER_ID].dm_channel.edits[0][0], 900)
+    self.assertEqual(self.users[DUMMY_OTHER_USER_ID].dm_channel.edits, [])
+
+  def test_others_still_refused(self):
+    self.write(AVAILABLE_FILE, {"version": NEW_VERSION})
+    interaction = FakeInteraction(DUMMY_USER_ID + 99)
+    asyncio.run(self.watch.handle_button(interaction, "now", NEW_VERSION))
+    self.assertIn("運営している人だけ", interaction.response.messages[0][0])
+
+
+class MessageUser(ViewUser):
+  """送ったメッセージを返す（実際の discord.User.send と同じ）。"""
+
+  def __init__(self, message_id):
+    super().__init__()
+    self.message_id = message_id
+    self.error = None
+
+  async def send(self, *, embed, view=None):
+    if self.error is not None:
+      raise self.error
+    await super().send(embed=embed, view=view)
+    return type("M", (), {"id": self.message_id})()

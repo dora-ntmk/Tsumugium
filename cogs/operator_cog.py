@@ -16,7 +16,7 @@ from models.generation_record import (
 )
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error
-from services.error_notification_service import ensure_error_notifier
+from services.error_notification_service import ensure_error_notifier, operator_ids
 
 
 JST = timezone(timedelta(hours=9), "JST")
@@ -130,17 +130,17 @@ class OperatorCog:
       self,
       tree,
       generation_log,
-      operator_user_id: int | None,
+      operator_user_ids,
       error_notifier=None,
   ):
     self.tree = tree
     self.generation_log = generation_log
-    self.operator_user_id = operator_user_id
+    self.operator_user_ids = operator_ids(operator_user_ids)
     self.error_notifier = ensure_error_notifier(error_notifier)
     self._register()
 
   def is_operator(self, user) -> bool:
-    return self.operator_user_id is not None and user.id == self.operator_user_id
+    return user.id in self.operator_user_ids
 
   def build_log_embed(self, record_count: int) -> discord.Embed:
     if record_count:

@@ -28,7 +28,7 @@ from services.announcement_service import (
   is_clear_word,
   parse_time,
 )
-from services.error_notification_service import ensure_error_notifier
+from services.error_notification_service import ensure_error_notifier, operator_ids
 
 
 FORM_TIMEOUT_SECONDS = 15 * 60
@@ -344,17 +344,17 @@ class AnnouncementCog:
       self,
       tree,
       announcement_service,
-      operator_user_id: int | None,
+      operator_user_ids,
       error_notifier=None,
   ):
     self.tree = tree
     self.announcement_service = announcement_service
-    self.operator_user_id = operator_user_id
+    self.operator_user_ids = operator_ids(operator_user_ids)
     self.error_notifier = ensure_error_notifier(error_notifier)
     self._register()
 
   def is_operator(self, user) -> bool:
-    return self.operator_user_id is not None and user.id == self.operator_user_id
+    return user.id in self.operator_user_ids
 
   async def deny(self, interaction) -> None:
     await interaction.response.send_message(

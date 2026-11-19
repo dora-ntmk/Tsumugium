@@ -438,6 +438,16 @@ class AnnounceCommandTest(ServiceTestCase):
         self.assertIsNone(interaction.response.modal)
         self.assertTrue(interaction.response.sent[0]["ephemeral"])
 
+  def test_any_of_several_operators_can_use(self):
+    client = discord.Client(intents=discord.Intents.none())
+    tree = app_commands.CommandTree(client)
+    cog = AnnouncementCog(tree, self.service, (DUMMY_USER_ID, DUMMY_OTHER_USER_ID), self.notifier)
+    self.assertTrue(cog.is_operator(type("U", (), {"id": DUMMY_OTHER_USER_ID})()))
+    callback = tree.get_command("announce").get_command("add").callback
+    interaction = FakeInteraction(DUMMY_OTHER_USER_ID)
+    asyncio.run(callback(interaction))
+    self.assertIsInstance(interaction.response.modal, AnnouncementModal)
+
   def test_add_opens_modal_with_period(self):
     interaction = self.run_command("add", expires="3d", starts="1h")
     modal = interaction.response.modal

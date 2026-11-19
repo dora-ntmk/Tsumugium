@@ -384,6 +384,13 @@ class SynthesisLogCommandTest(unittest.TestCase):
     self.assertTrue(sent["ephemeral"])
     self.assertIn("運営者だけ", sent["embed"].description)
 
+  def test_any_of_several_operators_can_use(self):
+    client = discord.Client(intents=discord.Intents.none())
+    tree = app_commands.CommandTree(client)
+    OperatorCog(tree, self.log, (DUMMY_USER_ID, DUMMY_OTHER_USER_ID), RecordingNotifier())
+    interaction = self.run_command(DUMMY_OTHER_USER_ID, tree=tree)
+    self.assertEqual(len(interaction.edits), 1)
+
   def test_refused_without_operator_setting(self):
     client = discord.Client(intents=discord.Intents.none())
     tree = app_commands.CommandTree(client)
