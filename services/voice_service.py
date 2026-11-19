@@ -63,6 +63,10 @@ class VoiceService:
   async def enqueue(self, guild, item: AudioItem) -> None:
     """音声アイテムをキューへ追加し、必要なら再生ループを開始する。"""
     session = self.get_session(guild.id)
+    audio = getattr(item, "audio", None)
+    if audio is not None:
+      # 再生の順番待ち（/synthesis-log の wait）を、ここから数える
+      audio.mark_enqueued(asyncio.get_running_loop().time())
     await session.queue.put(item)
     if session.player_task is None or session.player_task.done():
       session.player_task = self.error_notifier.create_task(
@@ -380,6 +384,8 @@ class VoiceService:
       source = voice
       if audio is not None:
         loop = asyncio.get_running_loop()
+        # 前の読み上げが終わり、再生を始められたところまでが再生の順番待ち
+        audio.mark_playback_started(loop.time())
         source = FirstPacketSource(
           voice, loop, lambda: audio.mark_played(loop.time())
         )

@@ -257,3 +257,23 @@ class StreamingPlaybackTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
     source.cleanup.assert_called_once()
     self.voice_client.after(None)
     await asyncio.sleep(0.05)
+
+  async def test_enqueue_and_play_measure_playback_wait(self):
+    path = self.tmp_path("tmp", "queued.wav")
+    with open(path, "wb") as file:
+      file.write(b"RIFF")
+    audio = StreamingAudio.completed(path)
+    self.service.play_loop = mock.AsyncMock()
+    await self.service.enqueue(self.guild, TTSItem(path, message_id=5, audio=audio))
+    self.assertIsNotNone(audio.enqueued_at)
+    self.assertIsNone(audio.playback_wait_seconds)
+    audio.enqueued_at -= 3.0  # キューで3秒待ったことにする
+    with mock.patch(
+        "services.voice_service.discord.FFmpegOpusAudio"
+    ) as ffmpeg:
+      ffmpeg.from_probe = mock.AsyncMock(return_value=mock.Mock())
+      await self.service.play(self.guild, path, 5, audio=audio)
+    self.assertGreaterEqual(audio.playback_wait_seconds, 3.0)
+    self.assertLess(audio.playback_wait_seconds, 4.0)
+    self.voice_client.after(None)
+    await asyncio.sleep(0.05)

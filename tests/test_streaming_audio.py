@@ -106,6 +106,53 @@ class StreamingAudioTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
     self.assertEqual(audio.first_seconds, 1.5)
     audio.finish()
 
+  async def test_playback_wait_is_added_to_wait_and_removed_from_first(self):
+    audio = self.make_audio()
+    audio.received_at, audio.wait_seconds = 100.0, 1.5
+    audio.mark_enqueued(102.0)
+    audio.mark_enqueued(103.0)
+    # 同じサーバーの前の読み上げが終わるまで4秒待った
+    audio.mark_playback_started(106.0)
+    audio.mark_playback_started(107.0)
+    audio.mark_played(106.5)
+    self.assertEqual(audio.playback_wait_seconds, 4.0)
+    self.assertEqual(audio.total_wait_seconds, 5.5)
+    # 6.5秒のうち、待った5.5秒を除く
+    self.assertEqual(audio.first_seconds, 1.0)
+    audio.finish()
+
+  async def test_playback_wait_reaches_record_in_either_order(self):
+    record = SimpleNamespace(wait_seconds=1.5, first_seconds=None)
+    audio = self.make_audio("record-first.wav")
+    audio.received_at, audio.wait_seconds = 0.0, 1.5
+    audio.attach_record(record)
+    audio.mark_enqueued(2.0)
+    audio.mark_playback_started(5.0)
+    audio.mark_played(5.5)
+    self.assertEqual((record.wait_seconds, record.first_seconds), (4.5, 1.0))
+    audio.finish()
+
+    # ストリーミングでは、記録より先に再生が始まる
+    record = SimpleNamespace(wait_seconds=1.5, first_seconds=None)
+    audio = self.make_audio("played-first.wav")
+    audio.received_at, audio.wait_seconds = 0.0, 1.5
+    audio.mark_enqueued(2.0)
+    audio.mark_playback_started(5.0)
+    audio.mark_played(5.5)
+    audio.attach_record(record)
+    self.assertEqual((record.wait_seconds, record.first_seconds), (4.5, 1.0))
+    audio.finish()
+
+  async def test_never_played_keeps_generation_wait(self):
+    record = SimpleNamespace(wait_seconds=1.5, first_seconds=None)
+    audio = self.make_audio()
+    audio.wait_seconds = 1.5
+    audio.mark_enqueued(2.0)
+    audio.attach_record(record)
+    self.assertIsNone(audio.playback_wait_seconds)
+    self.assertEqual(record.wait_seconds, 1.5)
+    audio.finish()
+
   async def test_first_is_not_set_without_message(self):
     # 入退室通知など、メッセージから作っていない音声
     audio = self.make_audio()

@@ -28,6 +28,9 @@ class StreamingAudio:
     # 記録用（/synthesis-log の first）。時刻はイベントループの時計（loop.time()）
     self.received_at: float | None = None  # メッセージを受け取った時刻
     self.wait_seconds = 0.0                # 生成の順番を待った時間
+    self.enqueued_at: float | None = None  # 再生のキューに入れた時刻
+    # 再生の順番（同じサーバーの前の読み上げが終わるの）を待った時間。再生を始めたら決まる
+    self.playback_wait_seconds: float | None = None
     self.first_seconds: float | None = None
     self._record = None
 
@@ -57,24 +60,48 @@ class StreamingAudio:
     with self._condition:
       return self._finished and self._succeeded
 
+  @property
+  def total_wait_seconds(self) -> float:
+    """待った時間の合計（生成の順番待ち＋再生の順番待ち）。/synthesis-log の wait。"""
+    return self.wait_seconds + (self.playback_wait_seconds or 0.0)
+
   def attach_record(self, record) -> None:
-    """生成の記録を結び付ける。すでに再生が始まっていれば、firstを書き込む。"""
+    """生成の記録を結び付ける。すでに分かっている待ち時間とfirstを書き込む。"""
     self._record = record
-    if record is not None and self.first_seconds is not None:
+    self._update_record()
+
+  def _update_record(self) -> None:
+    record = self._record
+    if record is None:
+      return
+    record.wait_seconds = self.total_wait_seconds
+    if self.first_seconds is not None:
       record.first_seconds = self.first_seconds
+
+  def mark_enqueued(self, now: float) -> None:
+    """再生のキューに入れた時刻を覚える（最初の1回だけ）。"""
+    if self.enqueued_at is None:
+      self.enqueued_at = now
+
+  def mark_playback_started(self, now: float) -> None:
+    """再生を始めた時刻から、再生の順番を待った時間を決める（最初の1回だけ）。"""
+    if self.playback_wait_seconds is not None or self.enqueued_at is None:
+      return
+    self.playback_wait_seconds = max(0.0, now - self.enqueued_at)
+    self._update_record()
 
   def mark_played(self, now: float) -> None:
     """最初の音を再生した時刻から、firstを決める（最初の1回だけ）。
 
     firstは、メッセージを受け取ってから最初の音を再生するまでの時間から、
-    生成の順番を待った時間を除いたもの。メッセージから作っていない音声
+    待った時間（生成の順番待ちと、同じサーバーの前の読み上げが終わるのを待った
+    再生の順番待ち）を除いたもの。メッセージから作っていない音声
     （入退室通知など）は`received_at`がないので決めない。
     """
     if self.first_seconds is not None or self.received_at is None:
       return
-    self.first_seconds = max(0.0, now - self.received_at - self.wait_seconds)
-    if self._record is not None:
-      self._record.first_seconds = self.first_seconds
+    self.first_seconds = max(0.0, now - self.received_at - self.total_wait_seconds)
+    self._update_record()
 
   def open_for_write(self) -> None:
     directory = os.path.dirname(self.path)
