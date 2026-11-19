@@ -1,8 +1,9 @@
 """VOICEVOXの生成記録（services/generation_log_service.py）と、
-運営者用の /voicevox-log（cogs/operator_cog.py）のテスト。
+運営者用の /synthesis-log（cogs/operator_cog.py）のテスト。
 """
 
 import asyncio
+from datetime import datetime, timezone
 import unittest
 from models.streaming_audio import StreamingAudio
 from types import SimpleNamespace
@@ -11,7 +12,13 @@ from unittest import mock
 import discord
 from discord import app_commands
 
-from cogs.operator_cog import OperatorCog, format_record, format_summary_fields
+from cogs.operator_cog import (
+  LOG_COLUMNS,
+  OperatorCog,
+  build_log_file,
+  format_log_table,
+  format_summary_fields,
+)
 from models.generation_record import (
   FAILED,
   SKIP_CLEARED,
@@ -94,20 +101,18 @@ class GenerationLogServiceTest(unittest.TestCase):
     self.assertAlmostEqual(summary.wait_average, 0.9)
     self.assertEqual(summary.wait_max, 2.5)
 
-  def test_summary_of_first_audio(self):
+  def test_summary_of_first(self):
     log = make_log()
-    log.record_success(10, 8, 0.0, 2.0, 1, streamed=True, first_audio_seconds=0.25)
-    log.record_success(10, 8, 0.0, 3.0, 1, streamed=True, first_audio_seconds=0.75)
-    # ストリーミングしなかったものは、生成し終えたときが最初の音になる
+    log.record_success(10, 8, 0.0, 2.0, 1, streamed=True).first_seconds = 0.25
+    log.record_success(10, 8, 0.0, 3.0, 1, streamed=True).first_seconds = 0.75
+    log.record_success(10, 8, 0.0, 1.0, 1).first_seconds = 1.5
+    # 再生しなかったもの（入退室通知でない、クリアされたなど）は数えない
     log.record_success(10, 8, 0.0, 1.0, 1)
     summary = log.summarize()
     self.assertEqual(summary.streamed, 2)
-    self.assertAlmostEqual(summary.first_audio_average, 2.0 / 3)
-    self.assertEqual(summary.first_audio_median, 0.75)
-    self.assertEqual(summary.first_audio_max, 1.0)
-    [last, *_] = log.recent(10)
-    self.assertFalse(last.streamed)
-    self.assertEqual(last.first_audio_seconds, 1.0)
+    self.assertAlmostEqual(summary.first_average, 2.5 / 3)
+    self.assertEqual(summary.first_median, 0.75)
+    self.assertEqual(summary.first_max, 1.5)
 
 
 class SpeechServiceSkipRecordTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
@@ -167,6 +172,19 @@ class SpeechServiceSkipRecordTest(TempDirTestCase, unittest.IsolatedAsyncioTestC
     [record] = self.log.recent(10)
     self.assertEqual((record.outcome, record.reason), (SKIPPED, SKIP_DELETED))
 
+  async def test_received_time_is_passed_to_playback(self):
+    self.release.set()
+    await self.speech.add_message(self.message())
+    [call] = self.voice_service.enqueue.await_args_list
+    item = call.args[1]
+    self.assertIsNotNone(item.audio.received_at)
+
+  async def test_given_received_time_is_used(self):
+    self.release.set()
+    await self.speech.add_message(self.message(), received_at=12.5)
+    [call] = self.voice_service.enqueue.await_args_list
+    self.assertEqual(call.args[1].audio.received_at, 12.5)
+
   async def test_played_message_is_not_recorded_as_skip(self):
     self.release.set()
     await self.speech.add_message(self.message())
@@ -175,49 +193,110 @@ class SpeechServiceSkipRecordTest(TempDirTestCase, unittest.IsolatedAsyncioTestC
 
 
 class FormatTest(unittest.TestCase):
-  def test_success_line(self):
+  def table_lines(self, *records):
+    return format_log_table(records).splitlines()
+
+  def test_header_and_success_row(self):
     record = GenerationRecord(
-      at=1_800_000_000.0, outcome=SUCCESS, chars=10,
-      speaker=8, wait_seconds=0.25, synth_seconds=1.5, attempts=1,
+      at=1_800_000_000.0, outcome=SUCCESS, chars=32,
+      speaker=2, wait_seconds=0.0, synth_seconds=2.38, attempts=1,
+      first_seconds=2.38,
+    )
+    header, row = self.table_lines(record)
+    self.assertEqual(
+      header,
+      "datetime       | result  | chars | synthesis         | first | wait  | speaker | note",
     )
     self.assertEqual(
-      format_record(record),
-      "01/15 17:00:00 成功 10字 生成1.50秒 (150ms/字) 待ち0.25秒 話者8",
+      row,
+      "01/15 17:00:00 | SUCCESS | 32    | 2.38s (74ms/char) | 2.38s | 0.00s | 2       |",
     )
+    self.assertEqual([cell.strip() for cell in header.split("|")], list(LOG_COLUMNS))
 
-  def test_streamed_line_has_first_audio(self):
+  def test_columns_line_up(self):
+    records = [
+      GenerationRecord(
+        at=1_800_000_000.0, outcome=SUCCESS, chars=120, speaker=8,
+        wait_seconds=1.2, synth_seconds=6.5, attempts=1, streamed=True,
+        first_seconds=0.81,
+      ),
+      GenerationRecord(at=1_800_000_000.0, outcome=SKIPPED, reason=SKIP_EMPTY),
+    ]
+    lines = self.table_lines(*records)
+    separators = [[i for i, char in enumerate(line) if char == "|"] for line in lines]
+    self.assertEqual(separators[0], separators[1])
+    self.assertEqual(separators[0], separators[2])
+
+  def test_streamed_row_is_marked(self):
     record = GenerationRecord(
-      at=1_800_000_000.0, outcome=SUCCESS, chars=10,
-      speaker=8, wait_seconds=0.25, synth_seconds=1.5, attempts=1,
-      streamed=True, first_audio_seconds=0.3,
+      at=1_800_000_000.0, outcome=SUCCESS, chars=10, speaker=8,
+      wait_seconds=0.25, synth_seconds=1.5, attempts=1, streamed=True,
+      first_seconds=0.3,
     )
-    self.assertEqual(
-      format_record(record),
-      "01/15 17:00:00 成功 10字 生成1.50秒 (150ms/字) 最初の音0.30秒 待ち0.25秒 話者8",
-    )
+    _, row = self.table_lines(record)
+    cells = [cell.strip() for cell in row.split("|")]
+    self.assertEqual(cells[4], "0.30s")
+    self.assertEqual(cells[7], "stream")
 
-  def test_failure_line_has_attempts_and_error(self):
+  def test_failure_row_has_attempts_and_error(self):
     record = GenerationRecord(
       at=1_800_000_000.0, outcome=FAILED, chars=3,
       speaker=8, wait_seconds=0.0, synth_seconds=30.0, attempts=4, reason="TimeoutError",
     )
+    _, row = self.table_lines(record)
     self.assertEqual(
-      format_record(record),
-      "01/15 17:00:00 失敗 3字 生成30.00秒 待ち0.00秒 話者8 試行4回 TimeoutError",
+      [cell.strip() for cell in row.split("|")],
+      ["01/15 17:00:00", "FAILED", "3", "30.00s", "-", "0.00s", "8",
+       "attempts=4 TimeoutError"],
     )
 
-  def test_skip_line(self):
+  def test_skip_row(self):
     record = GenerationRecord(
-      at=1_800_000_000.0, outcome=SKIPPED, chars=7,
-      reason=SKIP_CLEARED,
+      at=1_800_000_000.0, outcome=SKIPPED, chars=7, reason=SKIP_CLEARED,
     )
-    self.assertEqual(format_record(record), "01/15 17:00:00 スキップ クリア 7字")
+    _, row = self.table_lines(record)
+    self.assertEqual(
+      [cell.strip() for cell in row.split("|")],
+      ["01/15 17:00:00", "SKIPPED", "7", "-", "-", "-", "-", "cleared"],
+    )
+
+  def test_file_name_has_time_in_jst(self):
+    now = datetime(2026, 11, 19, 2, 18, 30, tzinfo=timezone.utc)
+    file = build_log_file([], now)
+    self.assertEqual(file.filename, "synthesis-log-20261119-111830.txt")
+
+  def test_summary_fields_match_table(self):
+    log = make_log()
+    for synth in (1.0, 2.0, 3.0, 4.0):
+      log.record_success(10, 8, 0.5, synth, 1).first_seconds = synth / 2
+    log.record_success(10, 8, 0.5, 1.0, 1, streamed=True)
+    log.record_skip(SKIP_CLEARED, 3)
+    log.record_skip(SKIP_EMPTY)
+    log.record_failure(5, 8, 2.5, 30.0, 4, "TimeoutError")
+    fields = format_summary_fields(log.summarize())
+    self.assertEqual(
+      fields,
+      [
+        ("件数", "成功 5 / スキップ 2 / 失敗 1\n（スキップの内訳: クリア 1・読む文字なし 1）"),
+        (
+          "生成時間（成功のみ）",
+          "平均 2.20秒（220ms/字） / 中央値 2.00秒 / 95% 4.00秒 / 最大 4.00秒",
+        ),
+        (
+          "最初の音まで（成功のみ・メッセージから・順番待ちを除く）",
+          "平均 1.25秒 / 中央値 1.00秒 / 最大 2.00秒（ストリーミング 1件）",
+        ),
+        ("順番待ち", "平均 0.83秒 / 最大 2.50秒"),
+      ],
+    )
 
   def test_summary_fields_without_records(self):
-    fields = dict(format_summary_fields(make_log().summarize(), 500))
-    self.assertIn("記録はまだありません", fields["記録の範囲"])
-    self.assertIn("平均 —", fields["生成時間（成功のみ）"])
-    self.assertIn("ストリーミング 0件", fields["最初の音まで（成功のみ）"])
+    fields = dict(format_summary_fields(make_log().summarize()))
+    self.assertNotIn("記録の範囲", fields)
+    self.assertEqual(fields["件数"], "成功 0 / スキップ 0 / 失敗 0")
+    self.assertEqual(
+      fields["生成時間（成功のみ）"], "平均 — / 中央値 — / 95% — / 最大 —"
+    )
 
 
 class FakeResponse:
@@ -236,13 +315,13 @@ class FakeInteraction:
   def __init__(self, user_id):
     self.user = SimpleNamespace(id=user_id)
     self.response = FakeResponse()
-    self.embeds = []
+    self.edits = []
 
-  async def edit_original_response(self, *, embed):
-    self.embeds.append(embed)
+  async def edit_original_response(self, **kwargs):
+    self.edits.append(kwargs)
 
 
-class VoicevoxLogCommandTest(unittest.TestCase):
+class SynthesisLogCommandTest(unittest.TestCase):
   def setUp(self):
     client = discord.Client(intents=discord.Intents.none())
     self.tree = app_commands.CommandTree(client)
@@ -250,30 +329,57 @@ class VoicevoxLogCommandTest(unittest.TestCase):
     self.log.record_success(10, 8, 0.0, 1.0, 1)
     self.log.record_skip(SKIP_EMPTY)
     OperatorCog(self.tree, self.log, DUMMY_USER_ID, RecordingNotifier())
-    self.command = self.tree.get_command("voicevox-log")
+    self.command = self.tree.get_command("synthesis-log")
 
-  def run_command(self, user_id, count=10):
+  def run_command(self, user_id, count=500, tree=None):
+    command = self.command if tree is None else tree.get_command("synthesis-log")
     interaction = FakeInteraction(user_id)
-    asyncio.run(self.command.callback(interaction, count))
+    asyncio.run(command.callback(interaction, count))
     return interaction
+
+  def test_old_name_is_gone(self):
+    self.assertIsNone(self.tree.get_command("voicevox-log"))
 
   def test_command_is_dm_only(self):
     contexts = self.command.allowed_contexts
     self.assertEqual((contexts.guild, contexts.dm_channel, contexts.private_channel), (False, True, False))
     self.assertEqual((self.command.allowed_installs.guild, self.command.allowed_installs.user), (True, False))
 
-  def test_operator_sees_log(self):
+  def test_operator_gets_summary_and_file(self):
     interaction = self.run_command(DUMMY_USER_ID)
     self.assertEqual(interaction.response.deferred, {})
-    [embed] = interaction.embeds
-    self.assertIn("直近2件", embed.description)
-    self.assertIn("成功 10字", embed.description)
-    fields = {field.name: field.value for field in embed.fields}
+    [edit] = interaction.edits
+    self.assertIn("直近2件", edit["embed"].description)
+    fields = {field.name: field.value for field in edit["embed"].fields}
     self.assertIn("成功 1 / スキップ 1 / 失敗 0", fields["件数"])
+    [file] = edit["attachments"]
+    self.assertTrue(file.filename.startswith("synthesis-log-"))
+    text = file.fp.read().decode("utf-8")
+    lines = text.splitlines()
+    self.assertEqual(len(lines), 3)
+    self.assertTrue(lines[0].startswith("datetime"))
+    # 新しい順
+    self.assertIn("SKIPPED", lines[1])
+    self.assertIn("SUCCESS", lines[2])
+
+  def test_count_limits_rows(self):
+    interaction = self.run_command(DUMMY_USER_ID, count=1)
+    [edit] = interaction.edits
+    [file] = edit["attachments"]
+    self.assertEqual(len(file.fp.read().decode("utf-8").splitlines()), 2)
+
+  def test_no_file_without_records(self):
+    client = discord.Client(intents=discord.Intents.none())
+    tree = app_commands.CommandTree(client)
+    OperatorCog(tree, make_log(), DUMMY_USER_ID, RecordingNotifier())
+    interaction = self.run_command(DUMMY_USER_ID, tree=tree)
+    [edit] = interaction.edits
+    self.assertEqual(edit["attachments"], [])
+    self.assertEqual(edit["embed"].description, "記録はまだありません")
 
   def test_others_are_refused(self):
     interaction = self.run_command(DUMMY_OTHER_USER_ID)
-    self.assertEqual(interaction.embeds, [])
+    self.assertEqual(interaction.edits, [])
     [sent] = interaction.response.sent
     self.assertTrue(sent["ephemeral"])
     self.assertIn("運営者だけ", sent["embed"].description)
@@ -282,9 +388,8 @@ class VoicevoxLogCommandTest(unittest.TestCase):
     client = discord.Client(intents=discord.Intents.none())
     tree = app_commands.CommandTree(client)
     OperatorCog(tree, self.log, None, RecordingNotifier())
-    interaction = FakeInteraction(DUMMY_USER_ID)
-    asyncio.run(tree.get_command("voicevox-log").callback(interaction, 10))
-    self.assertEqual(interaction.embeds, [])
+    interaction = self.run_command(DUMMY_USER_ID, tree=tree)
+    self.assertEqual(interaction.edits, [])
 
 
 if __name__ == "__main__":

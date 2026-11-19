@@ -327,7 +327,28 @@ class VoicevoxStreamingTest(LocalServerTestCase):
     [record] = self.log.recent(10)
     self.assertEqual(record.outcome, SUCCESS)
     self.assertTrue(record.streamed)
-    self.assertLess(record.first_audio_seconds, record.synth_seconds)
+    self.assertIsNone(record.first_seconds)
+
+  async def test_first_played_before_stream_ends_reaches_record(self):
+    # ストリーミングでは、記録より先に再生が始まる
+    audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 34)
+    audio.received_at = audio.wait_seconds = 0.0
+    audio.mark_played(1.25)
+    self.release_rest.set()
+    await audio.wait()
+    [record] = self.log.recent(10)
+    self.assertEqual(record.first_seconds, 1.25)
+
+  async def test_first_played_after_generation_reaches_record(self):
+    self.streaming_status = 404
+    with contextlib.redirect_stdout(io.StringIO()):
+      audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 35)
+    [record] = self.log.recent(10)
+    self.assertIsNone(record.first_seconds)
+    audio.received_at, audio.wait_seconds = 10.0, 0.5
+    audio.mark_played(12.0)
+    # 順番待ちの0.5秒を除く
+    self.assertEqual(record.first_seconds, 1.5)
 
   async def test_next_generation_waits_until_stream_ends(self):
     first = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 22)
@@ -360,7 +381,6 @@ class VoicevoxStreamingTest(LocalServerTestCase):
     self.assertEqual(self.notifier.exceptions, [])
     [second, first] = self.log.recent(10)
     self.assertFalse(first.streamed)
-    self.assertEqual(first.first_audio_seconds, first.synth_seconds)
 
   async def test_unsupported_speaker_falls_back_only_for_that_speaker(self):
     self.non_streaming_speakers = {5}

@@ -14,6 +14,34 @@ from services.error_notification_service import ensure_error_notifier
 OPUS_SILENCE = b'\xF8\xFF\xFE'
 
 
+class FirstPacketSource(discord.AudioSource):
+  """最初の音のデータをDiscordへ渡したときに知らせる音源。
+
+  discord.pyは再生用のスレッドで`read()`を呼ぶので、知らせる処理は
+  イベントループへ渡して動かす。ストリーミングでは、再生を始めてから
+  最初の音が届くまで`read()`が待つので、実際に音を出し始めた時点が分かる。
+  """
+
+  def __init__(self, source, loop, on_first):
+    self.original = source
+    self._loop = loop
+    self._on_first = on_first
+    self._notified = False
+
+  def read(self) -> bytes:
+    data = self.original.read()
+    if data and not self._notified:
+      self._notified = True
+      self._loop.call_soon_threadsafe(self._on_first)
+    return data
+
+  def is_opus(self) -> bool:
+    return self.original.is_opus()
+
+  def cleanup(self) -> None:
+    self.original.cleanup()
+
+
 class VoiceService:
   CANCELLED_MESSAGE_LIMIT = 500
 
@@ -349,8 +377,14 @@ class VoiceService:
         return
       session.current_tts_path = path
       session.current_message_id = message_id
+      source = voice
+      if audio is not None:
+        loop = asyncio.get_running_loop()
+        source = FirstPacketSource(
+          voice, loop, lambda: audio.mark_played(loop.time())
+        )
       voice_client.play(
-        voice,
+        source,
         after=lambda error: asyncio.run_coroutine_threadsafe(
           self._finish_playback(guild, path, error, reader), self.client.loop
         ),

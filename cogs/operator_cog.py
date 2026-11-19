@@ -3,17 +3,16 @@
 コマンドはBotとのDMにだけ出し、運営者以外が使ったときは断る。
 """
 
+import io
 from datetime import datetime, timedelta, timezone
 
 import discord
 
 from models.generation_record import (
-  FAILED,
   SKIP_CLEARED,
   SKIP_DELETED,
   SKIP_EMPTY,
   SKIPPED,
-  SUCCESS,
 )
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error
@@ -21,10 +20,17 @@ from services.error_notification_service import ensure_error_notifier
 
 
 JST = timezone(timedelta(hours=9), "JST")
-DEFAULT_LOG_COUNT = 10
-MAX_LOG_COUNT = 25
+# 一覧はtxtファイルにして添付するので、記録をすべて出せる
+MAX_LOG_COUNT = 500
+DEFAULT_LOG_COUNT = MAX_LOG_COUNT
+LOG_COLUMNS = (
+  "datetime", "result", "chars", "synthesis", "first", "wait", "speaker", "note",
+)
 
-_OUTCOME_LABELS = {SUCCESS: "成功", FAILED: "失敗", SKIPPED: "スキップ"}
+def _log_seconds(value) -> str:
+  return "-" if value is None else f"{value:.2f}s"
+
+
 _SKIP_LABELS = {
   SKIP_EMPTY: "読む文字なし",
   SKIP_CLEARED: "クリア",
@@ -32,79 +38,91 @@ _SKIP_LABELS = {
 }
 
 
-def _seconds(value) -> str:
+def _summary_seconds(value) -> str:
   return "—" if value is None else f"{value:.2f}秒"
 
 
-def _milliseconds(value) -> str:
-  return "—" if value is None else f"{value * 1000:.0f}ms"
-
-
-def format_summary_fields(summary, capacity: int) -> list[tuple[str, str]]:
-  """集計をEmbedのフィールド（名前と値）の一覧にする。"""
-  skip_detail = "・".join(
-    f"{_SKIP_LABELS.get(reason, reason)} {count}"
-    for reason, count in sorted(summary.skip_reasons.items())
-  )
+def format_summary_fields(summary) -> list[tuple[str, str]]:
+  """集計をEmbedのフィールド（名前と値）の一覧にする。項目は添付の表の列に合わせる。"""
   counts = (
     f"成功 {summary.success} / スキップ {summary.skipped} / 失敗 {summary.failed}"
   )
-  if skip_detail:
-    counts += f"\n（スキップの内訳: {skip_detail}）"
-  if summary.first_at is None:
-    period = f"記録はまだありません（直近{capacity}件まで・再起動で消えます）"
-  else:
-    period = (
-      f"<t:{int(summary.first_at)}:f> から {summary.total}件"
-      f"（直近{capacity}件まで・再起動で消えます）"
-    )
+  if summary.skip_reasons:
+    counts += "\n（スキップの内訳: " + "・".join(
+      f"{_SKIP_LABELS.get(reason, reason)} {count}"
+      for reason, count in sorted(summary.skip_reasons.items())
+    ) + "）"
+  synthesis = f"平均 {_summary_seconds(summary.synth_average)}"
+  if summary.seconds_per_char_average is not None:
+    synthesis += f"（{summary.seconds_per_char_average * 1000:.0f}ms/字）"
+  synthesis += (
+    f" / 中央値 {_summary_seconds(summary.synth_median)}"
+    f" / 95% {_summary_seconds(summary.synth_p95)}"
+    f" / 最大 {_summary_seconds(summary.synth_max)}"
+  )
   return [
-    ("記録の範囲", period),
     ("件数", counts),
+    ("生成時間（成功のみ）", synthesis),
     (
-      "生成時間（成功のみ）",
-      f"平均 {_seconds(summary.synth_average)} / 中央値 {_seconds(summary.synth_median)}"
-      f" / 95% {_seconds(summary.synth_p95)} / 最大 {_seconds(summary.synth_max)}",
-    ),
-    ("1文字あたり（成功のみ）", f"平均 {_milliseconds(summary.seconds_per_char_average)}"),
-    (
-      "最初の音まで（成功のみ）",
-      f"平均 {_seconds(summary.first_audio_average)}"
-      f" / 中央値 {_seconds(summary.first_audio_median)}"
-      f" / 最大 {_seconds(summary.first_audio_max)}"
+      "最初の音まで（成功のみ・メッセージから・順番待ちを除く）",
+      f"平均 {_summary_seconds(summary.first_average)}"
+      f" / 中央値 {_summary_seconds(summary.first_median)}"
+      f" / 最大 {_summary_seconds(summary.first_max)}"
       f"（ストリーミング {summary.streamed}件）",
     ),
     (
       "順番待ち",
-      f"平均 {_seconds(summary.wait_average)} / 最大 {_seconds(summary.wait_max)}",
+      f"平均 {_summary_seconds(summary.wait_average)}"
+      f" / 最大 {_summary_seconds(summary.wait_max)}",
     ),
   ]
 
 
-def format_record(record) -> str:
-  """記録1件を1行にする。"""
+def _log_row(record) -> tuple[str, ...]:
   at = datetime.fromtimestamp(record.at, JST).strftime("%m/%d %H:%M:%S")
-  outcome = _OUTCOME_LABELS.get(record.outcome, record.outcome)
-  if record.outcome == SKIPPED:
-    detail = _SKIP_LABELS.get(record.reason, record.reason or "")
-    if record.chars:
-      detail += f" {record.chars}字"
-    return f"{at} {outcome} {detail}"
-  parts = [
-    f"{record.chars}字",
-    f"生成{record.synth_seconds:.2f}秒",
-  ]
-  if record.seconds_per_char is not None:
-    parts.append(f"({record.seconds_per_char * 1000:.0f}ms/字)")
-  if record.streamed and record.first_audio_seconds is not None:
-    parts.append(f"最初の音{record.first_audio_seconds:.2f}秒")
-  parts.append(f"待ち{record.wait_seconds:.2f}秒")
-  parts.append(f"話者{record.speaker}")
+  skipped = record.outcome == SKIPPED
+  if skipped:
+    synthesis = "-"
+  else:
+    synthesis = f"{record.synth_seconds:.2f}s"
+    if record.seconds_per_char is not None:
+      synthesis += f" ({record.seconds_per_char * 1000:.0f}ms/char)"
+  notes = []
+  if record.streamed:
+    notes.append("stream")
   if record.attempts > 1:
-    parts.append(f"試行{record.attempts}回")
-  if record.outcome == FAILED and record.reason:
-    parts.append(record.reason)
-  return f"{at} {outcome} {' '.join(parts)}"
+    notes.append(f"attempts={record.attempts}")
+  if record.reason:
+    notes.append(record.reason)
+  return (
+    at,
+    record.outcome.upper(),
+    str(record.chars),
+    synthesis,
+    _log_seconds(record.first_seconds),
+    "-" if skipped else _log_seconds(record.wait_seconds),
+    "-" if record.speaker is None else str(record.speaker),
+    " ".join(notes),
+  )
+
+
+def format_log_table(records) -> str:
+  """記録を、列をそろえた表のテキストにする（1行目は見出し）。"""
+  rows = [LOG_COLUMNS] + [_log_row(record) for record in records]
+  widths = [max(len(row[index]) for row in rows) for index in range(len(LOG_COLUMNS))]
+  lines = [
+    " | ".join(cell.ljust(width) for cell, width in zip(row, widths)).rstrip()
+    for row in rows
+  ]
+  return "\n".join(lines) + "\n"
+
+
+def build_log_file(records, now: datetime | None = None) -> discord.File:
+  if now is None:
+    now = datetime.now(timezone.utc)
+  stamp = now.astimezone(JST).strftime("%Y%m%d-%H%M%S")
+  data = format_log_table(records).encode("utf-8")
+  return discord.File(io.BytesIO(data), filename=f"synthesis-log-{stamp}.txt")
 
 
 class OperatorCog:
@@ -124,23 +142,20 @@ class OperatorCog:
   def is_operator(self, user) -> bool:
     return self.operator_user_id is not None and user.id == self.operator_user_id
 
-  def build_log_embed(self, count: int) -> discord.Embed:
-    records = self.generation_log.recent(count)
-    lines = [format_record(record) for record in records]
-    description = None
-    if lines:
-      description = f"直近{len(lines)}件（新しい順）\n```\n" + "\n".join(lines) + "\n```"
-    embed = make_embed("VOICEVOXの生成記録", description)
-    for name, value in format_summary_fields(
-        self.generation_log.summarize(), self.generation_log.capacity
-    ):
+  def build_log_embed(self, record_count: int) -> discord.Embed:
+    if record_count:
+      description = f"直近{record_count}件（新しい順）を添付のファイルに書き出しました"
+    else:
+      description = "記録はまだありません"
+    embed = make_embed("音声生成の記録", description)
+    for name, value in format_summary_fields(self.generation_log.summarize()):
       embed.add_field(name=name, value=value, inline=False)
     return embed
 
   def _register(self) -> None:
     @self.tree.command(
-      name="voicevox-log",
-      description="（運営者用）VOICEVOXの音声生成の記録を表示します",
+      name="synthesis-log",
+      description="（運営者用）音声生成の記録を表示します",
     )
     @discord.app_commands.allowed_contexts(
       guilds=False,
@@ -149,9 +164,9 @@ class OperatorCog:
     )
     @discord.app_commands.allowed_installs(guilds=True, users=False)
     @discord.app_commands.describe(
-      count=f"表示する件数（1〜{MAX_LOG_COUNT}、既定は{DEFAULT_LOG_COUNT}）",
+      count=f"書き出す件数（1〜{MAX_LOG_COUNT}、既定はすべて）",
     )
-    async def voicevox_log(
+    async def synthesis_log(
         ctx,
         count: discord.app_commands.Range[int, 1, MAX_LOG_COUNT] = DEFAULT_LOG_COUNT,
     ):
@@ -159,7 +174,7 @@ class OperatorCog:
         if not self.is_operator(ctx.user):
           await ctx.response.send_message(
             embed=make_embed(
-              "VOICEVOXの生成記録",
+              "音声生成の記録",
               "このコマンドはBotの運営者だけが使えます",
               embed_type=EmbedType.ERROR,
             ),
@@ -167,10 +182,15 @@ class OperatorCog:
           )
           return
         await ctx.response.defer()
-        await ctx.edit_original_response(embed=self.build_log_embed(count))
+        records = self.generation_log.recent(count)
+        attachments = [build_log_file(records)] if records else []
+        await ctx.edit_original_response(
+          embed=self.build_log_embed(len(records)),
+          attachments=attachments,
+        )
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as error:
-        self.error_notifier.report_exception(error, "voicevox-log HTTP")
+        self.error_notifier.report_exception(error, "synthesis-log HTTP")
       except Exception as error:
-        await handle_internal_error(ctx, error, "voicevox-log", self.error_notifier)
+        await handle_internal_error(ctx, error, "synthesis-log", self.error_notifier)

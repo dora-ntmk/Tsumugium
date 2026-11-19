@@ -1,5 +1,6 @@
 """Discordメッセージを読み上げ対象として扱うか判定する。"""
 
+import asyncio
 import re
 
 import discord
@@ -46,14 +47,23 @@ class MessageService:
       return message.channel.id == voice_channel_id
     return message.channel.id in (text_target, voice_channel_id)
 
-  async def handle(self, message) -> None:
+  async def handle(self, message, *, received_at: float | None = None) -> None:
+    """メッセージを振り分ける。
+
+    `received_at`は on_message に入った時刻（loop.time()）。読み上げまで渡し、
+    /synthesis-log の first をそこから数える。
+    """
+    if received_at is None:
+      received_at = asyncio.get_running_loop().time()
     if message.author.bot:
       if message.guild is None or message.guild.voice_client is None:
         return
       if not self.is_target_channel(message):
         return
       self.error_notifier.create_task(
-        self.speech_service.add_message(message, sounddict_only=True),
+        self.speech_service.add_message(
+          message, sounddict_only=True, received_at=received_at
+        ),
         "bot message speech",
       )
       return
@@ -84,16 +94,18 @@ class MessageService:
     tts_text = parse_tts_file_command(content)
     if tts_text is not None:
       self.error_notifier.create_task(
-        self.speak_and_send_file(message, tts_text),
+        self.speak_and_send_file(message, tts_text, received_at=received_at),
         "message tts file",
       )
       return
     self.error_notifier.create_task(
-      self.speech_service.add_message(message),
+      self.speech_service.add_message(message, received_at=received_at),
       "message speech",
     )
 
-  async def speak_and_send_file(self, message, text: str) -> None:
+  async def speak_and_send_file(
+      self, message, text: str, *, received_at: float | None = None
+  ) -> None:
     """`!t`の文章を読み上げ、その音声ファイルをメッセージへの返信で送る。"""
     tts_file = await self.speech_service.speak_and_export(
       message.guild,
@@ -104,6 +116,7 @@ class MessageService:
       attachments=(),
       created_at=message.created_at,
       message_id=message.id,
+      received_at=received_at,
     )
     if tts_file is None:
       return

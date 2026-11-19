@@ -25,6 +25,11 @@ class StreamingAudio:
     self._succeeded = False
     self._file = None
     self._done = asyncio.Event()
+    # 記録用（/synthesis-log の first）。時刻はイベントループの時計（loop.time()）
+    self.received_at: float | None = None  # メッセージを受け取った時刻
+    self.wait_seconds = 0.0                # 生成の順番を待った時間
+    self.first_seconds: float | None = None
+    self._record = None
 
   @classmethod
   def completed(cls, path: str) -> "StreamingAudio":
@@ -51,6 +56,25 @@ class StreamingAudio:
     """最後まで書き終えたか。途中で切れたときと、まだ書いているときはFalse。"""
     with self._condition:
       return self._finished and self._succeeded
+
+  def attach_record(self, record) -> None:
+    """生成の記録を結び付ける。すでに再生が始まっていれば、firstを書き込む。"""
+    self._record = record
+    if record is not None and self.first_seconds is not None:
+      record.first_seconds = self.first_seconds
+
+  def mark_played(self, now: float) -> None:
+    """最初の音を再生した時刻から、firstを決める（最初の1回だけ）。
+
+    firstは、メッセージを受け取ってから最初の音を再生するまでの時間から、
+    生成の順番を待った時間を除いたもの。メッセージから作っていない音声
+    （入退室通知など）は`received_at`がないので決めない。
+    """
+    if self.first_seconds is not None or self.received_at is None:
+      return
+    self.first_seconds = max(0.0, now - self.received_at - self.wait_seconds)
+    if self._record is not None:
+      self._record.first_seconds = self.first_seconds
 
   def open_for_write(self) -> None:
     directory = os.path.dirname(self.path)

@@ -23,13 +23,12 @@ class VoicevoxGenerationError(RuntimeError):
 
 
 class _GenerationTiming:
-  """生成1回分の、順番が来た時刻・最初の音が届いた時刻・試した回数（記録用）。"""
+  """生成1回分の、順番が来た時刻・試した回数・ストリーミングしたか（記録用）。"""
 
-  __slots__ = ("acquired_at", "first_audio_at", "attempts", "streamed")
+  __slots__ = ("acquired_at", "attempts", "streamed")
 
   def __init__(self):
     self.acquired_at: float | None = None
-    self.first_audio_at: float | None = None
     self.attempts = 0
     self.streamed = False
 
@@ -248,6 +247,7 @@ class VoicevoxClient:
         timing=timing,
       )
       audio = StreamingAudio(path)
+      audio.wait_seconds = timing.acquired_at - started_at
       try:
         audio.open_for_write()
         audio.write(result.data)
@@ -258,9 +258,8 @@ class VoicevoxClient:
         raise
       if result.response is None:
         audio.finish()
-        self._record(msg, speaker, started_at, timing)
+        audio.attach_record(self._record(msg, speaker, started_at, timing))
         return audio
-      timing.first_audio_at = loop.time()
       timing.streamed = True
       response = result.response
       task = asyncio.create_task(
@@ -308,22 +307,25 @@ class VoicevoxClient:
       if isinstance(e, (aiohttp.ClientError, asyncio.TimeoutError)):
         await self._reset_owned_session()
       self._report_failure(
-        e, msg, speaker, started_at, timing, guildid, msgid, streaming=True
+        e, msg, speaker, started_at, timing, guildid, msgid,
+        streaming=True, audio=audio,
       )
     finally:
       response.release()
       audio.finish(succeeded=succeeded)
       self._generation_lock.release()
     if succeeded:
-      self._record(msg, speaker, started_at, timing)
+      audio.attach_record(self._record(msg, speaker, started_at, timing))
 
   def _report_failure(
       self, error, msg, speaker, started_at, timing, guildid, msgid,
-      *, streaming=False,
+      *, streaming=False, audio=None,
   ) -> None:
     context = "VOICEVOX streaming" if streaming else "VOICEVOX generation"
     if isinstance(error, VoicevoxGenerationError):
-      self._record(msg, speaker, started_at, timing, error=error.last_error)
+      record = self._record(msg, speaker, started_at, timing, error=error.last_error)
+      if audio is not None:
+        audio.attach_record(record)
       self.error_notifier.report_exception(
         error,
         context,
@@ -337,7 +339,9 @@ class VoicevoxClient:
         },
       )
       return
-    self._record(msg, speaker, started_at, timing, error=error)
+    record = self._record(msg, speaker, started_at, timing, error=error)
+    if audio is not None:
+      audio.attach_record(record)
     self.error_notifier.report_exception(
       error,
       context,
@@ -352,13 +356,13 @@ class VoicevoxClient:
     if self.generation_log is not None:
       self.generation_log.record_skip(SKIP_EMPTY)
 
-  def _record(self, msg, speaker, started_at, timing, *, error=None) -> None:
-    """生成の結果を記録する。待ち時間と生成時間は、順番が来た時刻で分ける。
+  def _record(self, msg, speaker, started_at, timing, *, error=None):
+    """生成の結果を記録し、その記録を返す（記録しないときはNone）。
 
-    文章とサーバーは記録しない（文字数だけ）。
+    待ち時間と生成時間は、順番が来た時刻で分ける。文章とサーバーは記録しない（文字数だけ）。
     """
     if self.generation_log is None:
-      return
+      return None
     now = asyncio.get_running_loop().time()
     acquired_at = timing.acquired_at if timing.acquired_at is not None else now
     values = {
@@ -370,14 +374,8 @@ class VoicevoxClient:
       "streamed": timing.streamed,
     }
     if error is None:
-      first_audio_at = (
-        timing.first_audio_at if timing.first_audio_at is not None else now
-      )
-      self.generation_log.record_success(
-        **values, first_audio_seconds=first_audio_at - acquired_at
-      )
-    else:
-      self.generation_log.record_failure(**values, reason=type(error).__name__)
+      return self.generation_log.record_success(**values)
+    return self.generation_log.record_failure(**values, reason=type(error).__name__)
 
   async def _acquire_turn(self, timing) -> None:
     """生成の順番（全サーバーで1件ずつ）を待つ。
@@ -571,4 +569,3 @@ class VoicevoxClient:
         and not getattr(self._session, "closed", False)
     ):
       await self._session.close()
-

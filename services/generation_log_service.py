@@ -29,16 +29,17 @@ class GenerationLogService:
   def capacity(self) -> int:
     return self._records.maxlen
 
-  def _add(self, **values) -> None:
-    self._records.append(GenerationRecord(at=self._clock(), **values))
+  def _add(self, **values) -> GenerationRecord:
+    record = GenerationRecord(at=self._clock(), **values)
+    self._records.append(record)
+    return record
 
   def record_success(
       self, chars, speaker, wait_seconds, synth_seconds, attempts,
-      *, streamed=False, first_audio_seconds=None,
-  ) -> None:
-    if first_audio_seconds is None:
-      first_audio_seconds = synth_seconds
-    self._add(
+      *, streamed=False,
+  ) -> GenerationRecord:
+    """成功を記録し、その記録を返す（あとで再生が始まったら`first_seconds`を書き込む）。"""
+    return self._add(
       outcome=SUCCESS,
       chars=chars,
       speaker=speaker,
@@ -46,14 +47,13 @@ class GenerationLogService:
       synth_seconds=synth_seconds,
       attempts=attempts,
       streamed=streamed,
-      first_audio_seconds=first_audio_seconds,
     )
 
   def record_failure(
       self, chars, speaker, wait_seconds, synth_seconds, attempts, reason,
       *, streamed=False,
-  ) -> None:
-    self._add(
+  ) -> GenerationRecord:
+    return self._add(
       outcome=FAILED,
       chars=chars,
       speaker=speaker,
@@ -90,10 +90,10 @@ class GenerationLogService:
       if record.seconds_per_char is not None
     ]
     waits = [record.wait_seconds for record in records if record.outcome != SKIPPED]
-    first_audio = sorted(
-      record.first_audio_seconds
+    first = sorted(
+      record.first_seconds
       for record in successes
-      if record.first_audio_seconds is not None
+      if record.first_seconds is not None
     )
     return GenerationSummary(
       total=len(records),
@@ -109,9 +109,9 @@ class GenerationLogService:
       wait_average=_average(waits),
       wait_max=max(waits) if waits else None,
       streamed=sum(1 for record in successes if record.streamed),
-      first_audio_average=_average(first_audio),
-      first_audio_median=_percentile(first_audio, 50),
-      first_audio_max=first_audio[-1] if first_audio else None,
+      first_average=_average(first),
+      first_median=_percentile(first, 50),
+      first_max=first[-1] if first else None,
       first_at=records[0].at,
     )
 

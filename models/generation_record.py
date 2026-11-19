@@ -13,11 +13,12 @@ SKIP_CLEARED = "cleared"  # 生成中にクリアされ、再生しなかった
 SKIP_DELETED = "deleted"  # 生成中にメッセージが消され、再生しなかった
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(slots=True)
 class GenerationRecord:
   """生成1回分の記録。
 
   読み上げた文章とサーバーは持たない（運営者が内容を推し量れないようにするため）。
+  `first_seconds`だけは、記録したあとに再生が始まったときに書き込まれる。
   """
 
   at: float                 # 記録した時刻（UNIX時間）
@@ -29,8 +30,9 @@ class GenerationRecord:
   attempts: int = 0
   reason: str | None = None   # スキップの理由、または失敗した例外の名前
   streamed: bool = False      # /streaming_synthesisで少しずつ受け取ったか
-  # 順番が来てから最初の音が届くまでの時間（成功のみ）。ストリーミングしないときは生成時間と同じ
-  first_audio_seconds: float | None = None
+  # メッセージを受け取ってから最初の音を再生するまでの時間（順番待ちを除く）。
+  # 再生しなかったもの・メッセージから作っていないもの（入退室通知など）はNone
+  first_seconds: float | None = None
 
   @property
   def seconds_per_char(self) -> float | None:
@@ -56,7 +58,7 @@ class GenerationSummary:
   wait_average: float | None = None
   wait_max: float | None = None
   streamed: int = 0
-  first_audio_average: float | None = None
-  first_audio_median: float | None = None
-  first_audio_max: float | None = None
+  first_average: float | None = None
+  first_median: float | None = None
+  first_max: float | None = None
   first_at: float | None = None
