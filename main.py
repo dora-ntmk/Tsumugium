@@ -57,7 +57,7 @@ tree = discord.app_commands.CommandTree(client)
 error_notifier = ErrorNotificationService(client, OPERATOR_USER_ID)
 client.set_error_notifier(error_notifier)
 
-# VOICEVOXの生成の記録。運営者が /voicevox-log で見る。メモリだけに持つ
+# VOICEVOXの生成の記録。運営者が /synthesis-log で見る。メモリだけに持つ
 generation_log = GenerationLogService()
 voicevox_client = VoicevoxClient(
   VOICEVOX_URL,

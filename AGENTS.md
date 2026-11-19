@@ -28,7 +28,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `cogs/general_cog.py` | `/version`を登録する一般コマンド層 |
 | `cogs/lifecycle_cog.py` | 起動・サーバー参加退出・Soundboard更新イベントを登録するライフサイクル層 |
 | `cogs/user_cog.py` | DMを含むユーザー単位設定コマンドを登録する層 |
-| `cogs/operator_cog.py` | Botの運営者（`OPERATOR_USER_ID`）だけが使うコマンドを登録する層。`/voicevox-log` |
+| `cogs/operator_cog.py` | Botの運営者（`OPERATOR_USER_ID`）だけが使うコマンドを登録する層。`/synthesis-log` |
 | `clients/voicevox_client.py` | 再利用可能な非同期HTTPセッションでVOICEVOX生成とWAV保存を担当 |
 | `clients/discord_soundboard_client.py` | Discord Soundboard一覧取得・再生APIを担当する非同期HTTPクライアント |
 | `clients/managed_discord_client.py` | Bot終了時に、登録した終了前の処理（VCから抜けるなど）を動かしてから、外部HTTP・SQLiteリソースを閉じるDiscord Client。SIGTERM・SIGINTを受けたらDiscordとの接続を閉じてから終わる |
@@ -220,7 +220,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/clear` | `instant: bool` | 全員 |
 | `/user-reading` | `reading: str (1〜50文字)` | 全員（DM可・ephemeral応答） |
 | `/user-reading-reset` | — | 全員（DM可・ephemeral応答） |
-| `/voicevox-log` | `count: int (1〜25、既定10)` | `OPERATOR_USER_ID`の人だけ（BotとのDMだけに出す。運営者以外への断りだけephemeral応答） |
+| `/synthesis-log` | `count: int (1〜500、既定はすべて)` | `OPERATOR_USER_ID`の人だけ（BotとのDMだけに出す。運営者以外への断りだけephemeral応答） |
 | `/tsumugi-tts` | `text: str` | 全員（BotがVCに接続しているときだけ） |
 | `/t` | `text: str` | 全員（`/tsumugi-tts`の短縮） |
 | `/skip` | — | 全員 |
@@ -276,12 +276,13 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - `VoiceService.play()`は、書き終えていない音声を`StreamingAudio.open_reader()`で開き、`discord.FFmpegOpusAudio(reader, pipe=True, before_options="-f wav")`へ渡す。読み手は届いていない分を待ち、書き終えたら残りを読んで終わる。30秒届かなければ打ち切る。再生が終わったとき・再生しなかったときは読み手を閉じ、待っているスレッドを終わらせる。書き終えた音声は今までどおり`from_probe()`でファイルから再生する。
 - クリア・削除・`!t`の扱いは今までと同じ。WAVファイルは書きかけでも同じ名前にあるので、消す処理はそのまま動く。`speak_and_export()`はファイルにするため、最後まで届くのを待ち、途中で切れたらNoneを返す。
 
-### 生成の記録（`/voicevox-log`）
+### 生成の記録（`/synthesis-log`）
 
 - `GenerationLogService`が、VOICEVOXの生成の記録を直近500件までメモリに持つ。DBには書かず、Botを再起動すると消える。運営者が発言の内容を推し量れないよう、読み上げた文章と、どのサーバーの生成か（サーバーID・サーバー名）は持たず、文字数だけを残す。
-- 成功・失敗は`VoicevoxClient.generate()`が記録する。時間は、生成の順番（全ギルドで1件ずつ）を待った時間と、順番が来てから生成し終える（失敗なら諦める）までの時間に分け、試した回数と、失敗なら例外の名前も残す。ストリーミングしたかと、順番が来てから最初の音が届くまでの時間も残す（ストリーミングしないときは生成時間と同じ）。ストリーミングの成功は、残りを受け取り終えたときに記録する。
+- 成功・失敗は`VoicevoxClient.generate()`が記録する。時間は、生成の順番（全ギルドで1件ずつ）を待った時間と、順番が来てから生成し終える（失敗なら諦める）までの時間に分け、試した回数と、失敗なら例外の名前も残す。ストリーミングしたかも残す。ストリーミングの成功は、残りを受け取り終えたときに記録する。
+- 記録には`first`（メッセージを受け取ってから最初の音を再生するまでの時間から、生成の順番を待った時間を除いたもの）も残す。`SpeechService`がメッセージを受け取った時刻（`add_message()`・`speak_and_export()`の始め）を、`VoicevoxClient`が順番を待った時間を`StreamingAudio`に書き、`VoiceService`が`FirstPacketSource`で最初の音のデータをDiscordへ渡した時刻を知らせる。ストリーミングでは記録より先に再生が始まるので、`StreamingAudio.attach_record()`・`mark_played()`のどちらが先でも記録に書き込まれる。同じサーバーで前の読み上げが終わるのを待った時間は含む。入退室通知など、メッセージから作っていない音声と、再生しなかったものは空欄にする。
 - スキップは`SpeechService`が記録する。理由は、読む文字がない（`empty`）、生成中にクリアされた（`cleared`）、生成中にメッセージが消された（`deleted`）の3つ。クリア・削除のスキップは、生成の成功とは別の記録として残る（生成の時間は使っているため）。生成を始める前にクリア中だったメッセージと、`!t`でクリアされてファイルだけを送ったものは記録しない。
-- `/voicevox-log`は、直近`count`件の一覧（新しい順）と、記録全体の集計（件数とスキップの内訳、成功の生成時間の平均・中央値・95パーセンタイル・最大、1文字あたりの平均、最初の音までの平均・中央値・最大とストリーミングした件数、順番待ちの平均・最大）を表示する。サーバーの情報は表示しない。
+- `/synthesis-log`は、記録全体の集計（件数とスキップの内訳、成功の生成時間の平均・中央値・95パーセンタイル・最大、1文字あたりの平均、`first`の平均・中央値・最大とストリーミングした件数、順番待ちの平均・最大）をEmbedで表示し、直近`count`件の一覧（新しい順）を`synthesis-log-YYYYMMDD-HHMMSS.txt`（日本時間）として添付する。一覧は`datetime | result | chars | synthesis | first | wait | speaker | note`の列をそろえた表で、`note`にはストリーミング（`stream`）、試した回数（2回以上）、スキップの理由・失敗した例外の名前を書く。サーバーの情報は表示しない。
 - 両Clientは`aiohttp.ClientSession`を初回通信時に生成して再利用する。通常実行経路で同期`requests`は使用しない。
 - `VoiceService`と`UpdateSoundBoards`はHTTPのURL・認証方法を知らず、Clientのメソッドだけを呼ぶ。
 - Bot終了時は`ManagedDiscordClient.close()`がHTTPセッションと4つのSQLite接続を閉じる。

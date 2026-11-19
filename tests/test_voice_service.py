@@ -9,6 +9,8 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
+import discord
+
 from models.audio_item import SoundboardItem, TTSItem
 from models.streaming_audio import StreamingAudio
 from services.voice_service import VoiceService
@@ -177,7 +179,7 @@ class StreamingPlaybackTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
     reader = args[0]
     self.assertTrue(kwargs["pipe"])
     self.assertEqual(kwargs["before_options"], "-f wav")
-    self.assertIs(self.voice_client.source, source)
+    self.assertIs(self.voice_client.source.original, source)
     self.assertEqual(self.session.current_message_id, 1)
     self.assertFalse(reader.closed)
 
@@ -201,7 +203,7 @@ class StreamingPlaybackTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
       await self.service.play(self.guild, path, 2, audio=audio)
     ffmpeg.from_probe.assert_awaited_once_with(path)
     ffmpeg.assert_not_called()
-    self.assertIs(self.voice_client.source, source)
+    self.assertIs(self.voice_client.source.original, source)
     self.voice_client.after(None)
     await asyncio.sleep(0.05)
 
@@ -219,3 +221,39 @@ class StreamingPlaybackTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
     source.cleanup.assert_called_once()
     await asyncio.sleep(0.05)
     self.assertFalse(os.path.exists(audio.path))
+
+  async def test_first_packet_marks_played(self):
+    path = self.tmp_path("tmp", "first.wav")
+    with open(path, "wb") as file:
+      file.write(b"RIFF")
+    audio = StreamingAudio.completed(path)
+    loop = asyncio.get_running_loop()
+    audio.received_at = loop.time() - 2.0
+    audio.wait_seconds = 0.5
+    source = mock.Mock()
+    source.read.side_effect = [b"", b"opus-packet", b"opus-packet"]
+    with mock.patch(
+        "services.voice_service.discord.FFmpegOpusAudio"
+    ) as ffmpeg:
+      ffmpeg.from_probe = mock.AsyncMock(return_value=source)
+      await self.service.play(self.guild, path, 4, audio=audio)
+    played = self.voice_client.source
+    self.assertIsInstance(played, discord.AudioSource)
+
+    # 空のデータでは決めず、最初の音のデータを渡したときに決める
+    await asyncio.to_thread(played.read)
+    await asyncio.sleep(0.01)
+    self.assertIsNone(audio.first_seconds)
+    await asyncio.to_thread(played.read)
+    await asyncio.sleep(0.01)
+    first = audio.first_seconds
+    self.assertGreaterEqual(first, 1.5)
+    self.assertLess(first, 2.5)
+    await asyncio.to_thread(played.read)
+    await asyncio.sleep(0.01)
+    self.assertEqual(audio.first_seconds, first)
+
+    played.cleanup()
+    source.cleanup.assert_called_once()
+    self.voice_client.after(None)
+    await asyncio.sleep(0.05)

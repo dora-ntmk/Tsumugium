@@ -1,5 +1,6 @@
 """メッセージの前処理、音声種別の選択、TTS生成を担当する。"""
 
+import asyncio
 import io
 import re
 import unicodedata
@@ -131,6 +132,8 @@ class SpeechService:
     )
 
   async def add_message(self, message, *, sounddict_only: bool = False) -> None:
+    # /synthesis-log の first は、ここ（メッセージを受け取った時点）から数える
+    received_at = asyncio.get_running_loop().time()
     guild_id = message.guild.id
     session = self.voice_service.get_session(guild_id)
     if session.clearing:
@@ -174,6 +177,7 @@ class SpeechService:
       self._record_skip(SKIP_DELETED, len(text))
       await self.voice_service.safe_remove(audio.path)
       return
+    audio.received_at = received_at
     await self.voice_service.enqueue(
       message.guild,
       TTSItem(audio.path, message_id=message.id, audio=audio),
@@ -199,6 +203,7 @@ class SpeechService:
     読み上げないが、ファイルは返す。前処理のあとに読む文字が残らなかったときも
     音声を作らずにNoneを返す。
     """
+    received_at = asyncio.get_running_loop().time()
     session = self.voice_service.get_session(guild.id)
     clear_generation = session.clear_generation
     original_text = text
@@ -237,6 +242,7 @@ class SpeechService:
     if session.clearing or session.clear_generation != clear_generation:
       await self.voice_service.safe_remove(path)
       return tts_file
+    audio.received_at = received_at
     await self.voice_service.enqueue(
       guild, TTSItem(path, message_id=message_id, audio=audio)
     )

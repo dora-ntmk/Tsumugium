@@ -6,6 +6,7 @@ FFmpegへデータを渡すdiscord.pyのスレッドと同じく、別のスレ�
 import asyncio
 import threading
 import unittest
+from types import SimpleNamespace
 
 from models.streaming_audio import StreamingAudio, StreamingAudioReader
 from tests.support import TempDirTestCase
@@ -96,6 +97,38 @@ class StreamingAudioTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
     self.assertEqual(reader.read(), b"RIFF-done")
     self.assertEqual(reader.read(), b"")
     reader.close()
+
+  async def test_first_excludes_wait_and_is_set_once(self):
+    audio = self.make_audio()
+    audio.received_at, audio.wait_seconds = 100.0, 1.5
+    audio.mark_played(103.0)
+    audio.mark_played(110.0)
+    self.assertEqual(audio.first_seconds, 1.5)
+    audio.finish()
+
+  async def test_first_is_not_set_without_message(self):
+    # 入退室通知など、メッセージから作っていない音声
+    audio = self.make_audio()
+    audio.mark_played(103.0)
+    self.assertIsNone(audio.first_seconds)
+    audio.finish()
+
+  async def test_first_reaches_record_in_either_order(self):
+    record_before = SimpleNamespace(first_seconds=None)
+    audio = self.make_audio("before.wav")
+    audio.received_at = 0.0
+    audio.attach_record(record_before)
+    audio.mark_played(2.0)
+    self.assertEqual(record_before.first_seconds, 2.0)
+    audio.finish()
+
+    record_after = SimpleNamespace(first_seconds=None)
+    audio = self.make_audio("after.wav")
+    audio.received_at = 0.0
+    audio.mark_played(3.0)
+    audio.attach_record(record_after)
+    self.assertEqual(record_after.first_seconds, 3.0)
+    audio.finish()
 
   async def test_finish_twice_keeps_first_result(self):
     audio = self.make_audio()
