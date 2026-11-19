@@ -29,6 +29,7 @@ from services.announcement_service import (
   MAX_BODY_LENGTH,
   MAX_DISPLAY,
   MAX_IMAGE_BYTES,
+  MAX_TITLE_LENGTH,
   AnnouncementDraft,
   AnnouncementError,
   AnnouncementService,
@@ -460,7 +461,9 @@ class AnnounceCommandTest(ServiceTestCase):
   def test_add_with_bad_period_does_not_open_modal(self):
     interaction = self.run_command("add", expires="あした")
     self.assertIsNone(interaction.response.modal)
-    self.assertEqual(interaction.response.sent[0]["embed"].color, embed_color(EmbedType.ERROR))
+    view = interaction.response.sent[0]["view"]
+    self.assertTrue(view.has_components_v2())
+    self.assertEqual(view.children[0].accent_colour, embed_color(EmbedType.ERROR))
 
   def test_submit_shows_confirm_and_saves_only_after_send(self):
     modal = AnnouncementModal(self.cog, AnnouncementForm(expires_at=NOW + 3600))
@@ -565,16 +568,21 @@ class AnnounceCommandTest(ServiceTestCase):
     pressed = self.press(view, view.send_button)
     self.assertEqual(self.service.list_all(), [])
     self.assertIn("すでに過ぎています", "".join(texts(pressed.response.edited["view"])))
-    self.assertIsInstance(pressed.followup.sent[0]["view"], RetryView)
+    retry_view = pressed.followup.sent[0]["view"]
+    self.assertIsInstance(retry_view, RetryView)
+    self.assertIn("入力し直してください", "".join(texts(retry_view)))
+    self.assertEqual(retry_view.children[-1].children[0].label, "入力し直す")
 
   def test_submit_error_offers_retry_with_entered_values(self):
     modal = AnnouncementModal(self.cog, AnnouncementForm())
     interaction = self.submit(modal, link_label="みる", uploads=[FakeAttachment(PNG)])
     self.assertEqual(self.service.list_all(), [])
     sent = interaction.followup.sent[0]
-    self.assertIn("選び直して", sent["embed"].description)
     retry_view = sent["view"]
     self.assertIsInstance(retry_view, RetryView)
+    self.assertTrue(retry_view.has_components_v2())
+    self.assertIn("選び直して", "".join(texts(retry_view)))
+    self.assertIsInstance(retry_view.children[-1], discord.ui.ActionRow)
     self.assertEqual(retry_view.form.link_label, "みる")
     retry = FakeInteraction()
     asyncio.run(retry_view.retry.callback(retry))
@@ -584,7 +592,7 @@ class AnnounceCommandTest(ServiceTestCase):
     attachment = FakeAttachment(PNG, size=MAX_IMAGE_BYTES + 1)
     interaction = self.submit(AnnouncementModal(self.cog, AnnouncementForm()), uploads=[attachment])
     attachment.read.assert_not_awaited()
-    self.assertIn("5MB", interaction.followup.sent[0]["embed"].description)
+    self.assertIn("5MB", "".join(texts(interaction.followup.sent[0]["view"])))
 
   def test_edit_prefills_and_keeps_or_removes_image(self):
     announcement_id = self.add(
@@ -613,15 +621,32 @@ class AnnounceCommandTest(ServiceTestCase):
   def test_edit_missing(self):
     interaction = self.run_command("edit", id=99)
     self.assertIsNone(interaction.response.modal)
-    self.assertIn("見つかりません", interaction.response.sent[0]["embed"].description)
+    self.assertIn("見つかりません", "".join(texts(interaction.response.sent[0]["view"])))
 
   def test_list_and_delete(self):
     announcement_id = self.add(title="けす", image=PNG, image_name="image.png")
-    embed = self.run_command("list").response.sent[0]["embed"]
-    self.assertEqual(embed.fields[0].name, f"ID {announcement_id}｜けす")
-    self.assertIn("画像あり", embed.fields[0].value)
-    self.run_command("del", id=announcement_id)
+    view = self.run_command("list").response.sent[0]["view"]
+    self.assertTrue(view.has_components_v2())
+    listed = texts(view)[-1]
+    self.assertIn(f"### ID {announcement_id}｜けす\n", listed)
+    self.assertIn("画像あり", listed)
+    deleted = self.run_command("del", id=announcement_id).response.sent[0]["view"]
+    self.assertIn("## お知らせを削除しました", texts(deleted)[0])
     self.assertIsNone(self.service.get(announcement_id))
+
+  def test_list_fits_components_v2_limits(self):
+    for number in range(40):
+      self.add(title="た" * MAX_TITLE_LENGTH, body="ほ" * 100)
+    view = self.run_command("list").response.sent[0]["view"]
+    self.assertLessEqual(sum(len(text) for text in texts(view)), 4000)
+    self.assertLessEqual(len(walk(view)), 40)
+    self.assertIn("表示しきれませんでした", texts(view)[-1])
+
+  def test_deny_non_operator_with_components_v2(self):
+    interaction = self.run_command("list", interaction=FakeInteraction(DUMMY_OTHER_USER_ID))
+    sent = interaction.response.sent[0]
+    self.assertTrue(sent["ephemeral"])
+    self.assertIn("運営者だけ", "".join(texts(sent["view"])))
 
   def test_preview_current_message(self):
     self.add(title="ひとつめ")

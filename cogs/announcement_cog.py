@@ -10,7 +10,7 @@ from dataclasses import dataclass, replace
 
 import discord
 
-from presentation.embeds import EmbedType, make_embed
+from presentation.embeds import EmbedType
 from presentation.announcement_layout import add_announcements
 from presentation.layouts import make_layout
 from models.announcement import Announcement
@@ -34,6 +34,8 @@ from services.error_notification_service import ensure_error_notifier, operator_
 FORM_TIMEOUT_SECONDS = 15 * 60
 PREVIEW_TITLE = "接続しました"
 PREVIEW_DESCRIPTION = "（ボイスチャンネル）に接続しました。"
+# 一覧の各お知らせに使う文字数の上限（v2のメッセージ全体で4000文字まで。見出しなどの分を残す）
+LIST_TEXT_BUDGET = 3500
 _IMAGE_HELP = f"PNG・JPEG・GIF・WebP、{MAX_IMAGE_BYTES // (1024 * 1024)}MBまで"
 
 
@@ -128,17 +130,24 @@ class AnnouncementModal(discord.ui.Modal):
     await self.cog.report_error(interaction, error, "announce modal")
 
 
-class RetryView(discord.ui.View):
-  """入力に誤りがあったときに、入力した値を残したまま Modal を開き直すボタン。"""
+class RetryView(discord.ui.LayoutView):
+  """入力に誤りがあったときに、入力した値を残したまま Modal を開き直すボタン。
+
+  make_layout(view=...) で理由の枠を作ったあとに add_button() を呼び、枠の外（下）にボタンを置く。
+  """
 
   def __init__(self, cog, form: AnnouncementForm, source: "AnnouncementConfirm | None" = None):
     super().__init__(timeout=FORM_TIMEOUT_SECONDS)
     self.cog = cog
     self.form = form
     self.source = source
+    self.retry = discord.ui.Button(label="入力し直す", style=discord.ButtonStyle.primary)
+    self.retry.callback = self._retry
 
-  @discord.ui.button(label="入力し直す", style=discord.ButtonStyle.primary)
-  async def retry(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
+  def add_button(self) -> None:
+    self.add_item(discord.ui.ActionRow(self.retry))
+
+  async def _retry(self, interaction: discord.Interaction) -> None:
     if not self.cog.is_operator(interaction.user):
       await self.cog.deny(interaction)
       return
@@ -245,10 +254,8 @@ class AnnouncementConfirm:
     return True
 
   async def _already_finished(self, interaction: discord.Interaction) -> None:
-    await interaction.response.send_message(
-      embed=make_embed("お知らせ", "この確認はもう使えません", embed_type=EmbedType.WARNING),
-      ephemeral=True,
-    )
+    layout = make_layout("お知らせ", "この確認はもう使えません", layout_type=EmbedType.WARNING)
+    await interaction.response.send_message(view=layout.view, ephemeral=True)
 
   async def _replace(self, interaction: discord.Interaction | None, layout) -> None:
     """確認のメッセージを layout に置き換える（ボタンは外れる）。"""
@@ -278,9 +285,8 @@ class AnnouncementConfirm:
           layout_type=EmbedType.ERROR,
         ),
       )
-      await interaction.followup.send(
-        embed=make_embed("お知らせ", "入力し直してください", embed_type=EmbedType.ERROR),
-        view=RetryView(self.cog, self.form),
+      await self.cog._send_error(
+        interaction, "入力し直してください", retry=RetryView(self.cog, self.form)
       )
       return
     announcement = service.repository.get(announcement_id)
@@ -357,24 +363,22 @@ class AnnouncementCog:
     return user.id in self.operator_user_ids
 
   async def deny(self, interaction) -> None:
-    await interaction.response.send_message(
-      embed=make_embed(
-        "お知らせ",
-        "このコマンドはBotの運営者だけが使えます",
-        embed_type=EmbedType.ERROR,
-      ),
-      ephemeral=True,
+    layout = make_layout(
+      "お知らせ",
+      "このコマンドはBotの運営者だけが使えます",
+      layout_type=EmbedType.ERROR,
     )
+    await interaction.response.send_message(view=layout.view, ephemeral=True)
 
-  async def _send_error(self, interaction, message: str, view=None) -> None:
-    embed = make_embed("お知らせ", message, embed_type=EmbedType.ERROR)
-    kwargs = {"embed": embed}
-    if view is not None:
-      kwargs["view"] = view
+  async def _send_error(self, interaction, message: str, retry: RetryView | None = None) -> None:
+    """誤りを知らせる。retry を渡すと、枠の外（下）に「入力し直す」ボタンを付ける。"""
+    layout = make_layout("お知らせ", message, layout_type=EmbedType.ERROR, view=retry)
+    if retry is not None:
+      retry.add_button()
     if interaction.response.is_done():
-      await interaction.followup.send(**kwargs)
+      await interaction.followup.send(view=layout.view)
     else:
-      await interaction.response.send_message(**kwargs)
+      await interaction.response.send_message(view=layout.view)
 
   async def report_error(self, interaction, error: Exception, context: str) -> None:
     self.error_notifier.report_exception(error, context)
@@ -449,14 +453,14 @@ class AnnouncementCog:
       message = str(error)
       if uploads:
         message += "\n画像は入力し直すときに選び直してください"
-      await self._send_error(interaction, message, view=RetryView(self, form, modal.source))
+      await self._send_error(interaction, message, retry=RetryView(self, form, modal.source))
       return
     except discord.HTTPException as error:
       self.error_notifier.report_exception(error, "announce image download")
       await self._send_error(
         interaction,
         "画像を読み込めませんでした。時間をおいて入力し直してください",
-        view=RetryView(self, form, modal.source),
+        retry=RetryView(self, form, modal.source),
       )
       return
 
@@ -484,15 +488,22 @@ class AnnouncementCog:
         break
     return choices
 
-  def build_list_embed(self) -> discord.Embed:
+  def build_list_layout(self):
+    """一覧のメッセージを作る。
+
+    v2のメッセージは文字の合計が4000文字まで、部品が40個までなので、
+    全件を1つの TextDisplay にまとめ、入りきらない分は件数だけ書く。
+    """
     announcements = self.announcement_service.list_all()
     if not announcements:
-      return make_embed("お知らせの一覧", "お知らせはありません")
-    embed = make_embed(
+      return make_layout("お知らせの一覧", "お知らせはありません")
+    layout = make_layout(
       "お知らせの一覧",
       f"{len(announcements)}件（接続メッセージには表示中のものを上から3件まで載せます）",
     )
-    for announcement in announcements[:25]:
+    entries = []
+    used = 0
+    for announcement in announcements:
       extras = []
       if announcement.image is not None:
         extras.append("画像あり")
@@ -504,15 +515,17 @@ class AnnouncementCog:
       body = announcement.body.replace("\n", " ")
       if len(body) > 60:
         body = body[:59] + "…"
-      title = announcement.title
-      if len(title) > 200:
-        title = title[:199] + "…"
-      embed.add_field(
-        name=f"ID {announcement.id}｜{title}",
-        value=f"{value}\n{body}",
-        inline=False,
-      )
-    return embed
+      entry = f"### ID {announcement.id}｜{announcement.title}\n{value}\n{body}"
+      if used + len(entry) > LIST_TEXT_BUDGET:
+        break
+      entries.append(entry)
+      used += len(entry) + 1
+    rest = len(announcements) - len(entries)
+    if rest:
+      entries.append(f"ほか {rest} 件は表示しきれませんでした")
+    layout.add_item(discord.ui.Separator())
+    layout.add_item(discord.ui.TextDisplay("\n".join(entries)))
+    return layout
 
   def _register(self) -> None:
     group = discord.app_commands.Group(
@@ -604,7 +617,7 @@ class AnnouncementCog:
         if not self.is_operator(ctx.user):
           await self.deny(ctx)
           return
-        await ctx.response.send_message(embed=self.build_list_embed())
+        await ctx.response.send_message(view=self.build_list_layout().view)
       except discord.errors.InteractionResponded:
         return
       except Exception as error:
@@ -622,13 +635,12 @@ class AnnouncementCog:
         if announcement is None or not self.announcement_service.delete(id):
           await self._send_error(ctx, f"ID {id} のお知らせが見つかりません")
           return
-        await ctx.response.send_message(
-          embed=make_embed(
-            "お知らせを削除しました",
-            f"ID {id}「{announcement.title}」",
-            embed_type=EmbedType.SUCCESS,
-          )
+        layout = make_layout(
+          "お知らせを削除しました",
+          f"ID {id}「{announcement.title}」",
+          layout_type=EmbedType.SUCCESS,
         )
+        await ctx.response.send_message(view=layout.view)
       except discord.errors.InteractionResponded:
         return
       except Exception as error:
