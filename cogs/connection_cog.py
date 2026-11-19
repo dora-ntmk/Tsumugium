@@ -1,7 +1,5 @@
 """接続コマンドとVCイベントをConnectionServiceへ委譲する。"""
 
-import discord
-
 
 class ConnectionCog:
   def __init__(self, client, tree, connection_service, status_service, reconnect_service=None):
@@ -17,11 +15,8 @@ class ConnectionCog:
       name="join",
       description="ボイスチャンネルに接続します。",
     )
-    @discord.app_commands.describe(
-      change_channel="TrueにするとTextTarget・VoiceTargetをサーバー設定に適用します"
-    )
-    async def join(ctx, change_channel: bool = False):
-      await self.connection_service.join(ctx, change_channel)
+    async def join(ctx):
+      await self.connection_service.join(ctx)
 
     @self.tree.command(
       name="leave",

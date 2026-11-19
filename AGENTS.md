@@ -12,7 +12,8 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 |---|---|
 | `main.py` | エントリーポイント。Client・Repository・Service・Cogの生成と依存注入、Bot起動のみを担当 |
 | `services/message_service.py` | メッセージの対象チャンネル判定、Bot投稿、特殊トリガーを担当。接続操作は`ConnectionService`へ委譲 |
-| `services/connection_service.py` | `/join`・`/leave`・単体メンション接続、AutoJoin、AccessNotice、強制切断後の状態復元を担当 |
+| `services/connection_service.py` | `/join`・`/leave`・単体メンション接続、AutoJoin、AccessNotice、強制切断後の状態復元を担当。接続したときのメッセージ（Components v2）に運営者からのお知らせを載せる |
+| `services/announcement_service.py` | 運営者からのお知らせの入力の確認（文字数・リンク・画像・期間）、日時の指定の読み取り、接続メッセージに載せるお知らせの選び出しを担当 |
 | `services/speech_service.py` | テキスト前処理、Soundboard/TTS選択、最大文字数処理、VOICEVOX生成依頼を担当 |
 | `services/voice_service.py` | ギルド別キュー、再生、スキップ、クリア、キープアライブを担当。外部API通信はClientへ委譲 |
 | `services/error_notification_service.py` | エラーのCLI出力と、任意設定された運営者へのDiscord Embed形式DM通知を担当 |
@@ -29,6 +30,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `cogs/lifecycle_cog.py` | 起動・サーバー参加退出・Soundboard更新イベントを登録するライフサイクル層 |
 | `cogs/user_cog.py` | DMを含むユーザー単位設定コマンドを登録する層 |
 | `cogs/operator_cog.py` | Botの運営者（`OPERATOR_USER_ID`）だけが使うコマンドを登録する層。`/synthesis-log` |
+| `cogs/announcement_cog.py` | 運営者だけが使う`/announce`コマンド群と、お知らせを入力するModal・入力し直すボタンを登録する層 |
 | `clients/voicevox_client.py` | 再利用可能な非同期HTTPセッションでVOICEVOX生成とWAV保存を担当 |
 | `clients/discord_soundboard_client.py` | Discord Soundboard一覧取得・再生APIを担当する非同期HTTPクライアント |
 | `clients/managed_discord_client.py` | Bot終了時に、登録した終了前の処理（VCから抜けるなど）を動かしてから、外部HTTP・SQLiteリソースを閉じるDiscord Client。SIGTERM・SIGINTを受けたらDiscordとの接続を閉じてから終わる |
@@ -38,15 +40,19 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `repositories/guild_config_repository.py` | `config.db`のSQLite操作、設定値バリデーション、VOICEVOX値変換 |
 | `repositories/dictionary_repository.py` | `dict.db`のSQLite操作と前処理用`DictionarySnapshot`の生成 |
 | `repositories/soundboard_cache_repository.py` | `soundboards.db`のSQLite操作とサウンド一覧同期 |
+| `repositories/announcement_repository.py` | `config.db`の`announcements`表（運営者からのお知らせ）のSQLite操作 |
 | `repositories/user_config_repository.py` | `users.db`のユーザー読みと、準備領域であるユーザー別個人辞書を管理するRepository |
 | `setting.py` | `/setting` コマンド群（サーバー管理者向け設定変更） |
-| `presentation/embeds.py` | Discord Embedの共通ひな形（色・タイトル・本文） |
+| `presentation/embeds.py` | Discord Embedの共通ひな形（色・タイトル・本文）。色は`embed_color()`でComponents v2の枠と共有する |
+| `presentation/layouts.py` | Components v2（`LayoutView`）のメッセージの共通ひな形。`make_embed`と同じく、色の付いた枠に見出しと本文を入れるだけで、中の部品は呼び出し側が足す |
+| `presentation/announcement_layout.py` | 運営者からのお知らせ欄（区切り線・見出し・各お知らせの文・画像・リンクボタン）を、`make_layout`で作った枠に足す |
 | `presentation/error_handler.py` | コマンド実行時の共通エラー応答 |
 | `models/audio_item.py` | 再生キュー要素（`TTSItem` / `SoundboardItem`）の型定義 |
 | `models/guild_session.py` | ギルド単位のキュー・タスク・一時チャンネル・スキップ状態を保持する `GuildSession` |
 | `models/dictionary_snapshot.py` | Repositoryから純粋な前処理へ渡す読み辞書・Soundboard条件のスナップショット |
 | `models/streaming_audio.py` | VOICEVOXから少しずつ届く音声をWAVファイルへ書きながら、別スレッド（FFmpegへ渡す側）に書かれた分だけ読ませる`StreamingAudio` |
 | `models/generation_record.py` | VOICEVOXの生成1回分の記録（`GenerationRecord`）と集計結果（`GenerationSummary`）の型 |
+| `models/announcement.py` | 運営者からのお知らせ1件分（`Announcement`）の型と、ServiceとPresentationの両方で使う日時の表示（`format_time`、日本時間）・リンクの既定の表示名 |
 | `models/preprocess_result.py` | 前処理済みテキスト・置換範囲・Soundboard ID・空白区切り文章フラグを保持する結果型 |
 | `config.py` | `.env` から環境変数をロードし定数として公開 |
 | `backup.py` | SQLiteの定時バックアップとローテーション管理 |
@@ -82,6 +88,25 @@ CREATE TABLE guild_config (
 新しいサーバーの行は`AccessNotice=1`を明示して作り、入退室通知を有効にする。v4.2.0.70より前に作ったDBは表の既定値が0のままだが、値を明示するので新しいサーバーでは有効になる。すでに行があるサーバーの値は変えない。
 既存DBに`SpacedSpeed`を追加する直前に、`BACKUP_DIR`へ`backup_config_YYYYMMDD_HHMMSS_v3-latest.db`を作成する。バックアップ失敗時はスキーマ変更せず起動を中止し、この移行前バックアップは定時バックアップのローテーション対象外とする。
 `Language` は既存DBとの互換性のためカラムのみ維持し、v3.5の設定API・コマンドからは参照しない。Botの表示言語は日本語固定。
+
+### config.db — `announcements`
+
+```sql
+CREATE TABLE announcements (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    title       TEXT    NOT NULL,              -- 100文字まで
+    body        TEXT    NOT NULL,              -- 500文字まで
+    image       BLOB    DEFAULT NULL,          -- PNG・JPEG・GIF・WebP、5MBまで
+    image_name  TEXT    DEFAULT NULL,          -- image.<拡張子>（拡張子は中身から決める）
+    link_url    TEXT    DEFAULT NULL,          -- http・httpsだけ
+    link_label  TEXT    DEFAULT NULL,          -- NULL=「詳しくはこちら」
+    starts_at   INTEGER DEFAULT NULL,          -- 表示開始（UNIX時刻。NULL=すぐ）
+    expires_at  INTEGER DEFAULT NULL,          -- 表示終了（UNIX時刻。NULL=恒久）
+    created_at  INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+)
+```
+
+Botの運営者が全サーバーに向けて出すお知らせ。サーバー設定と同じ`config.db`に置き、`AnnouncementRepository`が別の接続で扱う（既存の定時バックアップで守られる）。`expires_at`がNULLなら恒久、値があれば期間限定。期限が過ぎた行は起動時とお知らせを追加したときに消す。
 
 ### dict.db — `dict`
 
@@ -214,12 +239,17 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 | コマンド | 引数 | 権限 |
 |---|---|---|
-| `/join` | `change_channel: bool` | VCにいるユーザー |
+| `/join` | — | VCにいるユーザー |
 | `/leave` | — | VCにいるユーザー |
 | `/version` | — | 全員 |
 | `/clear` | `instant: bool` | 全員 |
 | `/user-reading` | `reading: str (1〜50文字)` | 全員（DM可・ephemeral応答） |
 | `/user-reading-reset` | — | 全員（DM可・ephemeral応答） |
+| `/announce add` | `expires: str`, `starts: str`（タイトル・本文・画像・リンクはModalで入力） | `OPERATOR_USER_ID`の人だけ（BotとのDMだけ） |
+| `/announce edit` | `id`, `expires: str`, `starts: str`, `remove_image: bool`（中身はModalで直す） | 同上 |
+| `/announce list` | — | 同上 |
+| `/announce del` | `id` | 同上 |
+| `/announce preview` | `id`（省くと今の接続メッセージ） | 同上 |
 | `/synthesis-log` | `count: int (1〜500、既定はすべて)` | `OPERATOR_USER_ID`の人だけ（BotとのDMだけに出す。運営者以外への断りだけephemeral応答） |
 | `/tsumugi-tts` | `text: str` | 全員（BotがVCに接続しているときだけ） |
 | `/t` | `text: str` | 全員（`/tsumugi-tts`の短縮） |
@@ -285,7 +315,40 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - `/synthesis-log`は、記録全体の集計をEmbedで表示し、直近`count`件の一覧（新しい順）を`synthesis-log-YYYYMMDD-HHMMSS.txt`（日本時間）として添付する。一覧は`datetime | result | chars | synthesis | first | wait | speaker | note`の列をそろえた表で、`note`にはストリーミング（`stream`）、試した回数（2回以上）、スキップの理由・失敗した例外の名前を書く。Embedの集計は日本語で、表の列に合わせて「件数」（スキップの理由ごとの内訳）、「生成時間（成功のみ）」（平均と1文字あたり・中央値・95パーセンタイル・最大）、「最初の音まで」（`first`の平均・中央値・最大とストリーミングした件数）、「順番待ち」（平均・最大）の4つにする。記録がないときは「記録はまだありません」とだけ書き、ファイルは添付しない。サーバーの情報は表示しない。
 - 両Clientは`aiohttp.ClientSession`を初回通信時に生成して再利用する。通常実行経路で同期`requests`は使用しない。
 - `VoiceService`と`UpdateSoundBoards`はHTTPのURL・認証方法を知らず、Clientのメソッドだけを呼ぶ。
-- Bot終了時は`ManagedDiscordClient.close()`がHTTPセッションと4つのSQLite接続を閉じる。
+- Bot終了時は`ManagedDiscordClient.close()`がHTTPセッションと5つのSQLite接続（`config.db`は設定とお知らせの2つ）を閉じる。
+
+---
+
+## Components v2への移行（`presentation/layouts.py`）
+
+Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。第一弾は接続したときのメッセージで、ほかは当面Embedのまま残す。
+
+- `presentation/layouts.py`は`presentation/embeds.py`と同じく、汎用のひな形だけを持つ。`make_layout(title, description, *, layout_type, header)`は、色の付いた枠（`Container`）に`## 見出し`と本文を入れた`LayoutMessage(view, container, files)`を返す。`header`は枠の外（上）に出す一言。
+- 中の部品は、呼び出し側が`LayoutMessage.add_item()`（Embedの`add_field`に当たる）で枠の最後に足し、`attachment://`で参照するファイルは`add_file()`で足す。ある機能のための部品の組み立ては、`presentation/announcement_layout.py`のように別のファイルに分け、`layouts.py`に機能ごとの引数を足さない。
+- 送るときは`send(view=..., files=...)`、`/join`のように`defer()`したあとは`edit_original_response(view=..., attachments=...)`を使う。v2のメッセージには`content`・`embed`を一緒に付けられない。
+- 枠の色は`embed_color()`で、同じ場面のEmbedと同じ色にする。
+- `discord.File`は一度しか送れないので、送るたびに作り直す。
+- Presentationは`services/`に依存しない（`presentation/error_handler.py`のエラー通知を除く）。ServiceとPresentationの両方で使う値は`models/`に置く。
+
+### 接続したときのメッセージ
+
+| 場面 | 見出し | 枠の色 |
+|---|---|---|
+| `/join`・`@Bot`単体メンション | 接続しました | 緑（`SUCCESS`） |
+| AutoJoin | 自動で接続しました | 青（`INFO`） |
+
+本文はどれも`{VCのメンション}に接続しました。`の1行。読み上げチャンネルはこのメッセージを出したチャンネルなので書かない。再起動のあとのつなぎ直し、切断・エラーのメッセージにはお知らせを載せない。
+
+### 運営者からのお知らせ（`/announce`）
+
+- `ConnectionService.connected_message()`が`make_layout()`で枠を作り、`add_announcements()`でお知らせ欄を足す。`/announce`のプレビューも同じ組み合わせで作る。
+- 接続したときのメッセージで、本文の下に区切り線（`Separator`、`large`）と「## 📢お知らせ」を置き、お知らせを並べる。お知らせ同士のあいだは`small`の区切り線。お知らせがないときは区切り線から下を出さない。
+- 並び順は、恒久（古い順）のあとに期間限定（期限の近い順）。載せるのは3件までで、超えた分は「ほか N 件のお知らせがあります」とまとめる。期間限定のものは、期限まで接続のたびに毎回出し、タイトルの下に`-# MM/DD HH:MMまで`を出す。
+- 画像は`MediaGallery`（`attachment://`でファイルを参照）、リンクは`ActionRow`のリンクボタンで出す。ファイルを添付する権限（`attach_files`）がないチャンネルでは、画像だけを省く。お知らせを読めなかったときは、エラーを知らせてお知らせなしで送る。
+- `/announce add`・`edit`は、期間（`expires`・`starts`）をコマンドの引数で受け取り、タイトル・本文・画像・リンクURL・リンクの表示名の5つをModal（`Label`・`TextInput`・`FileUpload`）で受け取る。`expires`を省くと恒久。日時は日本時間の`YYYY-MM-DD HH:MM`（`/`区切り・時刻の省略も可）か、`3d`・`12h`・`30m`（組み合わせ可）。`starts`を指定したときは、`expires`の`3d`などは`starts`から数える。`edit`では省いた引数は今の値のままで、`none`で外す。
+- 編集のModalには今の値を入れておく。ファイル欄には今の画像を入れておけないので、空欄なら今の画像のまま、選べば差し替え、`remove_image:True`で消す（新しい画像を選んだときはそちらを使う）。
+- 画像は送信を受けた時点でダウンロードしてDBに保存する（Discordの添付のURLはしばらくすると開けなくなるため）。大きさは読み込む前に確かめ、形式は中身の先頭のバイト列で決める。
+- 入力に誤りがあったら、理由と「入力し直す」ボタンを返す。ボタンは入力した値を残したままModalを開き直す（画像は選び直す）。追加・編集できたら、接続メッセージと同じ形のプレビューを返す。
 
 ---
 

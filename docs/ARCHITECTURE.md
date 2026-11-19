@@ -20,6 +20,8 @@ flowchart LR
     DictRepo["DictionaryRepository"]
     SoundRepo["SoundboardCacheRepository"]
     UserRepo["UserConfigRepository"]
+    Announcement["AnnouncementService"]
+    AnnouncementRepo["AnnouncementRepository"]
     Voicevox["VoicevoxClient"]
     SoundClient["DiscordSoundboardClient"]
     ConfigDB[("config.db")]
@@ -39,6 +41,10 @@ flowchart LR
     Message --> Speech
     Connection --> Speech
     Connection --> Voice
+    Connection --> Announcement
+    Cogs --> Announcement
+    Announcement --> AnnouncementRepo
+    AnnouncementRepo --> ConfigDB
     Speech --> Dictionary
     Dictionary --> DictRepo
     Dictionary --> Swap
@@ -64,7 +70,7 @@ flowchart LR
 | Discord登録層 | `cogs/`、`setting.py`、`word_dict.py`、`sound_dict.py` | コマンド・イベントを登録しService／Repositoryへ渡す |
 | Service | `services/` | 接続、対象判定、音声生成判断、ユーザー読み方の解決、再生キュー管理 |
 | Runtime Model | `models/` | キュー要素、ギルド単位状態、辞書スナップショット |
-| Presentation | `presentation/` | 日本語Embedの共通ひな形とエラー応答 |
+| Presentation | `presentation/` | 日本語Embed・Components v2（`LayoutView`）の共通ひな形とエラー応答 |
 | Repository | `repositories/` | SQLiteの読み書きと既存スキーマ補完 |
 | Client | `clients/` | VOICEVOX・Discord HTTP API、終了時のリソース解放 |
 | Pure Processing | `swap.py` | DBやHTTPを持たないテキスト変換 |
@@ -157,6 +163,7 @@ Botを止めるときは、`ReconnectService`がつないでいたVCを`data/sta
 | DB | 所有Repository | 用途 |
 |---|---|---|
 | `config.db` | `GuildConfigRepository` | サーバー設定 |
+| `config.db` | `AnnouncementRepository` | 運営者からのお知らせ（`announcements`表。別の接続で扱う） |
 | `dict.db` | `DictionaryRepository` | 読み辞書・音声辞書 |
 | `soundboards.db` | `SoundboardCacheRepository` | Soundboard候補キャッシュ |
 | `users.db` | `UserConfigRepository` | サーバー横断のユーザー読みと、準備領域であるユーザー別個人辞書 |

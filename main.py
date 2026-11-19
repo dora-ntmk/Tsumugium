@@ -8,6 +8,7 @@ import discord
 from clients.discord_soundboard_client import DiscordSoundboardClient
 from clients.managed_discord_client import ManagedDiscordClient
 from clients.voicevox_client import VoicevoxClient
+from cogs.announcement_cog import AnnouncementCog
 from cogs.connection_cog import ConnectionCog
 from cogs.general_cog import GeneralCog
 from cogs.lifecycle_cog import LifecycleCog
@@ -31,8 +32,10 @@ from config import (
   VOICEVOX_STREAMING,
   VOICEVOX_URL,
 )
+from repositories.announcement_repository import AnnouncementRepository
 from repositories.guild_config_repository import GuildConfigRepository
 from repositories.user_config_repository import UserConfigRepository
+from services.announcement_service import AnnouncementService
 from services.connection_service import ConnectionService
 from services.error_notification_service import ErrorNotificationService
 from services.generation_log_service import GenerationLogService
@@ -112,6 +115,9 @@ server_config = GuildConfigRepository(
   SERVER_CONFIG_DB,
   error_notifier=error_notifier,
 )
+# 運営者からのお知らせ。サーバー設定と同じ config.db に置く
+announcement_repository = AnnouncementRepository(SERVER_CONFIG_DB)
+announcement_service = AnnouncementService(announcement_repository)
 dict_manager = DictManager(DICT_DB, error_notifier)
 user_config = UserConfigRepository(USER_CONFIG_DB)
 user_reading_service = UserReadingService(user_config)
@@ -123,6 +129,7 @@ sound_boards = UpdateSoundBoards(
   error_notifier,
 )
 client.register_closeable(server_config)
+client.register_closeable(announcement_repository)
 client.register_closeable(dict_manager)
 client.register_closeable(user_config)
 client.register_closeable(sound_boards)
@@ -147,6 +154,7 @@ connection_service = ConnectionService(
   voice_service,
   error_notifier,
   user_reading_service=user_reading_service,
+  announcement_service=announcement_service,
 )
 status_service = StatusService(client, STATUS_MESSAGE, error_notifier)
 client.register_closeable(status_service)
@@ -202,6 +210,12 @@ user_cog = UserCog(tree, user_config, error_notifier)
 operator_cog = OperatorCog(
   tree,
   generation_log,
+  OPERATOR_USER_ID,
+  error_notifier,
+)
+announcement_cog = AnnouncementCog(
+  tree,
+  announcement_service,
   OPERATOR_USER_ID,
   error_notifier,
 )
