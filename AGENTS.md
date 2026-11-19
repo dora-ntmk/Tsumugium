@@ -321,7 +321,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ## Components v2への移行（`presentation/layouts.py`）
 
-Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。第一弾は接続したときのメッセージで、ほかは当面Embedのまま残す。
+Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。`ConnectionService`が送るメッセージ（接続・切断・自動退出・権限エラー・接続失敗）はすべてv2にした。ほか（`ReconnectService`の再起動の知らせ・再接続、`presentation/error_handler.py`のエラー応答など）は当面Embedのまま残す。
 
 - `presentation/layouts.py`は`presentation/embeds.py`と同じく、汎用のひな形だけを持つ。`make_layout(title, description, *, layout_type, header)`は、色の付いた枠（`Container`）に`## 見出し`と本文を入れた`LayoutMessage(view, container, files)`を返す。`header`は枠の外（上）に出す一言。
 - 中の部品は、呼び出し側が`LayoutMessage.add_item()`（Embedの`add_field`に当たる）で枠の最後に足し、`attachment://`で参照するファイルは`add_file()`で足す。ある機能のための部品の組み立ては、`presentation/announcement_layout.py`のように別のファイルに分け、`layouts.py`に機能ごとの引数を足さない。
@@ -338,6 +338,8 @@ Embedで送っているメッセージを、Components v2（`discord.ui.LayoutVi
 | AutoJoin | 自動で接続しました | 青（`INFO`） |
 
 本文はどれも`{VCのメンション}に接続しました。`の1行。読み上げチャンネルはこのメッセージを出したチャンネルなので書かない。再起動のあとのつなぎ直し、切断・エラーのメッセージにはお知らせを載せない。
+
+切断・自動退出・権限エラー・接続失敗のメッセージも、`make_layout()`の枠に見出しと本文だけを入れて送る（色は今までのEmbedと同じ）。Embedのときと同じく、送るところで`make_layout()`を呼んで`send(view=..., files=...)`（`defer()`したあとは`edit_original_response(view=..., attachments=...)`）で送る。部品を足すときは、送る前に`add_item()`・`add_file()`を呼ぶ。
 
 ### 運営者からのお知らせ（`/announce`）
 
