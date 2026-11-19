@@ -7,6 +7,7 @@ import discord
 
 from models.audio_item import TTSItem
 from presentation.embeds import EmbedType, make_embed
+from presentation.layouts import LayoutMessage, make_layout
 from presentation.error_handler import handle_internal_error, handle_os_error
 from services.error_notification_service import ensure_error_notifier
 
@@ -20,6 +21,7 @@ class ConnectionService:
       voice_service,
       error_notifier=None,
       user_reading_service=None,
+      announcement_service=None,
   ):
     self.server_config = server_config
     self.dict_manager = dict_manager
@@ -27,6 +29,7 @@ class ConnectionService:
     self.voice_service = voice_service
     self.error_notifier = ensure_error_notifier(error_notifier)
     self.user_reading_service = user_reading_service
+    self.announcement_service = announcement_service
     self.voluntary_disconnects: set[int] = set()
     self._connection_locks: dict[int, asyncio.Lock] = {}
     self._voice_state_stages: dict[int, str] = {}
@@ -102,6 +105,40 @@ class ConnectionService:
     if text_target:
       return guild.get_channel(text_target)
     return voice_channel
+
+  def connected_message(
+      self,
+      title: str,
+      voice_channel,
+      text_channel,
+      layout_type: EmbedType = EmbedType.SUCCESS,
+  ) -> LayoutMessage:
+    """接続したときのメッセージ（Components v2）。運営者からのお知らせを下に載せる。"""
+    announcements, hidden_count, now = [], 0, None
+    if self.announcement_service is not None:
+      try:
+        announcements, hidden_count = self.announcement_service.display()
+        now = self.announcement_service.now()
+      except Exception as error:
+        # お知らせを読めなくても、接続メッセージは出す
+        self.error_notifier.report_exception(error, "announcement display")
+        announcements, hidden_count = [], 0
+    # ファイルを添付できないチャンネルでは、画像を省いて送る
+    include_images = True
+    guild = getattr(voice_channel, "guild", None)
+    if guild is not None and text_channel is not None and hasattr(text_channel, "permissions_for"):
+      include_images = bool(
+        getattr(text_channel.permissions_for(guild.me), "attach_files", True)
+      )
+    return make_layout(
+      title,
+      f"{voice_channel.mention}に接続しました。",
+      layout_type=layout_type,
+      announcements=announcements,
+      hidden_count=hidden_count,
+      include_images=include_images,
+      now=now,
+    )
 
   def permission_issues(self, guild, voice_channel, text_channel) -> list[str]:
     bot_member = guild.me
@@ -205,17 +242,8 @@ class ConnectionService:
       self.voice_service.get_session(
         message.guild.id
       ).temporary_text_channel_id = message.channel.id
-      embed = make_embed(
-        "接続完了",
-        f"ボイスチャンネルに接続しました。\n今回の通話に限り {message.channel.mention} のメッセージも読み上げます。",
-        embed_type=EmbedType.SUCCESS,
-      )
-      embed.add_field(
-        name="接続情報",
-        value=f"接続チャンネル：{voice_channel.mention}　読み上げチャンネル：{message.channel.mention}",
-        inline=False,
-      )
-      await message.channel.send(embed=embed)
+      layout = self.connected_message("接続しました", voice_channel, message.channel)
+      await message.channel.send(view=layout.view, files=layout.files)
     except Exception as e:
       self.error_notifier.report_exception(
         e,
@@ -380,16 +408,13 @@ class ConnectionService:
           return
         if notify_channel:
           self._voice_state_stages[guild.id] = "auto_join_notification"
-          embed = make_embed(
-            "自動入室",
-            "ボイスチャンネルに自動で接続しました",
+          layout = self.connected_message(
+            "自動で接続しました",
+            target_channel,
+            notify_channel,
+            layout_type=EmbedType.INFO,
           )
-          embed.add_field(
-            name="接続情報",
-            value=f"接続チャンネル：{target_channel.mention}　読み上げチャンネル：{notify_channel.mention}",
-            inline=False,
-          )
-          await notify_channel.send(embed=embed)
+          await notify_channel.send(view=layout.view, files=layout.files)
         return
 
     if (
@@ -400,7 +425,7 @@ class ConnectionService:
       self._voice_state_stages[guild.id] = "access_notice_join"
       await self.enqueue_notice(guild, member, joined=True)
 
-  async def join(self, ctx, change_channel: bool = False) -> None:
+  async def join(self, ctx) -> None:
     try:
       await ctx.response.defer()
       if not ctx.user.voice:
@@ -429,57 +454,11 @@ class ConnectionService:
         await self.disconnect(ctx.guild)
         await asyncio.sleep(0.5)
       await self._connect_voice(voice_channel)
-      if change_channel:
-        if not ctx.user.guild_permissions.manage_guild:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              "接続完了",
-              "ボイスチャンネルへの接続は完了しましたが、チャンネルの設定変更にはサーバーの管理権限が必要です。",
-              embed_type=EmbedType.WARNING,
-            )
-          )
-        else:
-          try:
-            self.server_config.set(ctx.guild.id, "TextTarget", ctx.channel.id)
-            self.server_config.set(
-              ctx.guild.id,
-              "VoiceTarget",
-              ctx.user.voice.channel.id,
-            )
-            embed = make_embed(
-              "接続完了",
-              f"ボイスチャンネルに接続しました。\nTextTargetは {ctx.channel.mention}、VoiceTargetは {ctx.user.voice.channel.mention} に設定されました。",
-              embed_type=EmbedType.SUCCESS,
-            )
-            embed.add_field(
-              name="接続情報",
-              value=f"接続チャンネル：{ctx.user.voice.channel.mention}　読み上げチャンネル：{ctx.channel.mention}",
-              inline=False,
-            )
-            await ctx.edit_original_response(embed=embed)
-          except OSError:
-            await ctx.edit_original_response(
-              embed=make_embed(
-                "設定失敗",
-                "チャンネルの設定に失敗しました",
-                embed_type=EmbedType.ERROR,
-              )
-            )
-      else:
-        self.voice_service.get_session(
-          ctx.guild.id
-        ).temporary_text_channel_id = ctx.channel.id
-        embed = make_embed(
-          "接続完了",
-          f"ボイスチャンネルに接続しました。\n今回の通話に限り {ctx.channel.mention} のメッセージも読み上げます。",
-          embed_type=EmbedType.SUCCESS,
-        )
-        embed.add_field(
-          name="接続情報",
-          value=f"接続チャンネル：{ctx.user.voice.channel.mention}　読み上げチャンネル：{ctx.channel.mention}",
-          inline=False,
-        )
-        await ctx.edit_original_response(embed=embed)
+      self.voice_service.get_session(
+        ctx.guild.id
+      ).temporary_text_channel_id = text_channel.id
+      layout = self.connected_message("接続しました", voice_channel, text_channel)
+      await ctx.edit_original_response(view=layout.view, attachments=layout.files)
     except discord.errors.InteractionResponded:
       return
     except discord.errors.HTTPException as e:
