@@ -85,6 +85,7 @@ def _first_line(stats) -> str:
     f"平均 {_summary_seconds(stats.first_average)}"
     f" / 中央値 {_summary_seconds(stats.first_median)}"
     f" / 最大 {_summary_seconds(stats.first_max)}"
+    f"（{stats.first_count}件）"
   )
 
 
@@ -131,7 +132,7 @@ def format_summary_fields(summary) -> list[tuple[str, str]]:
   return [
     ("件数", counts),
     ("生成時間（成功のみ）", synthesis),
-    ("最初の音まで（成功のみ・メッセージから・順番待ちを除く）", first),
+    ("最初の音まで（成功のみ・前の読み上げを待たなかったもの）", first),
     (
       "待ち時間（生成と再生の順番待ち）",
       f"平均 {_summary_seconds(summary.wait_average)}"

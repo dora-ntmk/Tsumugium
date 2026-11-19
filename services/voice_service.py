@@ -10,6 +10,11 @@ from models.guild_session import GuildSession
 from services.error_notification_service import ensure_error_notifier
 
 
+# 書きかけの音声をFFmpegへ渡すときの入力の設定。形式はWAVと決まっているので、
+# 中身を調べるためにためる量（probesize・analyzeduration）を最小にする。
+# 付けないと、少しずつ届く音声を数秒分（4〜6秒分）ためるまで音が出ない
+STREAMING_FFMPEG_BEFORE_OPTIONS = "-f wav -probesize 32 -analyzeduration 0"
+
 # Opus の無音1フレーム（discord.py の OPUS_SILENCE と同じ）
 OPUS_SILENCE = b'\xF8\xFF\xFE'
 
@@ -337,7 +342,7 @@ class VoiceService:
       reader = audio.open_reader()
       try:
         source = discord.FFmpegOpusAudio(
-          reader, pipe=True, before_options="-f wav"
+          reader, pipe=True, before_options=STREAMING_FFMPEG_BEFORE_OPTIONS
         )
       except BaseException:
         reader.close()

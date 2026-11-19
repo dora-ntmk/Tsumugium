@@ -75,6 +75,7 @@ class StreamingAudio:
     if record is None:
       return
     record.wait_seconds = self.total_wait_seconds
+    record.playback_wait_seconds = self.playback_wait_seconds
     if self.first_seconds is not None:
       record.first_seconds = self.first_seconds
 

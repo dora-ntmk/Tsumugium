@@ -130,6 +130,7 @@ class StreamingAudioTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
     audio.mark_playback_started(5.0)
     audio.mark_played(5.5)
     self.assertEqual((record.wait_seconds, record.first_seconds), (4.5, 1.0))
+    self.assertEqual(record.playback_wait_seconds, 3.0)
     audio.finish()
 
     # ストリーミングでは、記録より先に再生が始まる
