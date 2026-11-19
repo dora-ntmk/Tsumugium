@@ -259,13 +259,36 @@ class FormatTest(unittest.TestCase):
     file = build_log_file([], now)
     self.assertEqual(file.filename, "synthesis-log-20261119-111830.txt")
 
-  def test_summary_fields_without_records(self):
-    fields = dict(format_summary_fields(make_log().summarize(), 500))
-    self.assertIn("記録はまだありません", fields["記録の範囲"])
-    self.assertIn("平均 —", fields["生成時間（成功のみ）"])
-    self.assertIn(
-      "ストリーミング 0件", fields["最初の音まで（メッセージから・順番待ちを除く）"]
+  def test_summary_fields_match_table(self):
+    log = make_log()
+    for synth in (1.0, 2.0, 3.0, 4.0):
+      log.record_success(10, 8, 0.5, synth, 1).first_seconds = synth / 2
+    log.record_success(10, 8, 0.5, 1.0, 1, streamed=True)
+    log.record_skip(SKIP_CLEARED, 3)
+    log.record_skip(SKIP_EMPTY)
+    log.record_failure(5, 8, 2.5, 30.0, 4, "TimeoutError")
+    fields = format_summary_fields(log.summarize())
+    self.assertEqual(
+      fields,
+      [
+        ("result", "SUCCESS 5 / SKIPPED 2 / FAILED 1\n(cleared 1, empty 1)"),
+        (
+          "synthesis (SUCCESS)",
+          "avg 2.20s (220ms/char) / median 2.00s / p95 4.00s / max 4.00s",
+        ),
+        ("first (SUCCESS)", "avg 1.25s / median 1.00s / max 2.00s / stream 1"),
+        ("wait", "avg 0.83s / max 2.50s"),
+      ],
     )
+
+  def test_summary_fields_without_records(self):
+    fields = dict(format_summary_fields(make_log().summarize()))
+    self.assertNotIn("記録の範囲", fields)
+    self.assertEqual(fields["result"], "SUCCESS 0 / SKIPPED 0 / FAILED 0")
+    self.assertEqual(
+      fields["synthesis (SUCCESS)"], "avg - / median - / p95 - / max -"
+    )
+    self.assertEqual(fields["first (SUCCESS)"], "avg - / median - / max - / stream 0")
 
 
 class FakeResponse:
@@ -320,7 +343,7 @@ class SynthesisLogCommandTest(unittest.TestCase):
     [edit] = interaction.edits
     self.assertIn("直近2件", edit["embed"].description)
     fields = {field.name: field.value for field in edit["embed"].fields}
-    self.assertIn("成功 1 / スキップ 1 / 失敗 0", fields["件数"])
+    self.assertIn("SUCCESS 1 / SKIPPED 1 / FAILED 0", fields["result"])
     [file] = edit["attachments"]
     self.assertTrue(file.filename.startswith("synthesis-log-"))
     text = file.fp.read().decode("utf-8")
@@ -344,7 +367,7 @@ class SynthesisLogCommandTest(unittest.TestCase):
     interaction = self.run_command(DUMMY_USER_ID, tree=tree)
     [edit] = interaction.edits
     self.assertEqual(edit["attachments"], [])
-    self.assertIsNone(edit["embed"].description)
+    self.assertEqual(edit["embed"].description, "記録はまだありません")
 
   def test_others_are_refused(self):
     interaction = self.run_command(DUMMY_OTHER_USER_ID)

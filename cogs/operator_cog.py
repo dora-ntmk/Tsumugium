@@ -8,12 +8,7 @@ from datetime import datetime, timedelta, timezone
 
 import discord
 
-from models.generation_record import (
-  SKIP_CLEARED,
-  SKIP_DELETED,
-  SKIP_EMPTY,
-  SKIPPED,
-)
+from models.generation_record import SKIPPED
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error
 from services.error_notification_service import ensure_error_notifier
@@ -27,64 +22,42 @@ LOG_COLUMNS = (
   "datetime", "result", "chars", "synthesis", "first", "wait", "speaker", "note",
 )
 
-_SKIP_LABELS = {
-  SKIP_EMPTY: "読む文字なし",
-  SKIP_CLEARED: "クリア",
-  SKIP_DELETED: "削除",
-}
-
-
-def _seconds(value) -> str:
-  return "—" if value is None else f"{value:.2f}秒"
-
-
-def _milliseconds(value) -> str:
-  return "—" if value is None else f"{value * 1000:.0f}ms"
-
-
-def format_summary_fields(summary, capacity: int) -> list[tuple[str, str]]:
-  """集計をEmbedのフィールド（名前と値）の一覧にする。"""
-  skip_detail = "・".join(
-    f"{_SKIP_LABELS.get(reason, reason)} {count}"
-    for reason, count in sorted(summary.skip_reasons.items())
-  )
-  counts = (
-    f"成功 {summary.success} / スキップ {summary.skipped} / 失敗 {summary.failed}"
-  )
-  if skip_detail:
-    counts += f"\n（スキップの内訳: {skip_detail}）"
-  if summary.first_at is None:
-    period = f"記録はまだありません（直近{capacity}件まで・再起動で消えます）"
-  else:
-    period = (
-      f"<t:{int(summary.first_at)}:f> から {summary.total}件"
-      f"（直近{capacity}件まで・再起動で消えます）"
-    )
-  return [
-    ("記録の範囲", period),
-    ("件数", counts),
-    (
-      "生成時間（成功のみ）",
-      f"平均 {_seconds(summary.synth_average)} / 中央値 {_seconds(summary.synth_median)}"
-      f" / 95% {_seconds(summary.synth_p95)} / 最大 {_seconds(summary.synth_max)}",
-    ),
-    ("1文字あたり（成功のみ）", f"平均 {_milliseconds(summary.seconds_per_char_average)}"),
-    (
-      "最初の音まで（メッセージから・順番待ちを除く）",
-      f"平均 {_seconds(summary.first_average)}"
-      f" / 中央値 {_seconds(summary.first_median)}"
-      f" / 最大 {_seconds(summary.first_max)}"
-      f"（ストリーミング {summary.streamed}件）",
-    ),
-    (
-      "順番待ち",
-      f"平均 {_seconds(summary.wait_average)} / 最大 {_seconds(summary.wait_max)}",
-    ),
-  ]
-
-
 def _log_seconds(value) -> str:
   return "-" if value is None else f"{value:.2f}s"
+
+
+def format_summary_fields(summary) -> list[tuple[str, str]]:
+  """集計をEmbedのフィールド（名前と値）の一覧にする。名前と書き方は添付の表に合わせる。"""
+  result = (
+    f"SUCCESS {summary.success} / SKIPPED {summary.skipped} / FAILED {summary.failed}"
+  )
+  if summary.skip_reasons:
+    result += "\n(" + ", ".join(
+      f"{reason} {count}" for reason, count in sorted(summary.skip_reasons.items())
+    ) + ")"
+  synthesis = f"avg {_log_seconds(summary.synth_average)}"
+  if summary.seconds_per_char_average is not None:
+    synthesis += f" ({summary.seconds_per_char_average * 1000:.0f}ms/char)"
+  synthesis += (
+    f" / median {_log_seconds(summary.synth_median)}"
+    f" / p95 {_log_seconds(summary.synth_p95)}"
+    f" / max {_log_seconds(summary.synth_max)}"
+  )
+  return [
+    ("result", result),
+    ("synthesis (SUCCESS)", synthesis),
+    (
+      "first (SUCCESS)",
+      f"avg {_log_seconds(summary.first_average)}"
+      f" / median {_log_seconds(summary.first_median)}"
+      f" / max {_log_seconds(summary.first_max)}"
+      f" / stream {summary.streamed}",
+    ),
+    (
+      "wait",
+      f"avg {_log_seconds(summary.wait_average)} / max {_log_seconds(summary.wait_max)}",
+    ),
+  ]
 
 
 def _log_row(record) -> tuple[str, ...]:
@@ -152,13 +125,12 @@ class OperatorCog:
     return self.operator_user_id is not None and user.id == self.operator_user_id
 
   def build_log_embed(self, record_count: int) -> discord.Embed:
-    description = None
     if record_count:
       description = f"直近{record_count}件（新しい順）を添付のファイルに書き出しました"
+    else:
+      description = "記録はまだありません"
     embed = make_embed("音声生成の記録", description)
-    for name, value in format_summary_fields(
-        self.generation_log.summarize(), self.generation_log.capacity
-    ):
+    for name, value in format_summary_fields(self.generation_log.summarize()):
       embed.add_field(name=name, value=value, inline=False)
     return embed
 
