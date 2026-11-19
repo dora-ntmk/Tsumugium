@@ -29,6 +29,7 @@ from config import (
   UPDATE_STATE_DIR,
   USER_CONFIG_DB,
   VERSION,
+  VOICEVOX_STREAM_SEGMENT,
   VOICEVOX_STREAMING,
   VOICEVOX_URL,
 )
@@ -67,7 +68,8 @@ voicevox_client = VoicevoxClient(
   tmp_dir=TMP_DIR,
   error_notifier=error_notifier,
   generation_log=generation_log,
-  streaming_enabled=VOICEVOX_STREAMING,
+  streaming=VOICEVOX_STREAMING,
+  stream_segment_seconds=VOICEVOX_STREAM_SEGMENT,
 )
 speaker_service = SpeakerService(SPEAKERS_JSON, error_notifier)
 

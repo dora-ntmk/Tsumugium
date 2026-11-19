@@ -5,6 +5,7 @@
       .env ファイルから環境変数を読み込み、プロジェクト全体で使用する定数として公開する。
 依存関係：python-dotenv
 """
+import math
 import os
 
 from dotenv import load_dotenv
@@ -33,14 +34,37 @@ def _user_ids(value: str | None) -> tuple[int, ...]:
       user_ids.append(user_id)
   return tuple(user_ids)
 
-def _on_off(name: str, value: str | None) -> bool:
-  """on・off（true・false、1・0、yes・noも可）を読む。読めない値はオフにする。"""
+def _streaming_mode(value: str | None) -> str:
+  """VOICEVOX_STREAMINGを読み、"off"・"on"・"hybrid"のどれかを返す。
+
+  onとoffは、true・false、1・0、yes・noでも書ける。読めない値はoffにする。
+  """
   text = (value or "").strip().lower()
+  if text == "hybrid":
+    return "hybrid"
   if text in ("on", "true", "1", "yes"):
-    return True
+    return "on"
   if text not in ("", "off", "false", "0", "no"):
-    print(f"{name} must be on or off; it is treated as off")
-  return False
+    print("VOICEVOX_STREAMING must be on, off or hybrid; it is treated as off")
+  return "off"
+
+
+def _stream_segment_seconds(value: str | None) -> float:
+  """VOICEVOX_STREAM_SEGMENTを読む。0は自動調整。読めない値・負の値は0にする。"""
+  text = (value or "").strip()
+  if not text:
+    return 0.0
+  try:
+    seconds = float(text)
+  except ValueError:
+    seconds = -1.0
+  if not math.isfinite(seconds) or seconds < 0:
+    print(
+      "VOICEVOX_STREAM_SEGMENT must be 0 (automatic) or seconds; "
+      "it is treated as 0 (automatic)"
+    )
+    return 0.0
+  return seconds
 
 STATUS_MESSAGE = os.getenv("STATUS_MESSAGE", "")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
@@ -55,9 +79,12 @@ SPEAKERS_JSON     = os.getenv("SPEAKERS_JSON", "db/speakers.json")
 DEFAULT_SPEAKER      = int(os.getenv("DEFAULT_SPEAKER", "8"))
 TMP_DIR           = os.getenv("TMP_DIR", "tmp")
 VOICEVOX_URL      = os.getenv("VOICEVOX_URL", "http://127.0.0.1:50021")
-# 実験的な機能: VOICEVOXの/streaming_synthesisで、音声を作り終える前に読み上げを始める
-VOICEVOX_STREAMING = _on_off(
-  "VOICEVOX_STREAMING", os.getenv("VOICEVOX_STREAMING", "off")
+# 実験的な機能: VOICEVOXの/streaming_synthesisで、音声を作り終える前に読み上げを始める。
+# "off"・"on"・"hybrid"（生成1件ごとに五分五分で振り分け、/synthesis-log で比べる）
+VOICEVOX_STREAMING = _streaming_mode(os.getenv("VOICEVOX_STREAMING", "off"))
+# /streaming_synthesisで一度に作る音声の長さ（秒）。0は自動調整（今は1.0秒に固定）
+VOICEVOX_STREAM_SEGMENT = _stream_segment_seconds(
+  os.getenv("VOICEVOX_STREAM_SEGMENT", "0")
 )
 BACKUP_DIR           = os.getenv("BACKUP_DIR", "backup")
 # インストーラーへ起動の準備完了を知らせる ready.json の置き場所（空欄なら書かない）
@@ -67,5 +94,5 @@ BACKUP_INTERVAL_DAYS = os.getenv("BACKUP_INTERVAL_DAYS", "1")
 BACKUP_KEEP          = os.getenv("BACKUP_KEEP", "7")
 
 # バージョン情報
-VERSION      = "v4.4.0.72 (beta 14)"
+VERSION      = "v4.4.0.72 (beta 15)"
 LAST_UPDATED = "2026/11/16"

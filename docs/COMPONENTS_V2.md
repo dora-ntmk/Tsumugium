@@ -186,9 +186,9 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 
 | 見出し | 場面 | 送り先 | 場所 |
 |---|---|---|---|
-| 音声生成の記録 | 運営者以外が実行 | 本人だけ | [operator_cog.py:175](../cogs/operator_cog.py#L175) |
-| 音声生成の記録（集計＋txt添付） | 記録がある | DM | [operator_cog.py:150](../cogs/operator_cog.py#L150)・[187](../cogs/operator_cog.py#L187) |
-| 音声生成の記録（記録はまだありません） | 記録がない | DM | [operator_cog.py:149](../cogs/operator_cog.py#L149) |
+| 音声生成の記録 | 運営者以外が実行 | 本人だけ | [operator_cog.py:237](../cogs/operator_cog.py#L237) |
+| 音声生成の記録（集計＋txt添付） | 記録がある | DM | [operator_cog.py:212](../cogs/operator_cog.py#L212)・[249](../cogs/operator_cog.py#L249) |
+| 音声生成の記録（記録はまだありません） | 記録がない | DM | [operator_cog.py:211](../cogs/operator_cog.py#L211) |
 
 ### 運営者: 更新の知らせ・更新ボタン（11）
 

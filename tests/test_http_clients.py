@@ -16,7 +16,15 @@ from aiohttp.test_utils import TestServer
 
 from clients.discord_soundboard_client import DiscordSoundboardClient
 from clients.voicevox_client import VoicevoxClient, VoicevoxGenerationError
-from models.generation_record import FAILED, SKIP_EMPTY, SKIPPED, SUCCESS
+from models.generation_record import (
+  FAILED,
+  MODE_FALLBACK,
+  MODE_STREAM,
+  MODE_SYNTHESIS,
+  SKIP_EMPTY,
+  SKIPPED,
+  SUCCESS,
+)
 from services.generation_log_service import GenerationLogService
 from tests.support import (
   DUMMY_GUILD_ID,
@@ -86,7 +94,7 @@ class VoicevoxClientTest(LocalServerTestCase):
       base_url,
       tmp_dir=os.path.join(self.tmp_dir, "tmp"),
       error_notifier=self.notifier,
-      streaming_enabled=False,
+      streaming="off",
     )
     self.addAsyncCleanup(self.client.close)
 
@@ -326,7 +334,7 @@ class VoicevoxStreamingTest(LocalServerTestCase):
     await audio.wait()
     [record] = self.log.recent(10)
     self.assertEqual(record.outcome, SUCCESS)
-    self.assertTrue(record.streamed)
+    self.assertEqual(record.mode, MODE_STREAM)
     self.assertIsNone(record.first_seconds)
 
   async def test_first_played_before_stream_ends_reaches_record(self):
@@ -379,8 +387,9 @@ class VoicevoxStreamingTest(LocalServerTestCase):
       ["audio_query", "streaming_synthesis", "synthesis", "audio_query", "synthesis"],
     )
     self.assertEqual(self.notifier.exceptions, [])
+    # 試したかったのに非対応で戻したものは、比べるときに分けられるよう fallback にする
     [second, first] = self.log.recent(10)
-    self.assertFalse(first.streamed)
+    self.assertEqual((first.mode, second.mode), (MODE_FALLBACK, MODE_FALLBACK))
 
   async def test_unsupported_speaker_falls_back_only_for_that_speaker(self):
     self.non_streaming_speakers = {5}
@@ -409,13 +418,63 @@ class VoicevoxStreamingTest(LocalServerTestCase):
     self.assertTrue(audio.finished)
     [record] = self.log.recent(10)
     self.assertEqual(record.outcome, FAILED)
-    self.assertTrue(record.streamed)
+    self.assertEqual(record.mode, MODE_STREAM)
     [(error, context)] = self.notifier.exceptions
     self.assertEqual(context, "VOICEVOX streaming")
     # 途中で切れても、次の生成はできる
     self.cut_after_head = False
     next_audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 30)
     self.assertTrue(await next_audio.wait())
+
+  async def test_hybrid_chooses_each_generation(self):
+    self.release_rest.set()
+    self.client.streaming = VoicevoxClient.STREAMING_HYBRID
+    # 0.5未満ならストリーミング、0.5以上なら通常
+    self.client._choose = iter([0.2, 0.7, 0.49, 0.5]).__next__
+    for message_id in range(40, 44):
+      audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, message_id)
+      self.assertTrue(await audio.wait())
+    self.assertEqual(
+      [kind for kind in self.kinds() if kind != "audio_query"],
+      ["streaming_synthesis", "synthesis", "streaming_synthesis", "synthesis"],
+    )
+    modes = [record.mode for record in reversed(self.log.recent(10))]
+    self.assertEqual(
+      modes, [MODE_STREAM, MODE_SYNTHESIS, MODE_STREAM, MODE_SYNTHESIS]
+    )
+
+  async def test_hybrid_is_about_half_and_half(self):
+    import random as random_module
+    self.client.streaming = VoicevoxClient.STREAMING_HYBRID
+    self.client._choose = random_module.Random(1).random
+    choices = [self.client._wants_stream() for _ in range(1000)]
+    self.assertTrue(400 < choices.count(True) < 600)
+
+  async def test_off_never_streams(self):
+    self.client.streaming = VoicevoxClient.STREAMING_OFF
+    audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 45)
+    self.assertTrue(audio.succeeded)
+    self.assertEqual(self.kinds(), ["audio_query", "synthesis"])
+    [record] = self.log.recent(10)
+    self.assertEqual(record.mode, MODE_SYNTHESIS)
+
+  async def test_segment_length_from_setting(self):
+    self.release_rest.set()
+    self.client.stream_segment_seconds = 0.5
+    audio = await self.client.generate("こんにちは", DUMMY_GUILD_ID, 46)
+    await audio.wait()
+    _, params, _ = self.requests[1]
+    self.assertEqual(float(params["segment_length"]), 0.5)
+
+  def test_segment_length_zero_is_automatic(self):
+    self.client.stream_segment_seconds = 0.0
+    self.assertEqual(
+      self.client.segment_seconds(), VoicevoxClient.STREAM_SEGMENT_SECONDS
+    )
+
+  def test_unknown_streaming_mode_is_rejected(self):
+    with self.assertRaises(ValueError):
+      VoicevoxClient(streaming="random")
 
   async def test_rest_may_take_longer_than_retry_window(self):
     # 長い文章は、最初の音のあとに、順番が来てから30秒を超えて届くことがある

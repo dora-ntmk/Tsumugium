@@ -21,6 +21,9 @@ from cogs.operator_cog import (
 )
 from models.generation_record import (
   FAILED,
+  MODE_FALLBACK,
+  MODE_STREAM,
+  MODE_SYNTHESIS,
   SKIP_CLEARED,
   SKIP_DELETED,
   SKIP_EMPTY,
@@ -103,16 +106,41 @@ class GenerationLogServiceTest(unittest.TestCase):
 
   def test_summary_of_first(self):
     log = make_log()
-    log.record_success(10, 8, 0.0, 2.0, 1, streamed=True).first_seconds = 0.25
-    log.record_success(10, 8, 0.0, 3.0, 1, streamed=True).first_seconds = 0.75
-    log.record_success(10, 8, 0.0, 1.0, 1).first_seconds = 1.5
+    log.record_success(10, 8, 0.0, 2.0, 1, mode=MODE_STREAM).first_seconds = 0.25
+    log.record_success(10, 8, 0.0, 3.0, 1, mode=MODE_STREAM).first_seconds = 0.75
+    log.record_success(10, 8, 0.0, 1.0, 1, mode=MODE_SYNTHESIS).first_seconds = 1.5
     # 再生しなかったもの（入退室通知でない、クリアされたなど）は数えない
-    log.record_success(10, 8, 0.0, 1.0, 1)
+    log.record_success(10, 8, 0.0, 1.0, 1, mode=MODE_SYNTHESIS)
     summary = log.summarize()
-    self.assertEqual(summary.streamed, 2)
+    self.assertEqual(summary.mode_counts, {MODE_STREAM: 2, MODE_SYNTHESIS: 2})
     self.assertAlmostEqual(summary.first_average, 2.5 / 3)
     self.assertEqual(summary.first_median, 0.75)
     self.assertEqual(summary.first_max, 1.5)
+
+  def test_summary_by_mode(self):
+    log = make_log()
+    # ストリーミング: 文字数が増えても最初の音はあまり延びない
+    for chars, synth, first in ((20, 1.0, 0.5), (80, 3.0, 0.7), (150, 6.0, 1.0)):
+      log.record_success(chars, 8, 0.0, synth, 1, mode=MODE_STREAM).first_seconds = first
+    for chars, synth in ((20, 0.8), (90, 3.0)):
+      log.record_success(chars, 8, 0.0, synth, 1, mode=MODE_SYNTHESIS).first_seconds = synth
+    log.record_success(40, 3, 0.0, 2.0, 1, mode=MODE_FALLBACK)
+    log.record_failure(10, 8, 0.0, 30.0, 4, "TimeoutError", mode=MODE_STREAM)
+    log.record_skip(SKIP_EMPTY)
+    summary = log.summarize()
+    self.assertEqual(
+      summary.mode_counts, {MODE_STREAM: 4, MODE_SYNTHESIS: 2, MODE_FALLBACK: 1}
+    )
+    self.assertEqual(list(summary.by_mode), [MODE_STREAM, MODE_SYNTHESIS, MODE_FALLBACK])
+    stream = summary.by_mode[MODE_STREAM]
+    self.assertEqual(stream.success, 3)
+    self.assertEqual(stream.synth_median, 3.0)
+    self.assertEqual(stream.first_median_by_chars, (0.5, 0.7, 1.0))
+    synthesis = summary.by_mode[MODE_SYNTHESIS]
+    self.assertEqual(synthesis.first_median_by_chars, (0.8, 3.0, None))
+    fallback = summary.by_mode[MODE_FALLBACK]
+    self.assertIsNone(fallback.first_median)
+    self.assertEqual(fallback.first_median_by_chars, (None, None, None))
 
 
 class SpeechServiceSkipRecordTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
@@ -217,7 +245,7 @@ class FormatTest(unittest.TestCase):
     records = [
       GenerationRecord(
         at=1_800_000_000.0, outcome=SUCCESS, chars=120, speaker=8,
-        wait_seconds=1.2, synth_seconds=6.5, attempts=1, streamed=True,
+        wait_seconds=1.2, synth_seconds=6.5, attempts=1, mode=MODE_STREAM,
         first_seconds=0.81,
       ),
       GenerationRecord(at=1_800_000_000.0, outcome=SKIPPED, reason=SKIP_EMPTY),
@@ -227,16 +255,18 @@ class FormatTest(unittest.TestCase):
     self.assertEqual(separators[0], separators[1])
     self.assertEqual(separators[0], separators[2])
 
-  def test_streamed_row_is_marked(self):
-    record = GenerationRecord(
-      at=1_800_000_000.0, outcome=SUCCESS, chars=10, speaker=8,
-      wait_seconds=0.25, synth_seconds=1.5, attempts=1, streamed=True,
-      first_seconds=0.3,
-    )
-    _, row = self.table_lines(record)
-    cells = [cell.strip() for cell in row.split("|")]
-    self.assertEqual(cells[4], "0.30s")
-    self.assertEqual(cells[7], "stream")
+  def test_row_shows_mode(self):
+    for mode in (MODE_STREAM, MODE_SYNTHESIS, MODE_FALLBACK):
+      with self.subTest(mode=mode):
+        record = GenerationRecord(
+          at=1_800_000_000.0, outcome=SUCCESS, chars=10, speaker=8,
+          wait_seconds=0.25, synth_seconds=1.5, attempts=1, mode=mode,
+          first_seconds=0.3,
+        )
+        _, row = self.table_lines(record)
+        cells = [cell.strip() for cell in row.split("|")]
+        self.assertEqual(cells[4], "0.30s")
+        self.assertEqual(cells[7], mode)
 
   def test_failure_row_has_attempts_and_error(self):
     record = GenerationRecord(
@@ -267,26 +297,36 @@ class FormatTest(unittest.TestCase):
 
   def test_summary_fields_match_table(self):
     log = make_log()
-    for synth in (1.0, 2.0, 3.0, 4.0):
-      log.record_success(10, 8, 0.5, synth, 1).first_seconds = synth / 2
-    log.record_success(10, 8, 0.5, 1.0, 1, streamed=True)
+    for chars, synth, first in ((20, 0.9, 0.5), (80, 3.0, 0.7), (150, 6.0, 1.0)):
+      log.record_success(chars, 8, 0.5, synth, 1, mode=MODE_STREAM).first_seconds = first
+    for chars, synth in ((20, 0.8), (80, 2.9), (150, 5.5)):
+      log.record_success(chars, 8, 0.5, synth, 1, mode=MODE_SYNTHESIS).first_seconds = synth
     log.record_skip(SKIP_CLEARED, 3)
     log.record_skip(SKIP_EMPTY)
-    log.record_failure(5, 8, 2.5, 30.0, 4, "TimeoutError")
+    log.record_failure(5, 8, 2.5, 30.0, 4, "TimeoutError", mode=MODE_FALLBACK)
     fields = format_summary_fields(log.summarize())
     self.assertEqual(
       fields,
       [
-        ("件数", "成功 5 / スキップ 2 / 失敗 1\n（スキップの内訳: クリア 1・読む文字なし 1）"),
+        (
+          "件数",
+          "成功 6 / スキップ 2 / 失敗 1"
+          "\n（スキップの内訳: クリア 1・読む文字なし 1）"
+          "\n（作り方: ストリーミング 3・通常 3・非対応→通常 1）",
+        ),
         (
           "生成時間（成功のみ）",
-          "平均 2.20秒（220ms/字） / 中央値 2.00秒 / 95% 4.00秒 / 最大 4.00秒",
+          "ストリーミング: 平均 3.30秒（41ms/字） / 中央値 3.00秒 / 95% 6.00秒 / 最大 6.00秒"
+          "\n通常: 平均 3.07秒（38ms/字） / 中央値 2.90秒 / 95% 5.50秒 / 最大 5.50秒",
         ),
         (
           "最初の音まで（成功のみ・メッセージから・順番待ちを除く）",
-          "平均 1.25秒 / 中央値 1.00秒 / 最大 2.00秒（ストリーミング 1件）",
+          "ストリーミング: 平均 0.73秒 / 中央値 0.70秒 / 最大 1.00秒"
+          "\n　文字数別の中央値: 〜30字 0.50秒 / 31〜100字 0.70秒 / 101字〜 1.00秒"
+          "\n通常: 平均 3.07秒 / 中央値 2.90秒 / 最大 5.50秒"
+          "\n　文字数別の中央値: 〜30字 0.80秒 / 31〜100字 2.90秒 / 101字〜 5.50秒",
         ),
-        ("順番待ち", "平均 0.83秒 / 最大 2.50秒"),
+        ("順番待ち", "平均 0.79秒 / 最大 2.50秒"),
       ],
     )
 

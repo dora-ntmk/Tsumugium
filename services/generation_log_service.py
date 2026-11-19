@@ -10,11 +10,14 @@ import time
 from collections import Counter, deque
 
 from models.generation_record import (
+  CHAR_BUCKET_LIMITS,
   FAILED,
+  MODES,
   SKIPPED,
   SUCCESS,
   GenerationRecord,
   GenerationSummary,
+  ModeSummary,
 )
 
 
@@ -36,7 +39,7 @@ class GenerationLogService:
 
   def record_success(
       self, chars, speaker, wait_seconds, synth_seconds, attempts,
-      *, streamed=False,
+      *, mode=None,
   ) -> GenerationRecord:
     """成功を記録し、その記録を返す（あとで再生が始まったら`first_seconds`を書き込む）。"""
     return self._add(
@@ -46,12 +49,12 @@ class GenerationLogService:
       wait_seconds=wait_seconds,
       synth_seconds=synth_seconds,
       attempts=attempts,
-      streamed=streamed,
+      mode=mode,
     )
 
   def record_failure(
       self, chars, speaker, wait_seconds, synth_seconds, attempts, reason,
-      *, streamed=False,
+      *, mode=None,
   ) -> GenerationRecord:
     return self._add(
       outcome=FAILED,
@@ -61,7 +64,7 @@ class GenerationLogService:
       synth_seconds=synth_seconds,
       attempts=attempts,
       reason=reason,
-      streamed=streamed,
+      mode=mode,
     )
 
   def record_skip(self, reason, chars: int = 0) -> None:
@@ -108,12 +111,55 @@ class GenerationLogService:
       seconds_per_char_average=_average(per_char),
       wait_average=_average(waits),
       wait_max=max(waits) if waits else None,
-      streamed=sum(1 for record in successes if record.streamed),
+      mode_counts=dict(Counter(
+        record.mode for record in records
+        if record.outcome != SKIPPED and record.mode is not None
+      )),
+      by_mode={
+        mode: _summarize_mode(group)
+        for mode in MODES
+        if (group := [record for record in successes if record.mode == mode])
+      },
       first_average=_average(first),
       first_median=_percentile(first, 50),
       first_max=first[-1] if first else None,
       first_at=records[0].at,
     )
+
+
+def _summarize_mode(successes) -> ModeSummary:
+  """作り方が同じ成功の記録をまとめる。"""
+  synth = sorted(record.synth_seconds for record in successes)
+  per_char = [
+    record.seconds_per_char
+    for record in successes
+    if record.seconds_per_char is not None
+  ]
+  played = [record for record in successes if record.first_seconds is not None]
+  first = sorted(record.first_seconds for record in played)
+  by_chars = []
+  lower = 0
+  for limit in CHAR_BUCKET_LIMITS:
+    bucket = sorted(
+      record.first_seconds
+      for record in played
+      if record.chars > lower and (limit is None or record.chars <= limit)
+    )
+    by_chars.append(_percentile(bucket, 50))
+    if limit is not None:
+      lower = limit
+  return ModeSummary(
+    success=len(successes),
+    synth_average=_average(synth),
+    synth_median=_percentile(synth, 50),
+    synth_p95=_percentile(synth, 95),
+    synth_max=synth[-1] if synth else None,
+    seconds_per_char_average=_average(per_char),
+    first_average=_average(first),
+    first_median=_percentile(first, 50),
+    first_max=first[-1] if first else None,
+    first_median_by_chars=tuple(by_chars),
+  )
 
 
 def _average(values) -> float | None:

@@ -29,7 +29,7 @@ OLD_TEMPLATE_KEYS = [
   "BACKUP_DIR", "BACKUP_TIMES", "BACKUP_INTERVAL_DAYS", "BACKUP_KEEP",
 ]
 # テンプレートを改良したあとに足した項目。今までの .env を更新すると、これだけが書き足される
-ADDED_KEYS = ["VOICEVOX_STREAMING"]
+ADDED_KEYS = ["VOICEVOX_STREAMING", "VOICEVOX_STREAM_SEGMENT"]
 
 
 def _config_default(name):
@@ -86,6 +86,8 @@ class EnvTemplateTest(unittest.TestCase):
   def test_streaming_is_off_in_template(self):
     # 実験的な機能なので、更新で書き足されてもオフのままにする
     self.assertEqual(self.active["VOICEVOX_STREAMING"], "off")
+    # 0は自動調整。今までと同じ長さで動く
+    self.assertEqual(self.active["VOICEVOX_STREAM_SEGMENT"], "0")
 
   def test_copied_template_passes_after_writing_token(self):
     env = EnvFile.parse(TEMPLATE_TEXT.replace(
