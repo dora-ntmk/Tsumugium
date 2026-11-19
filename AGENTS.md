@@ -343,7 +343,7 @@ Embedで送っているメッセージを、Components v2（`discord.ui.LayoutVi
 
 - `ConnectionService.connected_message()`が`make_layout()`で枠を作り、`add_announcements()`でお知らせ欄を足す。`/announce`のプレビューも同じ組み合わせで作る。
 - 接続したときのメッセージで、本文の下にお知らせを並べる。「お知らせ」のような見出しは付けず、お知らせごとに区切り線（`Separator`、`large`）を引く。お知らせがないときは区切り線も出さない。
-- 1件のお知らせは、`## タイトル`・本文・（期間限定なら）`-# MM/DD HH:MMまで`を1つの`TextDisplay`にまとめる。リンクがあれば`Section`にし、リンクボタンを右（`accessory`）に置く。画像はその下に置く。
+- 1件のお知らせは、`## タイトル`と本文を1つの`TextDisplay`にまとめる。期限は表示しない。リンクがあれば`Section`にし、リンクボタンを右（`accessory`）に置く。画像はその下に置く。
 - 並び順は、恒久（古い順）のあとに期間限定（期限の近い順）。載せるのは3件までで、超えた分は「ほか N 件のお知らせがあります」とまとめる。期間限定のものは、期限まで接続のたびに毎回出す。
 - 画像は`MediaGallery`（`attachment://`でファイルを参照）で出す。ファイルを添付する権限（`attach_files`）がないチャンネルでは、画像だけを省く。お知らせを読めなかったときは、エラーを知らせてお知らせなしで送る。
 - `/announce add`・`edit`は、期間（`expires`・`starts`）をコマンドの引数で受け取り、タイトル・本文・画像・リンクURL・リンクの表示名の5つをModal（`Label`・`TextInput`・`FileUpload`）で受け取る。`expires`を省くと恒久。日時は日本時間の`YYYY-MM-DD HH:MM`（`/`区切り・時刻の省略も可）か、`3d`・`12h`・`30m`（組み合わせ可）。`starts`を指定したときは、`expires`の`3d`などは`starts`から数える。`edit`では省いた引数は今の値のままで、`none`で外す。

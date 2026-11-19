@@ -115,11 +115,10 @@ class ConnectionService:
       layout_type: EmbedType = EmbedType.SUCCESS,
   ) -> LayoutMessage:
     """接続したときのメッセージ（Components v2）。運営者からのお知らせを下に載せる。"""
-    announcements, hidden_count, now = [], 0, None
+    announcements, hidden_count = [], 0
     if self.announcement_service is not None:
       try:
         announcements, hidden_count = self.announcement_service.display()
-        now = self.announcement_service.now()
       except Exception as error:
         # お知らせを読めなくても、接続メッセージは出す
         self.error_notifier.report_exception(error, "announcement display")
@@ -141,7 +140,6 @@ class ConnectionService:
       announcements,
       hidden_count=hidden_count,
       include_images=include_images,
-      now=now,
     )
 
   def permission_issues(self, guild, voice_channel, text_channel) -> list[str]:

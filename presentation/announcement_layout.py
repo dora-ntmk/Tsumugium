@@ -8,7 +8,7 @@ import io
 
 import discord
 
-from models.announcement import Announcement, format_time
+from models.announcement import Announcement
 from presentation.layouts import LayoutMessage
 
 
@@ -17,11 +17,8 @@ def _image_filename(announcement: Announcement) -> str:
   return f"announcement-{announcement.id}.{extension}"
 
 
-def _announcement_text(announcement: Announcement, now: int | None) -> str:
-  lines = [f"## {announcement.title}", announcement.body]
-  if not announcement.permanent:
-    lines.append(f"-# {format_time(announcement.expires_at, now)}まで")
-  return "\n".join(lines)
+def _announcement_text(announcement: Announcement) -> str:
+  return f"## {announcement.title}\n{announcement.body}"
 
 
 def _add_announcement(
@@ -29,10 +26,9 @@ def _add_announcement(
     announcement: Announcement,
     *,
     include_images: bool,
-    now: int | None,
 ) -> None:
   """タイトルと本文の右にリンクボタン、その下に画像を置く。"""
-  text = discord.ui.TextDisplay(_announcement_text(announcement, now))
+  text = discord.ui.TextDisplay(_announcement_text(announcement))
   if announcement.link_url:
     layout.add_item(
       discord.ui.Section(
@@ -60,7 +56,6 @@ def add_announcements(
     *,
     hidden_count: int = 0,
     include_images: bool = True,
-    now: int | None = None,
 ) -> LayoutMessage:
   """枠の下にお知らせを足す。お知らせがなければ何も足さない。
 
@@ -72,7 +67,7 @@ def add_announcements(
     return layout
   for announcement in announcements:
     layout.add_item(discord.ui.Separator(spacing=discord.SeparatorSpacing.large))
-    _add_announcement(layout, announcement, include_images=include_images, now=now)
+    _add_announcement(layout, announcement, include_images=include_images)
   if hidden_count > 0:
     layout.add_item(discord.ui.TextDisplay(f"-# ほか{hidden_count}件のお知らせがあります"))
   return layout

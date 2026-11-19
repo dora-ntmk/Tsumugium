@@ -254,7 +254,7 @@ class LayoutTest(ServiceTestCase):
       link_url="https://example.com/a",
     )
     shown, hidden = self.service.display()
-    layout = add_announcements(make_layout("接続しました", "本文"), shown, hidden_count=hidden, now=NOW)
+    layout = add_announcements(make_layout("接続しました", "本文"), shown, hidden_count=hidden)
     children = layout.container.children
     # 「お知らせ」の見出しは付けず、お知らせごとに large の区切り線を引く
     self.assertEqual(
@@ -268,7 +268,8 @@ class LayoutTest(ServiceTestCase):
     self.assertNotIn("📢", "".join(texts(layout.view)))
     self.assertEqual(children[2].content, "## 恒久\nずっと")
     section = children[4]
-    self.assertEqual(section.children[0].content, "## メンテ\nあした\n-# 01/15 18:00まで")
+    # 期限は表示しない
+    self.assertEqual(section.children[0].content, "## メンテ\nあした")
     self.assertEqual(section.accessory.url, "https://example.com/a")
     self.assertEqual(section.accessory.label, "詳しくはこちら")
     self.assertEqual(section.accessory.style, discord.ButtonStyle.link)
