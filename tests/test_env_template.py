@@ -4,6 +4,7 @@ import re
 import unittest
 from pathlib import Path
 
+import config
 from installer.envfile import EnvFile, managed_keys_in, parse_template, required_problems
 from installer.instance import ENV_FILE_KEY, VOICEVOX_URL_KEY, Layout
 
@@ -29,7 +30,7 @@ OLD_TEMPLATE_KEYS = [
   "BACKUP_DIR", "BACKUP_TIMES", "BACKUP_INTERVAL_DAYS", "BACKUP_KEEP",
 ]
 # テンプレートを改良したあとに足した項目。今までの .env を更新すると、これだけが書き足される
-ADDED_KEYS = ["VOICEVOX_STREAMING"]
+ADDED_KEYS = ["VOICEVOX_STREAMING", "VOICEVOX_STREAM_THRESHOLD", "VOICEVOX_STREAM_SEGMENT"]
 
 
 def _config_default(name):
@@ -83,9 +84,14 @@ class EnvTemplateTest(unittest.TestCase):
     missing = [entry.key for entry in self.entries if entry.key not in present]
     self.assertEqual(missing, ADDED_KEYS)
 
-  def test_streaming_is_off_in_template(self):
-    # 実験的な機能なので、更新で書き足されてもオフのままにする
-    self.assertEqual(self.active["VOICEVOX_STREAMING"], "off")
+  def test_streaming_follows_version_default_in_template(self):
+    # 書き足されても、そのバージョンの既定に従う（今の既定はoff）。
+    # あとのリリースで既定を変えると、この行のままの環境にも効く
+    self.assertEqual(self.active["VOICEVOX_STREAMING"], "auto")
+    self.assertEqual(config.DEFAULT_VOICEVOX_STREAMING, "off")
+    # 0は自動調整。今までと同じ長さで動く
+    self.assertEqual(self.active["VOICEVOX_STREAM_SEGMENT"], "0")
+    self.assertEqual(self.active["VOICEVOX_STREAM_THRESHOLD"], "0")
 
   def test_copied_template_passes_after_writing_token(self):
     env = EnvFile.parse(TEMPLATE_TEXT.replace(

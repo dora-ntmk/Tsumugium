@@ -58,7 +58,7 @@ STATUS_MESSAGE="{voice_connections}/{guilds}個のVCに接続中"
 
 DBのバックアップは既定で毎日12:00に`BACKUP_DIR`へ取ります。時刻は`BACKUP_TIMES`で変えられ、空欄にするとバックアップを取りません。
 
-`VOICEVOX_STREAMING=on`にすると、VOICEVOX Engine 0.26.0以降の`/streaming_synthesis`を使い、音声を作り終える前に読み上げを始めます。実験的な機能なので、既定は`off`です。対応していないEngine・話者では、`on`にしても今までどおり全体を作ってから読み上げます。
+`VOICEVOX_STREAMING=on`にすると、VOICEVOX Engine 0.26.0以降の`/streaming_synthesis`を使い、音声を作り終える前に読み上げを始めます。実験的な機能なので、既定（`auto`）は今のところ`off`と同じ動きです。`auto`はBotのバージョンごとの既定に従い、自分で決めたいときは`on`・`off`・`hybrid`を書きます。対応していないEngine・話者では、`on`にしても今までどおり全体を作ってから読み上げます。`hybrid`にすると、`VOICEVOX_STREAM_THRESHOLD`の文字数以上の文章だけをストリーミングします。`0`（既定）は自動で決め、今は基準を決めるためのデータを集めるので、文字数によらず五分五分で振り分けます。運営者用の`/synthesis-log`で、ストリーミングあり・なしの速さを比べられます。ストリーミングで一度に作る音声の長さは`VOICEVOX_STREAM_SEGMENT`（秒）で変えられ、`0`（既定）は自動で決めます。
 
 VOICEVOX ENGINEを起動してからBotを起動します。
 

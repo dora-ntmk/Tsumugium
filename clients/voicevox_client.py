@@ -3,9 +3,15 @@
 import asyncio
 import json
 import os
-from typing import Any
+import random
+from typing import Any, Callable
 
-from models.generation_record import SKIP_EMPTY
+from models.generation_record import (
+  MODE_FALLBACK,
+  MODE_STREAM,
+  MODE_SYNTHESIS,
+  SKIP_EMPTY,
+)
 from models.streaming_audio import StreamingAudio
 from services.error_notification_service import ensure_error_notifier
 
@@ -23,14 +29,17 @@ class VoicevoxGenerationError(RuntimeError):
 
 
 class _GenerationTiming:
-  """生成1回分の、順番が来た時刻・試した回数・ストリーミングしたか（記録用）。"""
+  """生成1回分の、順番が来た時刻・試した回数・ストリーミングを試すか・作り方（記録用）。"""
 
-  __slots__ = ("acquired_at", "attempts", "streamed")
+  __slots__ = ("acquired_at", "attempts", "want_stream", "mode")
 
   def __init__(self):
     self.acquired_at: float | None = None
     self.attempts = 0
-    self.streamed = False
+    # 順番が来たときに決める（hybridでは五分五分）
+    self.want_stream = False
+    # 実際の作り方（MODE_STREAM・MODE_SYNTHESIS・MODE_FALLBACK）
+    self.mode = MODE_SYNTHESIS
 
 
 class _SynthesisStart:
@@ -46,9 +55,14 @@ class _SynthesisStart:
 class VoicevoxClient:
   RETRY_WINDOW_SECONDS = 30.0
   MAX_RETRY_DELAY_SECONDS = 5.0
-  # /streaming_synthesisで一度に作る音声の長さ（秒）。短いほど最初の音は早く届くが、
-  # 区切りごとに前後の余白も作るので、全体の生成は遅くなる
+  # /streaming_synthesisで一度に作る音声の長さ（秒）の、自動調整（VOICEVOX_STREAM_SEGMENT=0）での値。
+  # 短いほど最初の音は早く届くが、区切りごとに前後の余白も作るので、全体の生成は遅くなる。
+  # 今は自動調整でもこの値に固定する
   STREAM_SEGMENT_SECONDS = 1.0
+  # VOICEVOX_STREAMING の値
+  STREAMING_OFF = "off"
+  STREAMING_ON = "on"
+  STREAMING_HYBRID = "hybrid"
   # ストリーミングの残りが、この秒数届かなければ打ち切る（全体の時間は縛らない）
   STREAM_READ_TIMEOUT_SECONDS = 15.0
 
@@ -60,7 +74,10 @@ class VoicevoxClient:
       session: Any = None,
       error_notifier=None,
       generation_log=None,
-      streaming_enabled: bool = True,
+      streaming: str = "on",
+      stream_segment_seconds: float = 0.0,
+      stream_threshold_chars: int = 0,
+      choose: Callable[[], float] = random.random,
   ):
     self.url = url.rstrip("/")
     self.tmp_dir = tmp_dir
@@ -70,8 +87,16 @@ class VoicevoxClient:
     self.error_notifier = ensure_error_notifier(error_notifier)
     # 生成の記録（GenerationLogService）。Noneなら記録しない
     self.generation_log = generation_log
-    # Falseなら/streaming_synthesisを使わない
-    self.streaming_enabled = streaming_enabled
+    # /streaming_synthesisを使うか（off・on・hybrid）。hybridは生成1件ごとに五分五分で決める
+    if streaming not in (self.STREAMING_OFF, self.STREAMING_ON, self.STREAMING_HYBRID):
+      raise ValueError(f"unknown streaming mode: {streaming!r}")
+    self.streaming = streaming
+    # 一度に作る音声の長さ（秒）。0なら自動調整
+    self.stream_segment_seconds = stream_segment_seconds
+    # hybridで、この文字数以上ならストリーミングする。0なら自動調整
+    self.stream_threshold_chars = stream_threshold_chars
+    # hybridの振り分けに使う乱数（0以上1未満）。テストでは差し替える
+    self._choose = choose
     # エンジンが/streaming_synthesisを持たないと分かったらFalseにする
     self._streaming_supported = True
     # ストリーミングに対応していないと分かった話者
@@ -224,6 +249,7 @@ class VoicevoxClient:
         return None
       path = os.path.join(self.tmp_dir, f"{guildid}-{msgid}.wav")
       await self._acquire_turn(timing)
+      timing.want_stream = self._wants_stream(len(msg))
     except VoicevoxGenerationError as e:
       self._report_failure(e, msg, speaker, started_at, timing, guildid, msgid)
       return None
@@ -260,7 +286,6 @@ class VoicevoxClient:
         audio.finish()
         audio.attach_record(self._record(msg, speaker, started_at, timing))
         return audio
-      timing.streamed = True
       response = result.response
       task = asyncio.create_task(
         self._receive_rest(
@@ -371,7 +396,7 @@ class VoicevoxClient:
       "wait_seconds": acquired_at - started_at,
       "synth_seconds": now - acquired_at,
       "attempts": timing.attempts,
-      "streamed": timing.streamed,
+      "mode": timing.mode,
     }
     if error is None:
       return self.generation_log.record_success(**values)
@@ -386,12 +411,33 @@ class VoicevoxClient:
     await self._generation_lock.acquire()
     timing.acquired_at = asyncio.get_running_loop().time()
 
+  def _wants_stream(self, chars: int) -> bool:
+    """この生成でストリーミングを試すかを決める（順番が来たときに1回だけ）。
+
+    onは常に、offは使わない。hybridは基準の文字数（VOICEVOX_STREAM_THRESHOLD）以上なら
+    ストリーミングする。基準が0（自動調整）のあいだは、基準を決めるためのデータを
+    集められるよう、文字数によらず五分五分で振り分ける。
+    """
+    if self.streaming == self.STREAMING_ON:
+      return True
+    if self.streaming == self.STREAMING_HYBRID:
+      if self.stream_threshold_chars > 0:
+        return chars >= self.stream_threshold_chars
+      return self._choose() < 0.5
+    return False
+
   def _can_stream(self, speaker) -> bool:
+    """エンジンと話者がストリーミングに対応しているか（分かっている範囲で）。"""
     return (
-      self.streaming_enabled
-      and self._streaming_supported
+      self._streaming_supported
       and speaker not in self._non_streaming_speakers
     )
+
+  def segment_seconds(self) -> float:
+    """/streaming_synthesisのsegment_length。設定が0（自動調整）なら決まった値を使う。"""
+    if self.stream_segment_seconds > 0:
+      return self.stream_segment_seconds
+    return self.STREAM_SEGMENT_SECONDS
 
   async def _start_with_retry(
       self,
@@ -443,10 +489,15 @@ class VoicevoxClient:
         query["volumeScale"] = volume
         body = json.dumps(query)
 
-        if self._can_stream(speaker):
-          started = await self._try_streaming(session, body, speaker, deadline)
-          if started is not None:
-            return started
+        timing.mode = MODE_SYNTHESIS
+        if timing.want_stream:
+          # 試したいのに非対応で/synthesisへ戻したものは、比べるときに分けられるよう別に記録する
+          timing.mode = MODE_FALLBACK
+          if self._can_stream(speaker):
+            started = await self._try_streaming(session, body, speaker, deadline)
+            if started is not None:
+              timing.mode = MODE_STREAM
+              return started
 
         remaining = deadline - loop.time()
         if remaining <= 0:
@@ -510,7 +561,7 @@ class VoicevoxClient:
         headers={"Content-Type": "application/json"},
         params={
           "speaker": speaker,
-          "segment_length": self.STREAM_SEGMENT_SECONDS,
+          "segment_length": self.segment_seconds(),
         },
         data=body,
         timeout=aiohttp.ClientTimeout(

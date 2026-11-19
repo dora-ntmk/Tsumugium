@@ -50,24 +50,71 @@ class OperatorUserIdsTest(unittest.TestCase):
     self.assertEqual(printed.call_count, 2)
 
 
-class OnOffTest(unittest.TestCase):
+class StreamingModeTest(unittest.TestCase):
   def test_on_values(self):
     for value in ("on", "ON", " true ", "1", "yes"):
       with self.subTest(value=value):
-        self.assertTrue(config._on_off("VOICEVOX_STREAMING", value))
+        self.assertEqual(config._streaming_mode(value), "on")
 
-  def test_off_values_and_missing(self):
-    for value in ("off", "false", "0", "no", "", None):
+  def test_off_values(self):
+    for value in ("off", "false", "0", "no"):
       with self.subTest(value=value):
-        self.assertFalse(config._on_off("VOICEVOX_STREAMING", value))
+        self.assertEqual(config._streaming_mode(value), "off")
+
+  def test_auto_and_missing_follow_version_default(self):
+    for value in ("auto", " AUTO ", "", None):
+      for default in ("off", "hybrid"):
+        with self.subTest(value=value, default=default):
+          with unittest.mock.patch.object(config, "DEFAULT_VOICEVOX_STREAMING", default):
+            self.assertEqual(config._streaming_mode(value), default)
+
+  def test_hybrid(self):
+    for value in ("hybrid", " Hybrid "):
+      with self.subTest(value=value):
+        self.assertEqual(config._streaming_mode(value), "hybrid")
 
   def test_unknown_value_is_off_with_message(self):
     with unittest.mock.patch("builtins.print") as printed:
-      self.assertFalse(config._on_off("VOICEVOX_STREAMING", "enable"))
+      self.assertEqual(config._streaming_mode("enable"), "off")
     printed.assert_called_once()
 
-  def test_streaming_is_off_by_default(self):
+  def test_streaming_is_off_and_segment_is_automatic_by_default(self):
     env_file = os.path.join(os.path.dirname(__file__), "no-such.env")
     with unittest.mock.patch.dict(os.environ, {"TSUMUGIUM_ENV_FILE": env_file}, clear=True):
-      self.assertFalse(importlib.reload(config).VOICEVOX_STREAMING)
+      loaded = importlib.reload(config)
+      self.assertEqual(loaded.VOICEVOX_STREAMING, "off")
+      self.assertEqual(loaded.VOICEVOX_STREAM_SEGMENT, 0.0)
+      self.assertEqual(loaded.VOICEVOX_STREAM_THRESHOLD, 0)
     importlib.reload(config)
+
+
+class StreamSegmentTest(unittest.TestCase):
+  def test_seconds(self):
+    for value, expected in (
+        ("0", 0.0), ("", 0.0), (None, 0.0), ("Auto", 0.0), ("0.5", 0.5), (" 2 ", 2.0),
+    ):
+      with self.subTest(value=value):
+        self.assertEqual(config._stream_segment_seconds(value), expected)
+
+  def test_invalid_or_negative_is_automatic_with_message(self):
+    for value in ("fast", "-1", "nan", "inf"):
+      with self.subTest(value=value):
+        with unittest.mock.patch("builtins.print") as printed:
+          self.assertEqual(config._stream_segment_seconds(value), 0.0)
+        printed.assert_called_once()
+
+
+class StreamThresholdTest(unittest.TestCase):
+  def test_chars(self):
+    for value, expected in (
+        ("0", 0), ("", 0), (None, 0), ("auto", 0), ("50", 50), (" 120 ", 120),
+    ):
+      with self.subTest(value=value):
+        self.assertEqual(config._stream_threshold_chars(value), expected)
+
+  def test_invalid_or_negative_is_automatic_with_message(self):
+    for value in ("many", "-1", "1.5"):
+      with self.subTest(value=value):
+        with unittest.mock.patch("builtins.print") as printed:
+          self.assertEqual(config._stream_threshold_chars(value), 0)
+        printed.assert_called_once()

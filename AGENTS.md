@@ -300,8 +300,9 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ### ストリーミングでの音声合成（`/streaming_synthesis`）
 
-- 実験的な機能として、`.env`の`VOICEVOX_STREAMING`が`on`のときだけ使う（既定は`off`）。`config.py`が読み、`main.py`が`VoicevoxClient(streaming_enabled=...)`へ渡す。`off`のときも`generate()`は`StreamingAudio`を返すが、`/synthesis`で全体を作ってから返す（書き終えた状態）。
-- `VoicevoxClient.generate()`は`StreamingAudio`を返す（作れなかったときはNone）。VOICEVOX Engine 0.26.0以降の`/streaming_synthesis`（`segment_length`は`STREAM_SEGMENT_SECONDS`＝1.0秒）を使い、最初の部分が届いた時点で返す。残りは裏のタスクで受け取り、`TMP_DIR`の同じWAVファイルへ書き足す。WAVのヘッダーには全体の大きさが最初から入っている。
+- 実験的な機能として、`.env`の`VOICEVOX_STREAMING`で使い方を決める。`auto`（テンプレートの値。空欄・行がないときも同じ）は、そのバージョンの既定（`config.py`の`DEFAULT_VOICEVOX_STREAMING`、今は`off`）に従う。インストーラーは更新のときにテンプレートの値を`.env`へ書き足すので、既定の値（`off`など）を書き足すと、あとのリリースで既定を変えても効かなくなる。そのため、テンプレートは`auto`にし、既定を変えたいときは`DEFAULT_VOICEVOX_STREAMING`を変える。利用者が`on`・`off`・`hybrid`を書いた環境は、その値のまま。`off`は使わない、`on`は常に使う、`hybrid`は基準の文字数（`.env`の`VOICEVOX_STREAM_THRESHOLD`）以上の文章だけ使う。基準が`0`（既定）は自動調整で、今は基準を決めるためのデータを集めるので、文字数によらず生成1件ごとに五分五分で振り分ける（Botを止めずに、`/synthesis-log`でストリーミングあり・なしを比べるため）。いずれ自動調整は、集めたデータから基準を決める形にする。`config.py`が読み、`main.py`が`VoicevoxClient(streaming=..., stream_threshold_chars=...)`へ渡す。文字数は、前処理と最大文字数の処理のあとの、VOICEVOXへ送る文章の長さ。使うかは、生成の順番が来たときに1回だけ決める（`_wants_stream()`、乱数は`choose`で差し替えられる）。使わないときも`generate()`は`StreamingAudio`を返すが、`/synthesis`で全体を作ってから返す（書き終えた状態）。
+- 一度に作る音声の長さ（`segment_length`）は、`.env`の`VOICEVOX_STREAM_SEGMENT`（秒）で決める。`0`（既定）は自動調整で、今は`VoicevoxClient.STREAM_SEGMENT_SECONDS`（1.0秒）に固定している。読めない値・負の値は`0`として扱う（Engineは0以下を受け付けない）。
+- `VoicevoxClient.generate()`は`StreamingAudio`を返す（作れなかったときはNone）。VOICEVOX Engine 0.26.0以降の`/streaming_synthesis`を使い、最初の部分が届いた時点で返す。残りは裏のタスクで受け取り、`TMP_DIR`の同じWAVファイルへ書き足す。WAVのヘッダーには全体の大きさが最初から入っている。
 - 生成の順番（全ギルドで1件ずつ）は、残りを受け取り終えるまで持ち続ける。最初の部分が届くまでは今までどおり再試行し、届いたあとに切れたときはやり直さずに失敗として記録・通知する（`VOICEVOX streaming`）。再生は届いた分までで終わる。
 - 順番が来てから30秒の期限で縛るのは、最初の部分が届くまで。残りは長い文章ほど時間がかかるので全体の時間では縛らず、`STREAM_READ_TIMEOUT_SECONDS`（15秒）届かなかったときだけ打ち切る。
 - エンジンが`/streaming_synthesis`を持たない（404・405）と分かったら、以後はBotを再起動するまで`/synthesis`を使う。話者がストリーミングに対応していない（422）ときは、その話者だけ`/synthesis`を使う。どちらも全体を作ってから、書き終えた`StreamingAudio`を返す。
@@ -311,10 +312,10 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 ### 生成の記録（`/synthesis-log`）
 
 - `GenerationLogService`が、VOICEVOXの生成の記録を直近500件までメモリに持つ。DBには書かず、Botを再起動すると消える。運営者が発言の内容を推し量れないよう、読み上げた文章と、どのサーバーの生成か（サーバーID・サーバー名）は持たず、文字数だけを残す。
-- 成功・失敗は`VoicevoxClient.generate()`が記録する。時間は、生成の順番（全ギルドで1件ずつ）を待った時間と、順番が来てから生成し終える（失敗なら諦める）までの時間に分け、試した回数と、失敗なら例外の名前も残す。ストリーミングしたかも残す。ストリーミングの成功は、残りを受け取り終えたときに記録する。
+- 成功・失敗は`VoicevoxClient.generate()`が記録する。時間は、生成の順番（全ギルドで1件ずつ）を待った時間と、順番が来てから生成し終える（失敗なら諦める）までの時間に分け、試した回数と、失敗なら例外の名前も残す。音声の作り方（`mode`）も残す。`stream`はストリーミングした、`synthesis`は設定・振り分けで`/synthesis`を使った、`fallback`はストリーミングを試したかったがエンジン・話者が非対応で`/synthesis`へ戻した（比べるときに混ざらないよう分ける）。ストリーミングの成功は、残りを受け取り終えたときに記録する。
 - 記録には`first`（メッセージを受け取ってから最初の音を再生するまでの時間から、生成の順番を待った時間を除いたもの）も残す。数え始めは、メッセージがこのプログラムに届いた時刻（`PlaybackCog`の`on_message`に入った時刻。`/tsumugi-tts`・`/t`はコマンドの処理に入った時刻）で、`MessageService.handle()`から`SpeechService.add_message()`・`speak_and_export()`へ`received_at`として渡す（渡されなかったときは、それぞれの始めの時刻を使う）。`SpeechService`がこの時刻を、`VoicevoxClient`が順番を待った時間を`StreamingAudio`に書き、`VoiceService`が`FirstPacketSource`で最初の音のデータをDiscordへ渡した時刻を知らせる。ストリーミングでは記録より先に再生が始まるので、`StreamingAudio.attach_record()`・`mark_played()`のどちらが先でも記録に書き込まれる。同じサーバーで前の読み上げが終わるのを待った時間は含む。入退室通知など、メッセージから作っていない音声と、再生しなかったものは空欄にする。
 - スキップは`SpeechService`が記録する。理由は、読む文字がない（`empty`）、生成中にクリアされた（`cleared`）、生成中にメッセージが消された（`deleted`）の3つ。クリア・削除のスキップは、生成の成功とは別の記録として残る（生成の時間は使っているため）。生成を始める前にクリア中だったメッセージと、`!t`でクリアされてファイルだけを送ったものは記録しない。
-- `/synthesis-log`は、記録全体の集計をEmbedで表示し、直近`count`件の一覧（新しい順）を`synthesis-log-YYYYMMDD-HHMMSS.txt`（日本時間）として添付する。一覧は`datetime | result | chars | synthesis | first | wait | speaker | note`の列をそろえた表で、`note`にはストリーミング（`stream`）、試した回数（2回以上）、スキップの理由・失敗した例外の名前を書く。Embedの集計は日本語で、表の列に合わせて「件数」（スキップの理由ごとの内訳）、「生成時間（成功のみ）」（平均と1文字あたり・中央値・95パーセンタイル・最大）、「最初の音まで」（`first`の平均・中央値・最大とストリーミングした件数）、「順番待ち」（平均・最大）の4つにする。記録がないときは「記録はまだありません」とだけ書き、ファイルは添付しない。サーバーの情報は表示しない。
+- `/synthesis-log`は、記録全体の集計をEmbedで表示し、直近`count`件の一覧（新しい順）を`synthesis-log-YYYYMMDD-HHMMSS.txt`（日本時間）として添付する。一覧は`datetime | result | chars | synthesis | first | wait | speaker | note`の列をそろえた表で、`note`には作り方（`stream`・`synthesis`・`fallback`）、試した回数（2回以上）、スキップの理由・失敗した例外の名前を書く。Embedの集計は日本語で、表の列に合わせて「件数」（スキップの理由ごとの内訳と、作り方ごとの件数）、「生成時間（成功のみ）」（作り方ごとに、平均と1文字あたり・中央値・95パーセンタイル・最大）、「最初の音まで」（作り方ごとに、`first`の平均・中央値・最大と、文字数の区切り〈30字まで・100字まで・それより多い〉ごとの中央値）、「順番待ち」（平均・最大）の4つにする。作り方の表示は「ストリーミング」「通常」「非対応→通常」。記録がないときは「記録はまだありません」とだけ書き、ファイルは添付しない。サーバーの情報は表示しない。
 - 両Clientは`aiohttp.ClientSession`を初回通信時に生成して再利用する。通常実行経路で同期`requests`は使用しない。
 - `VoiceService`と`UpdateSoundBoards`はHTTPのURL・認証方法を知らず、Clientのメソッドだけを呼ぶ。
 - Bot終了時は`ManagedDiscordClient.close()`がHTTPセッションと5つのSQLite接続（`config.db`は設定とお知らせの2つ）を閉じる。
@@ -525,7 +526,9 @@ Botが接続し直したときは、`VoiceService.reset_speaking_soon()`が1秒�
 | `OPERATOR_USER_ID` | `""` | エラー・更新のDMを受け取り、運営者用のコマンドとボタンを使える人のDiscordユーザーID。カンマ区切りで複数人を書ける（全員へ送り、誰でも使える）。読めない項目は表示して飛ばす。未設定・空欄で無効。`config.py`は`OPERATOR_USER_IDS`（タプル）として公開する |
 | `VOICEVOX_URL` | `http://127.0.0.1:50021` | VOICEVOX エンドポイント |
 | `DEFAULT_SPEAKER` | `8` | デフォルト話者ID（Speaker=NULL時に使用） |
-| `VOICEVOX_STREAMING` | `off` | 実験的な機能。`on`なら`/streaming_synthesis`で、音声を作り終える前に読み上げを始める。`on`・`off`のほか`true`・`false`・`1`・`0`・`yes`・`no`を読み、読めない値は表示してオフにする |
+| `VOICEVOX_STREAMING` | `auto` | 実験的な機能。`auto`はそのバージョンの既定（今は`off`）に従う。`on`なら`/streaming_synthesis`で、音声を作り終える前に読み上げを始める。`hybrid`なら`VOICEVOX_STREAM_THRESHOLD`の文字数で決める（自動調整のあいだは五分五分。`/synthesis-log`で比べる）。`on`・`off`は`true`・`false`・`1`・`0`・`yes`・`no`でも書け、読めない値は表示してオフにする |
+| `VOICEVOX_STREAM_THRESHOLD` | `0` | 実験的な機能。`hybrid`のとき、この文字数以上の文章をストリーミングする。`0`（`auto`も同じ）は自動調整（今は五分五分で振り分ける）。読めない値・負の値は表示して`0`にする |
+| `VOICEVOX_STREAM_SEGMENT` | `0` | 実験的な機能。ストリーミングで一度に作る音声の長さ（秒）。`0`（`auto`も同じ）は自動調整（今は1.0秒）。読めない値・負の値は表示して`0`にする |
 | `SERVER_CONFIG_DB` | `db/config.db` | サーバー設定DB |
 | `DICT_DB` | `db/dict.db` | 辞書DB |
 | `SOUND_BOARDS_DB` | `db/soundboards.db` | サウンドボードキャッシュDB |
