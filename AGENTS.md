@@ -321,7 +321,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ## Components v2への移行（`presentation/layouts.py`）
 
-Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。`ConnectionService`が送るメッセージ（接続・切断・自動退出・権限エラー・接続失敗）はすべてv2にした。ほか（`ReconnectService`の再起動の知らせ・再接続、`presentation/error_handler.py`のエラー応答など）は当面Embedのまま残す。
+Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。`ConnectionService`が送るメッセージ（接続・切断・自動退出・権限エラー・接続失敗）と、`cogs/announcement_cog.py`が送るメッセージ（`/announce`の応答・確認・エラー・入力し直すボタン・一覧・削除）はすべてv2にした。ほか（`ReconnectService`の再起動の知らせ・再接続、`presentation/error_handler.py`のエラー応答など）は当面Embedのまま残す。
 
 - `presentation/layouts.py`は`presentation/embeds.py`と同じく、汎用のひな形だけを持つ。`make_layout(title, description, *, layout_type, header, view)`は、色の付いた枠（`Container`）に`## 見出し`と本文を入れた`LayoutMessage(view, container, files)`を返す。`header`は枠の外（上）に出す一言。`view`には、ボタンの処理や期限を持つ`LayoutView`の派生を渡せる（省くと期限なしの`LayoutView`を作る）。
 - 中の部品は、呼び出し側が`LayoutMessage.add_item()`（Embedの`add_field`に当たる）で枠の最後に足し、`attachment://`で参照するファイルは`add_file()`で足す。ある機能のための部品の組み立ては、`presentation/announcement_layout.py`のように別のファイルに分け、`layouts.py`に機能ごとの引数を足さない。
@@ -358,6 +358,8 @@ Embedで送っているメッセージを、Components v2（`discord.ui.LayoutVi
   - 「破棄する」は保存せず、メッセージを「お知らせを破棄しました」に置き換える。
   - 15分（`FORM_TIMEOUT_SECONDS`）押されなければ保存せず、メッセージを「確認の期限が切れました」に置き換える。
   - 送信・破棄・変更・期限切れのどれかで終わった確認のボタンは、押しても何もせず、使えないことだけを本人に知らせる（二重に保存しない）。メッセージを置き換えるときは、画像も添付し直す。
+- 入力の誤りは、赤の枠に理由を入れ、「入力し直す」ボタン（`RetryView`）を枠の外（下）に置く。
+- `/announce list`は、v2のメッセージの上限（文字の合計4000文字・部品40個）に収めるため、全件を区切り線の下の1つの`TextDisplay`にまとめ、各お知らせは`### ID N｜タイトル`・期間と画像・リンクの有無・本文の先頭60文字にする。文字数が`LIST_TEXT_BUDGET`（3500文字）を超える分は「ほか N 件は表示しきれませんでした」とまとめる。
 
 ---
 
