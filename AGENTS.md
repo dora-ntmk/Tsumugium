@@ -327,6 +327,14 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。`ConnectionService`が送るメッセージ（接続・切断・自動退出・権限エラー・接続失敗）と、`cogs/announcement_cog.py`が送るメッセージ（`/announce`の応答・確認・エラー・入力し直すボタン・一覧・削除）はすべてv2にした。ほか（`ReconnectService`の再起動の知らせ・再接続、`presentation/error_handler.py`のエラー応答など）は当面Embedのまま残す。
 
+- Embedのまま残しているメッセージは、v2へ移すときに置き換えやすいよう、次の形にそろえる。`make_embed()`の戻り値をいったん`embed`に入れてから、送るメソッドへ`embed=embed`で渡す。送るメソッドの引数の中で`make_embed()`や`〜_embed()`を呼ばない。フィールドを足すときは、送る前に`embed.add_field()`を呼ぶ。引数が1行に収まらないときだけ、`make_embed(`のあとで1引数1行に分ける。
+
+  ```py
+  embed = make_embed("タイトル", "本文", embed_type=EmbedType.XXX)
+  await ctx.send(embed=embed)
+  ```
+
+  v2へ移すときは、`embed = make_embed(...)`を`layout = make_layout(..., layout_type=...)`に、`embed=embed`を`view=layout.view, files=layout.files`に置き換える。
 - `presentation/layouts.py`は`presentation/embeds.py`と同じく、汎用のひな形だけを持つ。`make_layout(title, description, *, layout_type, header, view)`は、色の付いた枠（`Container`）に`## 見出し`と本文を入れた`LayoutMessage(view, container, files)`を返す。`header`は枠の外（上）に出す一言。`view`には、ボタンの処理や期限を持つ`LayoutView`の派生を渡せる（省くと期限なしの`LayoutView`を作る）。
 - 中の部品は、呼び出し側が`LayoutMessage.add_item()`（Embedの`add_field`に当たる）で枠の最後に足し、`attachment://`で参照するファイルは`add_file()`で足す。ある機能のための部品の組み立ては、`presentation/announcement_layout.py`のように別のファイルに分け、`layouts.py`に機能ごとの引数を足さない。
 - 送るときは`send(view=..., files=...)`、`/join`のように`defer()`したあとは`edit_original_response(view=..., attachments=...)`を使う。v2のメッセージには`content`・`embed`を一緒に付けられない。

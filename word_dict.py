@@ -299,21 +299,18 @@ class WordDict:
         try:
           overwrite = self.dict_manager.add(ctx.guild.id, word, read)
         except ValueError:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              '読みが長すぎるため追加できませんでした',
-              f'`{read}` は50文字を超えるため追加できません。\n追加する読みは50文字以内にしてください',
-              embed_type=EmbedType.ERROR,
-            )
+          embed = make_embed(
+            '読みが長すぎるため追加できませんでした',
+            f'`{read}` は50文字を超えるため追加できません。\n追加する読みは50文字以内にしてください',
+            embed_type=EmbedType.ERROR,
           )
+          await ctx.edit_original_response(embed=embed)
           return
         title = '辞書への上書きが成功しました' if overwrite else '辞書への追加が成功しました'
         description = '辞書に単語の読みが上書きされました' if overwrite else '辞書に単語の読みが追加されました'
         embed = make_embed(title, description, embed_type=EmbedType.SUCCESS)
         embed.add_field(name='登録内容', value=f'`{word}` → `{read}`', inline=False)
-        await ctx.edit_original_response(
-          embed=embed
-        )
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -332,21 +329,16 @@ class WordDict:
         await ctx.response.defer()
         read = self.dict_manager.delete(ctx.guild.id, word)
         if read is None:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              '辞書にその単語は見つかりませんでした',
-              f'辞書に`{word}`はありません。確認して入れなおしてください。',
-              embed_type=EmbedType.ERROR,
-            )
+          embed = make_embed(
+            '辞書にその単語は見つかりませんでした',
+            f'辞書に`{word}`はありません。確認して入れなおしてください。',
+            embed_type=EmbedType.ERROR,
           )
+          await ctx.edit_original_response(embed=embed)
           return
         if both:
           self.dict_manager.delete_sound(ctx.guild.id, word)
-        embed = make_embed(
-          '辞書からの削除が成功しました',
-          '辞書から単語と読みが削除されました',
-          embed_type=EmbedType.SUCCESS,
-        )
+        embed = make_embed('辞書からの削除が成功しました', '辞書から単語と読みが削除されました', embed_type=EmbedType.SUCCESS)
         embed.add_field(name='削除内容', value=f'`{word}` → `{read}`', inline=False)
         await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
@@ -389,13 +381,12 @@ class WordDict:
           items = entries
 
         if not items:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              '見つかりませんでした',
-              f'「{search}」に一致する単語は辞書にありません',
-              embed_type=EmbedType.ERROR,
-            )
+          embed = make_embed(
+            '見つかりませんでした',
+            f'「{search}」に一致する単語は辞書にありません',
+            embed_type=EmbedType.ERROR,
           )
+          await ctx.edit_original_response(embed=embed)
           return
 
         paginator = DictViewPaginator(
@@ -437,23 +428,18 @@ class WordDict:
         entries = self.dict_manager.get_common_entries()
 
         if not entries:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              COMMON_DICT_TITLE,
-              '共通辞書に登録された単語はありません',
-            )
-          )
+          embed = make_embed(COMMON_DICT_TITLE, '共通辞書に登録された単語はありません')
+          await ctx.edit_original_response(embed=embed)
           return
 
         items = _filter_entries(dict(entries), search) if search else entries
         if not items:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              '見つかりませんでした',
-              f'「{search}」に一致する単語は共通辞書にありません',
-              embed_type=EmbedType.ERROR,
-            )
+          embed = make_embed(
+            '見つかりませんでした',
+            f'「{search}」に一致する単語は共通辞書にありません',
+            embed_type=EmbedType.ERROR,
           )
+          await ctx.edit_original_response(embed=embed)
           return
 
         paginator = DictViewPaginator(
@@ -493,19 +479,15 @@ class WordDict:
         await ctx.response.defer(ephemeral=ephemeral)
         text, count, skipped = self.dict_manager.export_text(ctx.guild.id)
         if count == 0 and skipped == 0:
-          await ctx.edit_original_response(
-            embed=make_embed('辞書の書き出し', '辞書に登録された単語はありません')
-          )
+          embed = make_embed('辞書の書き出し', '辞書に登録された単語はありません')
+          await ctx.edit_original_response(embed=embed)
           return
         description = f'{count}件の単語を書き出しました'
         if skipped:
           description += f'\n読みにカンマ（,）が入っている{skipped}件は書き出していません'
+        embed = make_embed('辞書を書き出しました', description, embed_type=EmbedType.SUCCESS)
         await ctx.edit_original_response(
-          embed=make_embed(
-            '辞書を書き出しました',
-            description,
-            embed_type=EmbedType.SUCCESS,
-          ),
+          embed=embed,
           attachments=[
             discord.File(
               io.BytesIO(text.encode('utf-8')),
@@ -535,20 +517,11 @@ class WordDict:
           dict_transfer.check_import_size(file.size)
           result = self.dict_manager.import_data(ctx.guild.id, await file.read())
         except dict_transfer.ImportRejected as e:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              '辞書を読み込めませんでした',
-              str(e),
-              embed_type=EmbedType.ERROR,
-            )
-          )
+          embed = make_embed('辞書を読み込めませんでした', str(e), embed_type=EmbedType.ERROR)
+          await ctx.edit_original_response(embed=embed)
           return
         failed = len(result.failures)
-        embed = make_embed(
-          '辞書を読み込みました',
-          f'{result.added}件の単語を追加しました',
-          embed_type=EmbedType.SUCCESS,
-        )
+        embed = make_embed('辞書を読み込みました', f'{result.added}件の単語を追加しました', embed_type=EmbedType.SUCCESS)
         if failed:
           delivered = await send_import_failures(
             ctx.user, ctx.guild, result.failures
@@ -581,13 +554,7 @@ class WordDict:
     @dict_group.error
     async def dict_error(ctx, error):
       if isinstance(error, discord.app_commands.MissingPermissions):
-        await ctx.response.send_message(
-          embed=make_embed(
-            '権限エラー',
-            'サーバー管理権限が必要です',
-            embed_type=EmbedType.ERROR,
-          ),
-          ephemeral=True
-        )
+        embed = make_embed('権限エラー', 'サーバー管理権限が必要です', embed_type=EmbedType.ERROR)
+        await ctx.response.send_message(embed=embed, ephemeral=True)
 
     self.tree.add_command(dict_group)

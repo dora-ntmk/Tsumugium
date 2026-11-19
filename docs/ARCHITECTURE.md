@@ -249,3 +249,4 @@ sequenceDiagram
 - SQLをServiceやCogへ直接追加せず、対応するRepositoryへ置いてください。
 - HTTP URL・認証ヘッダーをServiceへ直接追加せず、対応するClientへ置いてください。
 - Embed本文は利用箇所でf-string等を使って組み立て、共通の外形だけを`make_embed()`へ任せてください。
+- Embedは`embed = make_embed(...)`で作ってから`send(embed=embed)`のように渡し、送るメソッドの引数の中で`make_embed()`を呼ばないでください（AGENTS.mdの「Components v2への移行」）。

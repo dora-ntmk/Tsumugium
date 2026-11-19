@@ -117,13 +117,12 @@ class SoundDictView:
         sounds = self.sound_boards.get_sounds(ctx.guild.id)
         sound_id = next((sid for sid, name in sounds if name == sound), None)
         if sound_id is None:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              'サウンドが見つかりませんでした',
-              f'サウンドボードに「{sound}」はありません。候補から選択してください。',
-              embed_type=EmbedType.ERROR,
-            )
+          embed = make_embed(
+            'サウンドが見つかりませんでした',
+            f'サウンドボードに「{sound}」はありません。候補から選択してください。',
+            embed_type=EmbedType.ERROR,
           )
+          await ctx.edit_original_response(embed=embed)
           return
         trigger_user_id = str(trigger_user.id) if trigger_user else None
         match_mode = '完全一致' if full_match else '部分一致'
@@ -189,21 +188,16 @@ class SoundDictView:
         await ctx.response.defer()
         sound_id = self.sound_dict.delete(ctx.guild.id, word)
         if sound_id is None:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              '音声辞書にその単語は見つかりませんでした',
-              f'音声辞書に`{word}`はありません。確認して入れなおしてください。',
-              embed_type=EmbedType.ERROR,
-            )
+          embed = make_embed(
+            '音声辞書にその単語は見つかりませんでした',
+            f'音声辞書に`{word}`はありません。確認して入れなおしてください。',
+            embed_type=EmbedType.ERROR,
           )
+          await ctx.edit_original_response(embed=embed)
           return
         if both:
           self.dict_manager.delete(ctx.guild.id, word)
-        embed = make_embed(
-          '音声辞書からの削除が成功しました',
-          '音声辞書から単語が削除されました',
-          embed_type=EmbedType.SUCCESS,
-        )
+        embed = make_embed('音声辞書からの削除が成功しました', '音声辞書から単語が削除されました', embed_type=EmbedType.SUCCESS)
         embed.add_field(name='削除内容', value=f'`{word}`', inline=False)
         await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
@@ -262,13 +256,12 @@ class SoundDictView:
           items = resolve(entries)
 
         if not items:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              '見つかりませんでした',
-              f'「{search}」に一致する単語は音声辞書にありません',
-              embed_type=EmbedType.ERROR,
-            )
+          embed = make_embed(
+            '見つかりませんでした',
+            f'「{search}」に一致する単語は音声辞書にありません',
+            embed_type=EmbedType.ERROR,
           )
+          await ctx.edit_original_response(embed=embed)
           return
 
         paginator = DictViewPaginator(
@@ -296,13 +289,7 @@ class SoundDictView:
     @sounddict_group.error
     async def sounddict_error(ctx, error):
       if isinstance(error, discord.app_commands.MissingPermissions):
-        await ctx.response.send_message(
-          embed=make_embed(
-            '権限エラー',
-            'サーバー管理権限が必要です',
-            embed_type=EmbedType.ERROR,
-          ),
-          ephemeral=True
-        )
+        embed = make_embed('権限エラー', 'サーバー管理権限が必要です', embed_type=EmbedType.ERROR)
+        await ctx.response.send_message(embed=embed, ephemeral=True)
 
     self.tree.add_command(sounddict_group)

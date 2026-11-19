@@ -49,7 +49,7 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 
 | 表示 | 場面 | 送り先 | 場所 |
 |---|---|---|---|
-| WAVファイルだけ | `/tsumugi-tts`・`/t`の音声ファイル | コマンドの応答 | [playback_cog.py:116](../cogs/playback_cog.py#L116) |
+| WAVファイルだけ | `/tsumugi-tts`・`/t`の音声ファイル | コマンドの応答 | [playback_cog.py:86](../cogs/playback_cog.py#L86) |
 | WAVファイルだけ | `!t`の音声ファイル（返信先が消えたときは返信にせず送る） | 返信 | [message_service.py:124](../services/message_service.py#L124)・[135](../services/message_service.py#L135) |
 | 「音声ファイルが大きすぎて送れませんでした。文章を短くしてください。」 | `!t`のファイルが大きすぎる（413） | チャンネル | [message_service.py:130](../services/message_service.py#L130) |
 
@@ -58,7 +58,7 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 表示 | 場面 | 送り先 | 場所 |
 |---|---|---|---|
 | 読み込まなかった行の一覧（長いときはtxt添付） | `/dict import`で読み込まなかった行がある | 実行者へDM | [word_dict.py:262](../word_dict.py#L262) |
-| 同上 | DMを送れなかった | 本人だけに見える応答（followup） | [word_dict.py:573](../word_dict.py#L573) |
+| 同上 | DMを送れなかった | 本人だけに見える応答（followup） | [word_dict.py:546](../word_dict.py#L546) |
 
 ### サーバー退出（1）
 
@@ -71,8 +71,8 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 表示 | 場面 | 送り先 | 場所 |
 |---|---|---|---|
 | 「今は更新を受け付けられません」 | 更新の見張りが動いていないときにボタンが押された | 本人だけ | [update_watch_service.py:144](../services/update_watch_service.py#L144) |
-| 「この操作は、Botを運営している人だけができます」 | 運営者以外がボタンを押した | 本人だけ | [update_watch_service.py:413](../services/update_watch_service.py#L413) |
-| 「新しい版 … があります」／「… への更新は、もう受け付けていません」 | 古いお知らせのボタンが押された | 本人だけ | [update_watch_service.py:428](../services/update_watch_service.py#L428) |
+| 「この操作は、Botを運営している人だけができます」 | 運営者以外がボタンを押した | 本人だけ | [update_watch_service.py:412](../services/update_watch_service.py#L412) |
+| 「新しい版 … があります」／「… への更新は、もう受け付けていません」 | 古いお知らせのボタンが押された | 本人だけ | [update_watch_service.py:426](../services/update_watch_service.py#L426) |
 
 ---
 
@@ -83,46 +83,46 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 見出し | 場面 | 送り先 | 場所 |
 |---|---|---|---|
 | 削除中 | `/clear`・`/c`の途中 | コマンドの応答 | [playback_cog.py:31](../cogs/playback_cog.py#L31) |
-| キュークリア完了 | `/clear`・`/c`が終わった | コマンドの応答 | [playback_cog.py:38](../cogs/playback_cog.py#L38) |
-| スキップ | `/skip`・`/s`でスキップした | 本人だけ | [playback_cog.py:56](../cogs/playback_cog.py#L56) |
-| スキップ | `/skip`・`/s`で再生中のものがない | 本人だけ | [playback_cog.py:62](../cogs/playback_cog.py#L62) |
-| 音声ファイル | `/t`でBotがVCにいない | 本人だけ | [playback_cog.py:78](../cogs/playback_cog.py#L78) |
-| 音声ファイル | `/t`の文章が空 | 本人だけ | [playback_cog.py:89](../cogs/playback_cog.py#L89) |
-| 音声ファイル | `/t`で音声を作れなかった | コマンドの応答 | [playback_cog.py:108](../cogs/playback_cog.py#L108) |
+| キュークリア完了 | `/clear`・`/c`が終わった | コマンドの応答 | [playback_cog.py:34](../cogs/playback_cog.py#L34) |
+| スキップ | `/skip`・`/s`でスキップした | 本人だけ | [playback_cog.py:47](../cogs/playback_cog.py#L47) |
+| スキップ | `/skip`・`/s`で再生中のものがない | 本人だけ | [playback_cog.py:49](../cogs/playback_cog.py#L49) |
+| 音声ファイル | `/t`でBotがVCにいない | 本人だけ | [playback_cog.py:65](../cogs/playback_cog.py#L65) |
+| 音声ファイル | `/t`の文章が空 | 本人だけ | [playback_cog.py:70](../cogs/playback_cog.py#L70) |
+| 音声ファイル | `/t`で音声を作れなかった | コマンドの応答 | [playback_cog.py:83](../cogs/playback_cog.py#L83) |
 
 ### 読み辞書（15）
 
 | 見出し | 場面 | 場所 |
 |---|---|---|
 | 読みが長すぎるため追加できませんでした | `/dict add`の読みが50文字を超える | [word_dict.py:302](../word_dict.py#L302) |
-| 辞書への追加（上書き）が成功しました | `/dict add` | [word_dict.py:312](../word_dict.py#L312) |
-| 辞書にその単語は見つかりませんでした | `/dict del` | [word_dict.py:335](../word_dict.py#L335) |
-| 辞書からの削除が成功しました | `/dict del` | [word_dict.py:345](../word_dict.py#L345) |
-| 辞書一覧（登録なし） | `/dict view` | [word_dict.py:382](../word_dict.py#L382) |
-| 見つかりませんでした | `/dict view`の検索 | [word_dict.py:392](../word_dict.py#L392) |
-| 辞書一覧（ページ送りボタン付き） | `/dict view` | [word_dict.py:410](../word_dict.py#L410)・[dict_view.py:39](../dict_view.py#L39) |
-| 共通辞書（登録なし） | `/dict view-common` | [word_dict.py:440](../word_dict.py#L440) |
-| 見つかりませんでした | `/dict view-common`の検索 | [word_dict.py:450](../word_dict.py#L450) |
-| 共通辞書の一覧（ページ送りボタン付き） | `/dict view-common` | [word_dict.py:469](../word_dict.py#L469) |
-| 辞書の書き出し（登録なし） | `/dict export` | [word_dict.py:496](../word_dict.py#L496) |
-| 辞書を書き出しました（.dict添付） | `/dict export` | [word_dict.py:503](../word_dict.py#L503) |
-| 辞書を読み込めませんでした | `/dict import`がファイル全体を断った | [word_dict.py:538](../word_dict.py#L538) |
-| 辞書を読み込みました | `/dict import` | [word_dict.py:547](../word_dict.py#L547) |
-| 権限エラー | `/dict`をサーバー管理権限なしで実行 | [word_dict.py:584](../word_dict.py#L584) |
+| 辞書への追加（上書き）が成功しました | `/dict add` | [word_dict.py:311](../word_dict.py#L311) |
+| 辞書にその単語は見つかりませんでした | `/dict del` | [word_dict.py:332](../word_dict.py#L332) |
+| 辞書からの削除が成功しました | `/dict del` | [word_dict.py:341](../word_dict.py#L341) |
+| 辞書一覧（登録なし） | `/dict view` | [word_dict.py:374](../word_dict.py#L374) |
+| 見つかりませんでした | `/dict view`の検索 | [word_dict.py:384](../word_dict.py#L384) |
+| 辞書一覧（ページ送りボタン付き） | `/dict view` | [word_dict.py:401](../word_dict.py#L401)・[dict_view.py:39](../dict_view.py#L39) |
+| 共通辞書（登録なし） | `/dict view-common` | [word_dict.py:431](../word_dict.py#L431) |
+| 見つかりませんでした | `/dict view-common`の検索 | [word_dict.py:437](../word_dict.py#L437) |
+| 共通辞書の一覧（ページ送りボタン付き） | `/dict view-common` | [word_dict.py:455](../word_dict.py#L455) |
+| 辞書の書き出し（登録なし） | `/dict export` | [word_dict.py:482](../word_dict.py#L482) |
+| 辞書を書き出しました（.dict添付） | `/dict export` | [word_dict.py:489](../word_dict.py#L489) |
+| 辞書を読み込めませんでした | `/dict import`がファイル全体を断った | [word_dict.py:520](../word_dict.py#L520) |
+| 辞書を読み込みました | `/dict import` | [word_dict.py:524](../word_dict.py#L524) |
+| 権限エラー | `/dict`をサーバー管理権限なしで実行 | [word_dict.py:557](../word_dict.py#L557) |
 
 ### 音声辞書（9）
 
 | 見出し | 場面 | 場所 |
 |---|---|---|
 | サウンドが見つかりませんでした | `/sounddict add` | [sound_dict.py:120](../sound_dict.py#L120) |
-| 辞書への追加（上書き）が成功しました | `/sounddict add`で読みも登録 | [sound_dict.py:140](../sound_dict.py#L140) |
-| 音声辞書への追加（上書き）が成功しました | `/sounddict add`で音声だけ登録 | [sound_dict.py:149](../sound_dict.py#L149) |
-| 音声辞書にその単語は見つかりませんでした | `/sounddict del` | [sound_dict.py:192](../sound_dict.py#L192) |
-| 音声辞書からの削除が成功しました | `/sounddict del` | [sound_dict.py:202](../sound_dict.py#L202) |
-| 音声辞書一覧（登録なし） | `/sounddict view` | [sound_dict.py:241](../sound_dict.py#L241) |
-| 見つかりませんでした | `/sounddict view`の検索 | [sound_dict.py:265](../sound_dict.py#L265) |
-| 音声辞書一覧（ページ送りボタン付き） | `/sounddict view` | [sound_dict.py:282](../sound_dict.py#L282) |
-| 権限エラー | `/sounddict`をサーバー管理権限なしで実行 | [sound_dict.py:299](../sound_dict.py#L299) |
+| 辞書への追加（上書き）が成功しました | `/sounddict add`で読みも登録 | [sound_dict.py:139](../sound_dict.py#L139) |
+| 音声辞書への追加（上書き）が成功しました | `/sounddict add`で音声だけ登録 | [sound_dict.py:148](../sound_dict.py#L148) |
+| 音声辞書にその単語は見つかりませんでした | `/sounddict del` | [sound_dict.py:191](../sound_dict.py#L191) |
+| 音声辞書からの削除が成功しました | `/sounddict del` | [sound_dict.py:200](../sound_dict.py#L200) |
+| 音声辞書一覧（登録なし） | `/sounddict view` | [sound_dict.py:235](../sound_dict.py#L235) |
+| 見つかりませんでした | `/sounddict view`の検索 | [sound_dict.py:259](../sound_dict.py#L259) |
+| 音声辞書一覧（ページ送りボタン付き） | `/sounddict view` | [sound_dict.py:275](../sound_dict.py#L275) |
+| 権限エラー | `/sounddict`をサーバー管理権限なしで実行 | [sound_dict.py:292](../sound_dict.py#L292) |
 
 ### サーバー設定（24）
 
@@ -130,37 +130,37 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 |---|---|---|
 | サーバー設定 | `/setting view` | [setting.py:108](../setting.py#L108) |
 | 設定失敗 | `text-target`で表示・送信権限がない | [setting.py:169](../setting.py#L169) |
-| 設定完了 | `text-target` | [setting.py:179](../setting.py#L179) |
-| 設定リセット | `text-target-reset` | [setting.py:204](../setting.py#L204) |
-| 設定失敗 | `voice-target`でVCに入っていない | [setting.py:233](../setting.py#L233) |
-| 設定失敗 | `voice-target`で接続権限がない | [setting.py:244](../setting.py#L244) |
-| 設定完了 | `voice-target` | [setting.py:253](../setting.py#L253) |
-| 設定リセット | `voice-target-reset` | [setting.py:278](../setting.py#L278) |
-| 設定完了 | `speaker`をBotのデフォルトにした | [setting.py:302](../setting.py#L302) |
-| 設定失敗 | `speaker`の話者が見つからない | [setting.py:312](../setting.py#L312) |
-| 設定完了 | `speaker` | [setting.py:321](../setting.py#L321) |
-| 設定失敗 | `volume`の範囲外 | [setting.py:359](../setting.py#L359) |
-| 設定完了 | `volume` | [setting.py:367](../setting.py#L367) |
-| 設定失敗 | `speed`の範囲外 | [setting.py:395](../setting.py#L395) |
-| 設定完了 | `speed` | [setting.py:403](../setting.py#L403) |
-| 設定失敗 | `spaced-speed`の範囲外 | [setting.py:431](../setting.py#L431) |
-| 設定完了 | `spaced-speed` | [setting.py:439](../setting.py#L439) |
-| 設定完了 | `spaced-speed-reset` | [setting.py:466](../setting.py#L466) |
-| 設定失敗 | `max-char`の範囲外 | [setting.py:504](../setting.py#L504) |
-| 設定完了 | `max-char` | [setting.py:512](../setting.py#L512) |
-| 設定失敗 | `auto-join`でVC・チャンネルを決められない | [setting.py:551](../setting.py#L551) |
-| 設定完了 | `auto-join` | [setting.py:570](../setting.py#L570) |
-| 設定完了 | `access-notice` | [setting.py:597](../setting.py#L597) |
-| 権限エラー | `/setting`をサーバー管理権限なしで実行 | [setting.py:616](../setting.py#L616) |
+| 設定完了 | `text-target` | [setting.py:174](../setting.py#L174) |
+| 設定リセット | `text-target-reset` | [setting.py:198](../setting.py#L198) |
+| 設定失敗 | `voice-target`でVCに入っていない | [setting.py:222](../setting.py#L222) |
+| 設定失敗 | `voice-target`で接続権限がない | [setting.py:232](../setting.py#L232) |
+| 設定完了 | `voice-target` | [setting.py:236](../setting.py#L236) |
+| 設定リセット | `voice-target-reset` | [setting.py:260](../setting.py#L260) |
+| 設定完了 | `speaker`をBotのデフォルトにした | [setting.py:279](../setting.py#L279) |
+| 設定失敗 | `speaker`の話者が見つからない | [setting.py:284](../setting.py#L284) |
+| 設定完了 | `speaker` | [setting.py:288](../setting.py#L288) |
+| 設定失敗 | `volume`の範囲外 | [setting.py:325](../setting.py#L325) |
+| 設定完了 | `volume` | [setting.py:328](../setting.py#L328) |
+| 設定失敗 | `speed`の範囲外 | [setting.py:351](../setting.py#L351) |
+| 設定完了 | `speed` | [setting.py:354](../setting.py#L354) |
+| 設定失敗 | `spaced-speed`の範囲外 | [setting.py:377](../setting.py#L377) |
+| 設定完了 | `spaced-speed` | [setting.py:380](../setting.py#L380) |
+| 設定完了 | `spaced-speed-reset` | [setting.py:402](../setting.py#L402) |
+| 設定失敗 | `max-char`の範囲外 | [setting.py:435](../setting.py#L435) |
+| 設定完了 | `max-char` | [setting.py:442](../setting.py#L442) |
+| 設定失敗 | `auto-join`でVC・チャンネルを決められない | [setting.py:480](../setting.py#L480) |
+| 設定完了 | `auto-join` | [setting.py:498](../setting.py#L498) |
+| 設定完了 | `access-notice` | [setting.py:520](../setting.py#L520) |
+| 権限エラー | `/setting`をサーバー管理権限なしで実行 | [setting.py:534](../setting.py#L534) |
 
 ### ユーザー設定（4）
 
 | 見出し | 場面 | 場所 |
 |---|---|---|
 | 設定失敗 | `/user-reading`の読みが不正 | [user_cog.py:35](../cogs/user_cog.py#L35) |
-| 設定完了 | `/user-reading` | [user_cog.py:43](../cogs/user_cog.py#L43) |
-| リセット完了 | `/user-reading-reset` | [user_cog.py:84](../cogs/user_cog.py#L84) |
-| リセット不要 | `/user-reading-reset`で未設定 | [user_cog.py:90](../cogs/user_cog.py#L90) |
+| 設定完了 | `/user-reading` | [user_cog.py:38](../cogs/user_cog.py#L38) |
+| リセット完了 | `/user-reading-reset` | [user_cog.py:74](../cogs/user_cog.py#L74) |
+| リセット不要 | `/user-reading-reset`で未設定 | [user_cog.py:76](../cogs/user_cog.py#L76) |
 
 ### 一般（1）
 
@@ -173,7 +173,7 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 見出し | 場面 | 場所 |
 |---|---|---|
 | システムエラー | コマンドで設定の読み書き（OSの操作）に失敗した | [error_handler.py:16](../presentation/error_handler.py#L16) |
-| 内部エラーが発生しました | コマンドで想定外の例外が起きた | [error_handler.py:36](../presentation/error_handler.py#L36) |
+| 内部エラーが発生しました | コマンドで想定外の例外が起きた | [error_handler.py:31](../presentation/error_handler.py#L31) |
 
 ### 再起動・再接続（2）
 
@@ -204,9 +204,9 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 自動更新を止めています | 自動更新が人の手を要る（`unfinished`） | [update_watch_service.py:87](../services/update_watch_service.py#L87) |
 | 新しい版があります（更新ボタン付き） | 新しいバージョンを見つけた | [update_watch_service.py:99](../services/update_watch_service.py#L99)・[321](../services/update_watch_service.py#L321) |
 | 更新を開始しました | 更新が始まり、ボタンのDMを書き換える | [update_watch_service.py:103](../services/update_watch_service.py#L103)・[375](../services/update_watch_service.py#L375) |
-| 更新は済んでいます | 今と同じバージョンのボタンが押された | [update_watch_service.py:418](../services/update_watch_service.py#L418) |
-| 更新を受け付けました | 「今すぐ更新する」 | [update_watch_service.py:434](../services/update_watch_service.py#L434) |
-| VCが空いたら更新します（更新ボタン付き） | 「VCが空いたら更新する」 | [update_watch_service.py:445](../services/update_watch_service.py#L445) |
+| 更新は済んでいます | 今と同じバージョンのボタンが押された | [update_watch_service.py:417](../services/update_watch_service.py#L417) |
+| 更新を受け付けました | 「今すぐ更新する」 | [update_watch_service.py:432](../services/update_watch_service.py#L432) |
+| VCが空いたら更新します（更新ボタン付き） | 「VCが空いたら更新する」 | [update_watch_service.py:441](../services/update_watch_service.py#L441) |
 
 ### 運営者: エラー通知（1）
 

@@ -166,23 +166,17 @@ class Setting:
         target = channel or ctx.channel
         perms = target.permissions_for(ctx.guild.me)
         if not (perms.view_channel and perms.send_messages):
-          await ctx.edit_original_response(
-            embed=make_embed(
-              "設定失敗",
-              f"{target.mention} の表示・送信権限がありません",
-              embed_type=EmbedType.ERROR,
-            )
-          )
+          embed = make_embed("設定失敗", f"{target.mention} の表示・送信権限がありません", embed_type=EmbedType.ERROR)
+          await ctx.edit_original_response(embed=embed)
           return
         self.server_config.set(ctx.guild.id, "TextTarget", target.id)
         self.clear_temporary_text_target(ctx.guild.id)
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定完了",
-            f"TextTarget を {target.mention} に設定しました",
-            embed_type=EmbedType.SUCCESS,
-          )
+        embed = make_embed(
+          "設定完了",
+          f"TextTarget を {target.mention} に設定しました",
+          embed_type=EmbedType.SUCCESS,
         )
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -201,13 +195,8 @@ class Setting:
       try:
         await ctx.response.defer()
         self.server_config.reset(ctx.guild.id, "TextTarget")
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定リセット",
-            "TextTarget をリセットしました",
-            embed_type=EmbedType.SUCCESS,
-          )
-        )
+        embed = make_embed("設定リセット", "TextTarget をリセットしました", embed_type=EmbedType.SUCCESS)
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -230,33 +219,26 @@ class Setting:
         await ctx.response.defer()
         if channel is None:
           if ctx.user.voice is None:
-            await ctx.edit_original_response(
-              embed=make_embed(
-                "設定失敗",
-                "VCに入室していません。チャンネルを指定するか、VCに入室してから実行してください",
-                embed_type=EmbedType.ERROR,
-              )
+            embed = make_embed(
+              "設定失敗",
+              "VCに入室していません。チャンネルを指定するか、VCに入室してから実行してください",
+              embed_type=EmbedType.ERROR,
             )
+            await ctx.edit_original_response(embed=embed)
             return
           channel = ctx.user.voice.channel
         perms = channel.permissions_for(ctx.guild.me)
         if not (perms.connect and perms.speak):
-          await ctx.edit_original_response(
-            embed=make_embed(
-              "設定失敗",
-              f"{channel.mention} への接続権限がありません",
-              embed_type=EmbedType.ERROR,
-            )
-          )
+          embed = make_embed("設定失敗", f"{channel.mention} への接続権限がありません", embed_type=EmbedType.ERROR)
+          await ctx.edit_original_response(embed=embed)
           return
         self.server_config.set(ctx.guild.id, "VoiceTarget", channel.id)
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定完了",
-            f"VoiceTarget を {channel.mention} に設定しました",
-            embed_type=EmbedType.SUCCESS,
-          )
+        embed = make_embed(
+          "設定完了",
+          f"VoiceTarget を {channel.mention} に設定しました",
+          embed_type=EmbedType.SUCCESS,
         )
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -275,13 +257,8 @@ class Setting:
       try:
         await ctx.response.defer()
         self.server_config.reset(ctx.guild.id, "VoiceTarget")
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定リセット",
-            "VoiceTarget をリセットしました",
-            embed_type=EmbedType.SUCCESS,
-          )
-        )
+        embed = make_embed("設定リセット", "VoiceTarget をリセットしました", embed_type=EmbedType.SUCCESS)
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -299,32 +276,21 @@ class Setting:
         await ctx.response.defer()
         if speaker == BOT_DEFAULT_LABEL:
           self.server_config.set(ctx.guild.id, "Speaker", None)
-          await ctx.edit_original_response(
-            embed=make_embed(
-              "設定完了",
-              "Speaker を Botのデフォルトに設定しました",
-              embed_type=EmbedType.SUCCESS,
-            )
-          )
+          embed = make_embed("設定完了", "Speaker を Botのデフォルトに設定しました", embed_type=EmbedType.SUCCESS)
+          await ctx.edit_original_response(embed=embed)
           return
         speaker_id = self.speaker_service.id_of(speaker)
         if speaker_id is None:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              "設定失敗",
-              "話者が見つかりません。一覧から選択してください",
-              embed_type=EmbedType.ERROR,
-            )
-          )
+          embed = make_embed("設定失敗", "話者が見つかりません。一覧から選択してください", embed_type=EmbedType.ERROR)
+          await ctx.edit_original_response(embed=embed)
           return
         self.server_config.set(ctx.guild.id, "Speaker", speaker_id)
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定完了",
-            f"Speaker を {speaker}（ID: {speaker_id}）に設定しました",
-            embed_type=EmbedType.SUCCESS,
-          )
+        embed = make_embed(
+          "設定完了",
+          f"Speaker を {speaker}（ID: {speaker_id}）に設定しました",
+          embed_type=EmbedType.SUCCESS,
         )
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -356,21 +322,11 @@ class Setting:
         try:
           self.server_config.set(ctx.guild.id, "Volume", volume)
         except ValueError:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              "設定失敗",
-              "音量は 0〜100 の整数で指定してください",
-              embed_type=EmbedType.ERROR,
-            )
-          )
+          embed = make_embed("設定失敗", "音量は 0〜100 の整数で指定してください", embed_type=EmbedType.ERROR)
+          await ctx.edit_original_response(embed=embed)
           return
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定完了",
-            f"Volume を {volume} に設定しました",
-            embed_type=EmbedType.SUCCESS,
-          )
-        )
+        embed = make_embed("設定完了", f"Volume を {volume} に設定しました", embed_type=EmbedType.SUCCESS)
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -392,21 +348,11 @@ class Setting:
         try:
           self.server_config.set(ctx.guild.id, "Speed", speed)
         except ValueError:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              "設定失敗",
-              "速度は 50〜200 の整数で指定してください",
-              embed_type=EmbedType.ERROR,
-            )
-          )
+          embed = make_embed("設定失敗", "速度は 50〜200 の整数で指定してください", embed_type=EmbedType.ERROR)
+          await ctx.edit_original_response(embed=embed)
           return
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定完了",
-            f"Speed を {speed} に設定しました",
-            embed_type=EmbedType.SUCCESS,
-          )
-        )
+        embed = make_embed("設定完了", f"Speed を {speed} に設定しました", embed_type=EmbedType.SUCCESS)
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -428,21 +374,11 @@ class Setting:
         try:
           self.server_config.set(ctx.guild.id, "SpacedSpeed", speed)
         except ValueError:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              "設定失敗",
-              "空白区切り文章の速度は 50〜200 の整数で指定してください",
-              embed_type=EmbedType.ERROR,
-            )
-          )
+          embed = make_embed("設定失敗", "空白区切り文章の速度は 50〜200 の整数で指定してください", embed_type=EmbedType.ERROR)
+          await ctx.edit_original_response(embed=embed)
           return
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定完了",
-            f"SpacedSpeed を {speed} に設定しました",
-            embed_type=EmbedType.SUCCESS,
-          )
-        )
+        embed = make_embed("設定完了", f"SpacedSpeed を {speed} に設定しました", embed_type=EmbedType.SUCCESS)
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -463,13 +399,8 @@ class Setting:
       try:
         await ctx.response.defer()
         self.server_config.reset(ctx.guild.id, "SpacedSpeed")
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定完了",
-            "SpacedSpeed をデフォルトの 75 に戻しました",
-            embed_type=EmbedType.SUCCESS,
-          )
-        )
+        embed = make_embed("設定完了", "SpacedSpeed をデフォルトの 75 に戻しました", embed_type=EmbedType.SUCCESS)
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -501,21 +432,19 @@ class Setting:
         try:
           self.server_config.set(ctx.guild.id, "MaxChar", chars)
         except ValueError:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              "設定失敗",
-              "最大文字数は 30〜500 の整数で指定してください（0でデフォルトの100に戻す）",
-              embed_type=EmbedType.ERROR,
-            )
+          embed = make_embed(
+            "設定失敗",
+            "最大文字数は 30〜500 の整数で指定してください（0でデフォルトの100に戻す）",
+            embed_type=EmbedType.ERROR,
           )
+          await ctx.edit_original_response(embed=embed)
           return
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定完了",
-            f"MaxChar を {chars} に設定しました（{chars}文字）",
-            embed_type=EmbedType.SUCCESS,
-          )
+        embed = make_embed(
+          "設定完了",
+          f"MaxChar を {chars} に設定しました（{chars}文字）",
+          embed_type=EmbedType.SUCCESS,
         )
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -548,9 +477,8 @@ class Setting:
               ctx.guild, ctx.channel, channel
             )
           if problem is not None:
-            await ctx.edit_original_response(
-              embed=make_embed("設定失敗", problem, embed_type=EmbedType.ERROR)
-            )
+            embed = make_embed("設定失敗", problem, embed_type=EmbedType.ERROR)
+            await ctx.edit_original_response(embed=embed)
             return
           if recorded is not None:
             self.server_config.set(ctx.guild.id, "VoiceTarget", recorded.id)
@@ -567,13 +495,8 @@ class Setting:
         message = f"AutoJoin を {state} にしました"
         if changes:
           message = f"{'、'.join(changes)} に設定し、{message}"
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定完了",
-            message,
-            embed_type=EmbedType.SUCCESS,
-          )
-        )
+        embed = make_embed("設定完了", message, embed_type=EmbedType.SUCCESS)
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -594,13 +517,8 @@ class Setting:
         await ctx.response.defer()
         self.server_config.set(ctx.guild.id, "AccessNotice", enabled)
         state = "有効" if enabled else "無効"
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定完了",
-            f"AccessNotice を {state} にしました",
-            embed_type=EmbedType.SUCCESS,
-          )
-        )
+        embed = make_embed("設定完了", f"AccessNotice を {state} にしました", embed_type=EmbedType.SUCCESS)
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as e:
@@ -613,13 +531,7 @@ class Setting:
     @setting_group.error
     async def setting_error(ctx, error):
       if isinstance(error, discord.app_commands.MissingPermissions):
-        await ctx.response.send_message(
-          embed=make_embed(
-            "権限エラー",
-            "サーバー管理権限が必要です",
-            embed_type=EmbedType.ERROR,
-          ),
-          ephemeral=True,
-        )
+        embed = make_embed("権限エラー", "サーバー管理権限が必要です", embed_type=EmbedType.ERROR)
+        await ctx.response.send_message(embed=embed, ephemeral=True)
 
     self.tree.add_command(setting_group)
