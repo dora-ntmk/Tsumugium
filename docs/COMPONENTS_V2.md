@@ -235,22 +235,22 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 
 | 見出し | 場面 | 場所 |
 |---|---|---|
-| お知らせ（運営者だけが使えます） | 運営者以外がコマンド・ボタンを使った | [announcement_cog.py:366](../cogs/announcement_cog.py#L366) |
-| お知らせ（入力の誤り＋入力し直すボタン） | Modalの入力に誤りがある | [announcement_cog.py:456](../cogs/announcement_cog.py#L456) |
-| お知らせ（画像を読み込めない＋入力し直すボタン） | 画像のダウンロードに失敗した | [announcement_cog.py:460](../cogs/announcement_cog.py#L460) |
-| お知らせ（引数の誤り・IDが見つからない） | `add`・`edit`・`del`・`preview`の引数 | [announcement_cog.py:373](../cogs/announcement_cog.py#L373) |
-| お知らせ（内部エラー） | 想定外の例外 | [announcement_cog.py:386](../cogs/announcement_cog.py#L386) |
-| 確認（プレビュー＋送信する・内容を変更する・破棄する） | Modalを送信した | [announcement_cog.py:469](../cogs/announcement_cog.py#L469) |
-| ID N のお知らせを追加（更新）しました | 「送信する」 | [announcement_cog.py:293](../cogs/announcement_cog.py#L293) |
-| お知らせを追加（更新）できませんでした | 保存するときの再確認で断った | [announcement_cog.py:282](../cogs/announcement_cog.py#L282) |
-| お知らせを破棄しました | 「破棄する」 | [announcement_cog.py:316](../cogs/announcement_cog.py#L316) |
-| 内容を変更しました | 「内容を変更する」で新しい確認を出した | [announcement_cog.py:326](../cogs/announcement_cog.py#L326) |
-| 確認の期限が切れました | 15分押されなかった | [announcement_cog.py:337](../cogs/announcement_cog.py#L337) |
+| お知らせ（運営者だけが使えます） | 運営者以外がコマンド・ボタンを使った | [announcement_cog.py:352](../cogs/announcement_cog.py#L352) |
+| お知らせ（入力の誤り＋入力し直すボタン） | Modalの入力に誤りがある | [announcement_cog.py:442](../cogs/announcement_cog.py#L442) |
+| お知らせ（画像を読み込めない＋入力し直すボタン） | 画像のダウンロードに失敗した | [announcement_cog.py:446](../cogs/announcement_cog.py#L446) |
+| お知らせ（引数の誤り・IDが見つからない） | `add`・`edit`・`del`・`preview`の引数 | [announcement_cog.py:359](../cogs/announcement_cog.py#L359) |
+| お知らせ（内部エラー） | 想定外の例外 | [announcement_cog.py:372](../cogs/announcement_cog.py#L372) |
+| 確認（プレビュー＋送信する・内容を変更する・破棄する） | Modalを送信した | [announcement_cog.py:455](../cogs/announcement_cog.py#L455) |
+| ID N のお知らせを追加（更新）しました | 「送信する」 | [announcement_cog.py:287](../cogs/announcement_cog.py#L287) |
+| お知らせを追加（更新）できませんでした | 保存するときの再確認で断った | [announcement_cog.py:280](../cogs/announcement_cog.py#L280) |
+| お知らせを破棄しました | 「破棄する」 | [announcement_cog.py:306](../cogs/announcement_cog.py#L306) |
+| 内容を変更しました | 「内容を変更する」で新しい確認を出した | [announcement_cog.py:314](../cogs/announcement_cog.py#L314) |
+| 確認の期限が切れました | 15分押されなかった | [announcement_cog.py:323](../cogs/announcement_cog.py#L323) |
 | お知らせ（この確認はもう使えません） | 終わった確認のボタンが押された | [announcement_cog.py:257](../cogs/announcement_cog.py#L257) |
-| お知らせの一覧（お知らせはありません） | `/announce list`で0件 | [announcement_cog.py:499](../cogs/announcement_cog.py#L499) |
-| お知らせの一覧 | `/announce list` | [announcement_cog.py:500](../cogs/announcement_cog.py#L500) |
-| お知らせを削除しました | `/announce del` | [announcement_cog.py:638](../cogs/announcement_cog.py#L638) |
-| プレビュー | `/announce preview` | [announcement_cog.py:676](../cogs/announcement_cog.py#L676) |
+| お知らせの一覧（お知らせはありません） | `/announce list`で0件 | [announcement_cog.py:485](../cogs/announcement_cog.py#L485) |
+| お知らせの一覧 | `/announce list` | [announcement_cog.py:486](../cogs/announcement_cog.py#L486) |
+| お知らせを削除しました | `/announce del` | [announcement_cog.py:625](../cogs/announcement_cog.py#L625) |
+| プレビュー | `/announce preview` | [announcement_cog.py:663](../cogs/announcement_cog.py#L663) |
 
 ---
 
