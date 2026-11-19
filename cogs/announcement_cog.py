@@ -2,6 +2,8 @@
 
 コマンドはBotとのDMにだけ出し、運営者以外が使ったときは断る。
 タイトル・本文・画像・リンクは Modal で受け取り、期間はコマンドの引数で受け取る。
+Modal を送信したら、接続メッセージと同じ形のプレビューに「送信する」「内容を変更する」「破棄する」の
+ボタンを付けて返し、「送信する」を押したときに初めて保存する。
 """
 
 from dataclasses import dataclass, replace
@@ -11,6 +13,7 @@ import discord
 from presentation.embeds import EmbedType, make_embed
 from presentation.announcement_layout import add_announcements
 from presentation.layouts import make_layout
+from models.announcement import Announcement
 from services.announcement_service import (
   MAX_BODY_LENGTH,
   MAX_IMAGE_BYTES,
@@ -50,17 +53,21 @@ class AnnouncementForm:
 
 
 class AnnouncementModal(discord.ui.Modal):
-  def __init__(self, cog, form: AnnouncementForm):
+  def __init__(self, cog, form: AnnouncementForm, source: "AnnouncementConfirm | None" = None):
     if form.announcement_id is None:
       title = "お知らせを追加"
-      image_description = f"任意。{_IMAGE_HELP}"
     else:
       title = f"お知らせを編集（ID {form.announcement_id}）"
+    if form.announcement_id is None and form.image is None:
+      image_description = f"任意。{_IMAGE_HELP}"
+    else:
       current = "あり" if form.image is not None else "なし"
       image_description = f"空欄なら今の画像のまま（今: {current}）。{_IMAGE_HELP}"
     super().__init__(title=title, timeout=FORM_TIMEOUT_SECONDS)
     self.cog = cog
     self.form = form
+    # 「内容を変更する」から開いたときの、元の確認
+    self.source = source
     self.title_input = discord.ui.TextInput(
       style=discord.TextStyle.short,
       default=form.title or None,
@@ -124,17 +131,212 @@ class AnnouncementModal(discord.ui.Modal):
 class RetryView(discord.ui.View):
   """入力に誤りがあったときに、入力した値を残したまま Modal を開き直すボタン。"""
 
-  def __init__(self, cog, form: AnnouncementForm):
+  def __init__(self, cog, form: AnnouncementForm, source: "AnnouncementConfirm | None" = None):
     super().__init__(timeout=FORM_TIMEOUT_SECONDS)
     self.cog = cog
     self.form = form
+    self.source = source
 
   @discord.ui.button(label="入力し直す", style=discord.ButtonStyle.primary)
   async def retry(self, interaction: discord.Interaction, button: discord.ui.Button) -> None:
     if not self.cog.is_operator(interaction.user):
       await self.cog.deny(interaction)
       return
-    await interaction.response.send_modal(AnnouncementModal(self.cog, self.form))
+    await interaction.response.send_modal(AnnouncementModal(self.cog, self.form, self.source))
+
+
+class ConfirmView(discord.ui.LayoutView):
+  """プレビューの下に「送信する」「内容を変更する」「破棄する」を並べる LayoutView。"""
+
+  def __init__(self, confirm: "AnnouncementConfirm"):
+    super().__init__(timeout=FORM_TIMEOUT_SECONDS)
+    self.confirm = confirm
+    self.send_button = discord.ui.Button(label="送信する", style=discord.ButtonStyle.success)
+    self.change_button = discord.ui.Button(label="内容を変更する", style=discord.ButtonStyle.primary)
+    self.discard_button = discord.ui.Button(label="破棄する", style=discord.ButtonStyle.danger)
+    self.send_button.callback = confirm.send
+    self.change_button.callback = confirm.change
+    self.discard_button.callback = confirm.discard
+
+  def add_buttons(self) -> None:
+    """プレビューの枠の外（下）にボタンを置く。make_layout のあとに呼ぶ。"""
+    self.add_item(
+      discord.ui.ActionRow(self.send_button, self.change_button, self.discard_button)
+    )
+
+  async def interaction_check(self, interaction: discord.Interaction) -> bool:
+    if self.confirm.cog.is_operator(interaction.user):
+      return True
+    await self.confirm.cog.deny(interaction)
+    return False
+
+  async def on_timeout(self) -> None:
+    await self.confirm.expire()
+
+  async def on_error(self, interaction: discord.Interaction, error: Exception, item) -> None:
+    await self.confirm.cog.report_error(interaction, error, "announce confirm")
+
+
+class AnnouncementConfirm:
+  """Modal で入力したお知らせを、保存する前に確かめてもらう。
+
+  ボタンで決めるまで保存しない。送信・破棄・内容の変更・期限切れのどれかで終わり、
+  終わったあとはボタンを外す。
+  """
+
+  def __init__(self, cog, form: AnnouncementForm, draft: AnnouncementDraft):
+    self.cog = cog
+    # 「内容を変更する」で Modal に入れておく値（選んだ画像も持つ）
+    self.form = form
+    # 確かめたあとの値（前後の空白を除いたもの）
+    self.draft = draft
+    self.view: ConfirmView | None = None
+    self.message = None
+    self.finished = False
+
+  @property
+  def verb(self) -> str:
+    return "追加" if self.form.announcement_id is None else "更新"
+
+  @property
+  def command_name(self) -> str:
+    return "/announce add" if self.form.announcement_id is None else "/announce edit"
+
+  def _announcement(self) -> Announcement:
+    draft = self.draft
+    return Announcement(
+      id=self.form.announcement_id or 0,
+      title=draft.title,
+      body=draft.body,
+      image=draft.image,
+      image_name=draft.image_name,
+      link_url=draft.link_url,
+      link_label=draft.link_label,
+      starts_at=draft.starts_at,
+      expires_at=draft.expires_at,
+      created_at=self.cog.announcement_service.now(),
+    )
+
+  def build(self):
+    """ボタン付きのプレビューを作る。"""
+    announcement = self._announcement()
+    status = self.cog.announcement_service.status_text(announcement)
+    if announcement.id:
+      target = f"ID {announcement.id} のお知らせを次のように{self.verb}します"
+    else:
+      target = f"次のお知らせを{self.verb}します"
+    self.view = ConfirmView(self)
+    layout = self.cog.preview(
+      [announcement],
+      header=f"{target}（{status}）。接続したときは次のように表示されます。"
+      "よければ「送信する」を押してください",
+      view=self.view,
+    )
+    self.view.add_buttons()
+    return layout
+
+  def _finish(self) -> bool:
+    """まだ終わっていなければ終わらせて True を返す。"""
+    if self.finished:
+      return False
+    self.finished = True
+    if self.view is not None:
+      self.view.stop()
+    return True
+
+  async def _already_finished(self, interaction: discord.Interaction) -> None:
+    await interaction.response.send_message(
+      embed=make_embed("お知らせ", "この確認はもう使えません", embed_type=EmbedType.WARNING),
+      ephemeral=True,
+    )
+
+  async def _replace(self, interaction: discord.Interaction | None, layout) -> None:
+    """確認のメッセージを layout に置き換える（ボタンは外れる）。"""
+    if interaction is not None:
+      await interaction.response.edit_message(view=layout.view, attachments=layout.files)
+    elif self.message is not None:
+      await self.message.edit(view=layout.view, attachments=layout.files)
+
+  async def send(self, interaction: discord.Interaction) -> None:
+    if not self._finish():
+      await self._already_finished(interaction)
+      return
+    service = self.cog.announcement_service
+    try:
+      if self.form.announcement_id is None:
+        announcement_id = service.add(self.draft)
+      else:
+        announcement_id = self.form.announcement_id
+        service.update(announcement_id, self.draft)
+    except AnnouncementError as error:
+      # 確認しているあいだに表示終了が過ぎた、編集中のお知らせが消された、など
+      await self._replace(
+        interaction,
+        make_layout(
+          f"お知らせを{self.verb}できませんでした",
+          str(error),
+          layout_type=EmbedType.ERROR,
+        ),
+      )
+      await interaction.followup.send(
+        embed=make_embed("お知らせ", "入力し直してください", embed_type=EmbedType.ERROR),
+        view=RetryView(self.cog, self.form),
+      )
+      return
+    announcement = service.repository.get(announcement_id)
+    status = service.status_text(announcement)
+    await self._replace(
+      interaction,
+      self.cog.preview(
+        [announcement],
+        header=f"ID {announcement_id} のお知らせを{self.verb}しました（{status}）。"
+        "接続したときは次のように表示されます",
+      ),
+    )
+
+  async def change(self, interaction: discord.Interaction) -> None:
+    if self.finished:
+      await self._already_finished(interaction)
+      return
+    # まだ終わらせない（Modal を閉じたときは、このまま送信・破棄できる）
+    await interaction.response.send_modal(AnnouncementModal(self.cog, self.form, self))
+
+  async def discard(self, interaction: discord.Interaction) -> None:
+    if not self._finish():
+      await self._already_finished(interaction)
+      return
+    await self._replace(
+      interaction,
+      make_layout("お知らせを破棄しました", "入力した内容は保存していません"),
+    )
+
+  async def supersede(self) -> None:
+    """「内容を変更する」で新しい確認を出したので、この確認を終わらせる。"""
+    if not self._finish():
+      return
+    try:
+      await self._replace(
+        None,
+        make_layout("内容を変更しました", "変更したあとの内容を下に表示しています"),
+      )
+    except discord.HTTPException as error:
+      self.cog.error_notifier.report_exception(error, "announce confirm supersede")
+
+  async def expire(self) -> None:
+    if not self._finish():
+      return
+    try:
+      await self._replace(
+        None,
+        make_layout(
+          "確認の期限が切れました",
+          f"{FORM_TIMEOUT_SECONDS // 60}分たったので保存していません。"
+          f"{self.command_name} からやり直してください",
+          layout_type=EmbedType.WARNING,
+        ),
+      )
+    except discord.HTTPException as error:
+      self.cog.error_notifier.report_exception(error, "announce confirm timeout")
 
 
 class AnnouncementCog:
@@ -181,12 +383,13 @@ class AnnouncementCog:
     except Exception as inner:
       self.error_notifier.report_exception(inner, f"{context} error response")
 
-  def preview(self, announcements, *, header: str, hidden_count: int = 0):
+  def preview(self, announcements, *, header: str, hidden_count: int = 0, view=None):
     layout = make_layout(
       PREVIEW_TITLE,
       PREVIEW_DESCRIPTION,
       layout_type=EmbedType.SUCCESS,
       header=header,
+      view=view,
     )
     return add_announcements(
       layout,
@@ -230,46 +433,39 @@ class AnnouncementCog:
         check_image_size(attachment.size)
         data = await attachment.read()
         image, image_name = data, f"image.{check_image(data)}"
-      draft = AnnouncementDraft(
-        title=form.title,
-        body=form.body,
-        link_url=form.link_url,
-        link_label=form.link_label,
-        starts_at=form.starts_at,
-        expires_at=form.expires_at,
-        image=image,
-        image_name=image_name,
+      draft = self.announcement_service.check(
+        AnnouncementDraft(
+          title=form.title,
+          body=form.body,
+          link_url=form.link_url,
+          link_label=form.link_label,
+          starts_at=form.starts_at,
+          expires_at=form.expires_at,
+          image=image,
+          image_name=image_name,
+        )
       )
-      if form.announcement_id is None:
-        announcement_id = self.announcement_service.add(draft)
-        verb = "追加"
-      else:
-        announcement_id = form.announcement_id
-        self.announcement_service.update(announcement_id, draft)
-        verb = "更新"
     except AnnouncementError as error:
       message = str(error)
       if uploads:
         message += "\n画像は入力し直すときに選び直してください"
-      await self._send_error(interaction, message, view=RetryView(self, form))
+      await self._send_error(interaction, message, view=RetryView(self, form, modal.source))
       return
     except discord.HTTPException as error:
       self.error_notifier.report_exception(error, "announce image download")
       await self._send_error(
         interaction,
         "画像を読み込めませんでした。時間をおいて入力し直してください",
-        view=RetryView(self, form),
+        view=RetryView(self, form, modal.source),
       )
       return
 
-    announcement = self.announcement_service.repository.get(announcement_id)
-    status = self.announcement_service.status_text(announcement)
-    layout = self.preview(
-      [announcement],
-      header=f"ID {announcement_id} のお知らせを{verb}しました（{status}）。"
-      "接続したときは次のように表示されます",
-    )
-    await interaction.followup.send(view=layout.view, files=layout.files)
+    # 選んだ画像は「内容を変更する」で開き直したときも残す
+    confirm = AnnouncementConfirm(self, replace(form, image=image, image_name=image_name), draft)
+    layout = confirm.build()
+    confirm.message = await interaction.followup.send(view=layout.view, files=layout.files)
+    if modal.source is not None:
+      await modal.source.supersede()
 
   async def id_autocomplete(self, interaction, current: str):
     current = (current or "").strip()

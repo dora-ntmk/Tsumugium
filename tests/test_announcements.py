@@ -11,7 +11,14 @@ from unittest import mock
 import discord
 from discord import app_commands
 
-from cogs.announcement_cog import AnnouncementCog, AnnouncementForm, AnnouncementModal, RetryView
+from cogs.announcement_cog import (
+  AnnouncementCog,
+  AnnouncementConfirm,
+  AnnouncementForm,
+  AnnouncementModal,
+  ConfirmView,
+  RetryView,
+)
 from presentation.embeds import EmbedType, embed_color
 from presentation.announcement_layout import add_announcements
 from presentation.layouts import make_layout
@@ -330,13 +337,30 @@ class FakeResponse:
   async def defer(self, **kwargs):
     self.done = True
 
+  async def edit_message(self, **kwargs):
+    self.done = True
+    self.edited = kwargs
+
+
+class FakeMessage:
+  def __init__(self, kwargs):
+    self.sent = kwargs
+    self.edits = []
+
+  async def edit(self, **kwargs):
+    self.edits.append(kwargs)
+
 
 class FakeFollowup:
   def __init__(self):
     self.sent = []
+    self.messages = []
 
   async def send(self, **kwargs):
     self.sent.append(kwargs)
+    message = FakeMessage(kwargs)
+    self.messages.append(message)
+    return message
 
 
 class FakeInteraction:
@@ -384,6 +408,21 @@ class AnnounceCommandTest(ServiceTestCase):
     asyncio.run(modal.on_submit(interaction))
     return interaction
 
+  def press(self, view, button, user_id=DUMMY_USER_ID):
+    """ConfirmView のボタンを押す（interaction_check も通す）。"""
+    interaction = FakeInteraction(user_id)
+
+    async def run():
+      if await view.interaction_check(interaction):
+        await button.callback(interaction)
+
+    asyncio.run(run())
+    return interaction
+
+  def submit_and_send(self, modal, **kwargs):
+    view = self.submit(modal, **kwargs).followup.sent[0]["view"]
+    return self.press(view, view.send_button)
+
   def test_group_is_dm_only(self):
     self.assertFalse(self.group.allowed_contexts.guild)
     self.assertTrue(self.group.allowed_contexts.dm_channel)
@@ -413,22 +452,110 @@ class AnnounceCommandTest(ServiceTestCase):
     self.assertIsNone(interaction.response.modal)
     self.assertEqual(interaction.response.sent[0]["embed"].color, embed_color(EmbedType.ERROR))
 
-  def test_submit_saves_and_previews(self):
+  def test_submit_shows_confirm_and_saves_only_after_send(self):
     modal = AnnouncementModal(self.cog, AnnouncementForm(expires_at=NOW + 3600))
     interaction = self.submit(
       modal,
+      title="  たいとる ",
       link_url="https://example.com",
       uploads=[FakeAttachment(PNG)],
     )
+    # 確認を出しただけでは保存しない
+    self.assertEqual(self.service.list_all(), [])
+    sent = interaction.followup.sent[0]
+    view = sent["view"]
+    self.assertIsInstance(view, ConfirmView)
+    self.assertTrue(view.has_components_v2())
+    self.assertEqual(len(sent["files"]), 1)
+    self.assertIn("次のお知らせを追加します", view.children[0].content)
+    self.assertIn("## たいとる\nほんぶん", texts(view))
+    row = view.children[-1]
+    self.assertIsInstance(row, discord.ui.ActionRow)
+    self.assertEqual(
+      [button.label for button in row.children],
+      ["送信する", "内容を変更する", "破棄する"],
+    )
+
+    pressed = self.press(view, view.send_button)
     stored = self.service.list_all()[0]
     self.assertEqual(stored.title, "たいとる")
     self.assertEqual(stored.image, PNG)
     self.assertEqual(stored.image_name, "image.png")
     self.assertEqual(stored.expires_at, NOW + 3600)
-    sent = interaction.followup.sent[0]
-    self.assertTrue(sent["view"].has_components_v2())
-    self.assertEqual(len(sent["files"]), 1)
-    self.assertIn("ID 1 のお知らせを追加しました", sent["view"].children[0].content)
+    edited = pressed.response.edited
+    self.assertIn("ID 1 のお知らせを追加しました", edited["view"].children[0].content)
+    self.assertEqual(len(edited["attachments"]), 1)
+    self.assertFalse(any(isinstance(item, discord.ui.ActionRow) for item in edited["view"].children))
+    self.assertTrue(view.is_finished())
+
+    # 2回押しても二重に保存しない
+    again = self.press(view, view.send_button)
+    self.assertEqual(len(self.service.list_all()), 1)
+    self.assertTrue(again.response.sent[0]["ephemeral"])
+
+  def test_discard_does_not_save(self):
+    view = self.submit(AnnouncementModal(self.cog, AnnouncementForm())).followup.sent[0]["view"]
+    pressed = self.press(view, view.discard_button)
+    self.assertEqual(self.service.list_all(), [])
+    self.assertIn("## お知らせを破棄しました", "".join(texts(pressed.response.edited["view"])))
+    self.assertEqual(pressed.response.edited["attachments"], [])
+    self.press(view, view.send_button)
+    self.assertEqual(self.service.list_all(), [])
+
+  def test_change_reopens_modal_with_values_and_image(self):
+    first = self.submit(
+      AnnouncementModal(self.cog, AnnouncementForm(expires_at=NOW + 3600)),
+      link_label="みる",
+      link_url="https://example.com",
+      uploads=[FakeAttachment(PNG)],
+    )
+    view = first.followup.sent[0]["view"]
+    modal = self.press(view, view.change_button).response.modal
+    self.assertIsInstance(modal, AnnouncementModal)
+    self.assertEqual(modal.title_input.default, "たいとる")
+    self.assertEqual(modal.link_label_input.default, "みる")
+    self.assertFalse(view.is_finished())
+
+    second = self.submit(modal, title="なおした", link_url="https://example.com")
+    # 前の確認はボタンを外し、もう使えない
+    old_message = first.followup.messages[0]
+    self.assertIn("## 内容を変更しました", "".join(texts(old_message.edits[0]["view"])))
+    self.assertTrue(view.is_finished())
+    self.press(view, view.send_button)
+    self.assertEqual(self.service.list_all(), [])
+
+    new_view = second.followup.sent[0]["view"]
+    self.press(new_view, new_view.send_button)
+    stored = self.service.list_all()[0]
+    self.assertEqual(stored.title, "なおした")
+    # 画像は選び直さなくても残る
+    self.assertEqual(stored.image, PNG)
+    self.assertEqual(stored.expires_at, NOW + 3600)
+
+  def test_confirm_buttons_are_operator_only(self):
+    view = self.submit(AnnouncementModal(self.cog, AnnouncementForm())).followup.sent[0]["view"]
+    pressed = self.press(view, view.send_button, user_id=DUMMY_OTHER_USER_ID)
+    self.assertTrue(pressed.response.sent[0]["ephemeral"])
+    self.assertEqual(self.service.list_all(), [])
+    self.assertFalse(view.is_finished())
+
+  def test_confirm_timeout_edits_message(self):
+    interaction = self.submit(AnnouncementModal(self.cog, AnnouncementForm()))
+    view = interaction.followup.sent[0]["view"]
+    asyncio.run(view.on_timeout())
+    edit = interaction.followup.messages[0].edits[0]
+    self.assertIn("/announce add", "".join(texts(edit["view"])))
+    self.press(view, view.send_button)
+    self.assertEqual(self.service.list_all(), [])
+
+  def test_send_error_after_confirm_offers_retry(self):
+    interaction = self.submit(AnnouncementModal(self.cog, AnnouncementForm(expires_at=NOW + 60)))
+    view = interaction.followup.sent[0]["view"]
+    self.clock.now = NOW + 120
+    pressed = self.press(view, view.send_button)
+    self.assertEqual(self.service.list_all(), [])
+    self.assertIn("すでに過ぎています", "".join(texts(pressed.response.edited["view"])))
+    self.assertIsInstance(pressed.followup.sent[0]["view"], RetryView)
 
   def test_submit_error_offers_retry_with_entered_values(self):
     modal = AnnouncementModal(self.cog, AnnouncementForm())
@@ -457,7 +584,10 @@ class AnnounceCommandTest(ServiceTestCase):
     modal = self.run_command("edit", id=announcement_id).response.modal
     self.assertEqual(modal.title_input.default, "もと")
     self.assertEqual(modal.link_label_input.default, "みる")
-    self.submit(modal, title="なおした", link_url="https://example.com")
+    view = self.submit(modal, title="なおした", link_url="https://example.com").followup.sent[0]["view"]
+    self.assertIn(f"ID {announcement_id} のお知らせを次のように更新します", view.children[0].content)
+    self.assertEqual(self.service.get(announcement_id).title, "もと")
+    self.press(view, view.send_button)
     stored = self.service.get(announcement_id)
     self.assertEqual(stored.title, "なおした")
     self.assertEqual(stored.image, PNG)
@@ -465,7 +595,7 @@ class AnnounceCommandTest(ServiceTestCase):
     self.assertIsNone(stored.link_label)
 
     modal = self.run_command("edit", id=announcement_id, expires="none", remove_image=True).response.modal
-    self.submit(modal)
+    self.submit_and_send(modal)
     stored = self.service.get(announcement_id)
     self.assertIsNone(stored.image)
     self.assertIsNone(stored.expires_at)

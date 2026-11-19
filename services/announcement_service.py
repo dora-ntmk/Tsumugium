@@ -212,6 +212,10 @@ class AnnouncementService:
       key=lambda item: (not item.is_active(now), *_display_order(item)),
     )
 
+  def check(self, draft: AnnouncementDraft) -> AnnouncementDraft:
+    """保存せずに入力を確かめる（送信前の確認に使う）。誤りは AnnouncementError。"""
+    return validate(draft, self.now())
+
   def add(self, draft: AnnouncementDraft) -> int:
     now = self.now()
     checked = validate(draft, now)

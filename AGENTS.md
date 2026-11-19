@@ -30,7 +30,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `cogs/lifecycle_cog.py` | 起動・サーバー参加退出・Soundboard更新イベントを登録するライフサイクル層 |
 | `cogs/user_cog.py` | DMを含むユーザー単位設定コマンドを登録する層 |
 | `cogs/operator_cog.py` | Botの運営者（`OPERATOR_USER_ID`）だけが使うコマンドを登録する層。`/synthesis-log` |
-| `cogs/announcement_cog.py` | 運営者だけが使う`/announce`コマンド群と、お知らせを入力するModal・入力し直すボタンを登録する層 |
+| `cogs/announcement_cog.py` | 運営者だけが使う`/announce`コマンド群と、お知らせを入力するModal・入力し直すボタン・保存する前の確認（送信する・内容を変更する・破棄する）を登録する層 |
 | `clients/voicevox_client.py` | 再利用可能な非同期HTTPセッションでVOICEVOX生成とWAV保存を担当 |
 | `clients/discord_soundboard_client.py` | Discord Soundboard一覧取得・再生APIを担当する非同期HTTPクライアント |
 | `clients/managed_discord_client.py` | Bot終了時に、登録した終了前の処理（VCから抜けるなど）を動かしてから、外部HTTP・SQLiteリソースを閉じるDiscord Client。SIGTERM・SIGINTを受けたらDiscordとの接続を閉じてから終わる |
@@ -323,7 +323,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。`ConnectionService`が送るメッセージ（接続・切断・自動退出・権限エラー・接続失敗）はすべてv2にした。ほか（`ReconnectService`の再起動の知らせ・再接続、`presentation/error_handler.py`のエラー応答など）は当面Embedのまま残す。
 
-- `presentation/layouts.py`は`presentation/embeds.py`と同じく、汎用のひな形だけを持つ。`make_layout(title, description, *, layout_type, header)`は、色の付いた枠（`Container`）に`## 見出し`と本文を入れた`LayoutMessage(view, container, files)`を返す。`header`は枠の外（上）に出す一言。
+- `presentation/layouts.py`は`presentation/embeds.py`と同じく、汎用のひな形だけを持つ。`make_layout(title, description, *, layout_type, header, view)`は、色の付いた枠（`Container`）に`## 見出し`と本文を入れた`LayoutMessage(view, container, files)`を返す。`header`は枠の外（上）に出す一言。`view`には、ボタンの処理や期限を持つ`LayoutView`の派生を渡せる（省くと期限なしの`LayoutView`を作る）。
 - 中の部品は、呼び出し側が`LayoutMessage.add_item()`（Embedの`add_field`に当たる）で枠の最後に足し、`attachment://`で参照するファイルは`add_file()`で足す。ある機能のための部品の組み立ては、`presentation/announcement_layout.py`のように別のファイルに分け、`layouts.py`に機能ごとの引数を足さない。
 - 送るときは`send(view=..., files=...)`、`/join`のように`defer()`したあとは`edit_original_response(view=..., attachments=...)`を使う。v2のメッセージには`content`・`embed`を一緒に付けられない。
 - 枠の色は`embed_color()`で、同じ場面のEmbedと同じ色にする。
@@ -351,7 +351,13 @@ Embedで送っているメッセージを、Components v2（`discord.ui.LayoutVi
 - `/announce add`・`edit`は、期間（`expires`・`starts`）をコマンドの引数で受け取り、タイトル・本文・画像・リンクURL・リンクの表示名の5つをModal（`Label`・`TextInput`・`FileUpload`）で受け取る。`expires`を省くと恒久。日時は日本時間の`YYYY-MM-DD HH:MM`（`/`区切り・時刻の省略も可）か、`3d`・`12h`・`30m`（組み合わせ可）。`starts`を指定したときは、`expires`の`3d`などは`starts`から数える。`edit`では省いた引数は今の値のままで、`none`で外す。
 - 編集のModalには今の値を入れておく。ファイル欄には今の画像を入れておけないので、空欄なら今の画像のまま、選べば差し替え、`remove_image:True`で消す（新しい画像を選んだときはそちらを使う）。
 - 画像は送信を受けた時点でダウンロードしてDBに保存する（Discordの添付のURLはしばらくすると開けなくなるため）。大きさは読み込む前に確かめ、形式は中身の先頭のバイト列で決める。
-- 入力に誤りがあったら、理由と「入力し直す」ボタンを返す。ボタンは入力した値を残したままModalを開き直す（画像は選び直す）。追加・編集できたら、接続メッセージと同じ形のプレビューを返す。
+- 入力に誤りがあったら、理由と「入力し直す」ボタンを返す。ボタンは入力した値を残したままModalを開き直す（画像は選び直す）。
+- Modalを送信しただけでは保存しない。入力を確かめたら（`AnnouncementService.check()`）、接続メッセージと同じ形のプレビューの下（枠の外）に「送信する」「内容を変更する」「破棄する」のボタンを付けて返す（`ConfirmView`・`AnnouncementConfirm`）。ボタンは`OPERATOR_USER_ID`の人だけが押せる。
+  - 「送信する」で初めて追加・更新し、同じメッセージを「ID N のお知らせを追加しました（更新しました）」のプレビューに置き換える。保存するときにもう一度確かめ、確認しているあいだに表示終了が過ぎたときなどは、理由と「入力し直す」ボタンを返す。
+  - 「内容を変更する」は、入力した値と選んだ画像を残したままModalを開き直す。新しい内容の確認を出したら、前の確認は「内容を変更しました」に置き換えてボタンを外す。Modalを閉じただけなら、前の確認はそのまま使える。
+  - 「破棄する」は保存せず、メッセージを「お知らせを破棄しました」に置き換える。
+  - 15分（`FORM_TIMEOUT_SECONDS`）押されなければ保存せず、メッセージを「確認の期限が切れました」に置き換える。
+  - 送信・破棄・変更・期限切れのどれかで終わった確認のボタンは、押しても何もせず、使えないことだけを本人に知らせる（二重に保存しない）。メッセージを置き換えるときは、画像も添付し直す。
 
 ---
 

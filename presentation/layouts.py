@@ -40,10 +40,13 @@ def make_layout(
     *,
     layout_type: EmbedType = EmbedType.INFO,
     header: str | None = None,
+    view: discord.ui.LayoutView | None = None,
 ) -> LayoutMessage:
   """make_embed と同じ色の枠（Container）に、`## 見出し` と本文を入れたメッセージを作る。
 
   header は枠の外（上）に出す一言（プレビューの説明など）。
+  view を渡すと、新しい LayoutView の代わりにそれへ部品を入れる
+  （ボタンの処理や期限を持つ LayoutView の派生を使うとき）。
   """
   text = f"## {title}"
   if description:
@@ -52,7 +55,8 @@ def make_layout(
     discord.ui.TextDisplay(text),
     accent_colour=embed_color(layout_type),
   )
-  view = discord.ui.LayoutView(timeout=None)
+  if view is None:
+    view = discord.ui.LayoutView(timeout=None)
   if header:
     view.add_item(discord.ui.TextDisplay(header))
   view.add_item(container)
