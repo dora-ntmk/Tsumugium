@@ -26,6 +26,30 @@ class EnvFileTest(TempDirTestCase):
       self.assertEqual(loaded.SERVER_CONFIG_DB, "/opt/tsumugium/data/db/config.db")
 
 
+class OperatorUserIdsTest(unittest.TestCase):
+  def test_one_or_more_ids(self):
+    self.assertEqual(config._user_ids("222222222222222222"), (222222222222222222,))
+    self.assertEqual(
+      config._user_ids(" 222222222222222222 , 222222222222222223,"),
+      (222222222222222222, 222222222222222223),
+    )
+
+  def test_empty_and_duplicates(self):
+    for value in (None, "", " , "):
+      with self.subTest(value=value):
+        self.assertEqual(config._user_ids(value), ())
+    self.assertEqual(
+      config._user_ids("222222222222222222,222222222222222222"),
+      (222222222222222222,),
+    )
+
+  def test_invalid_items_are_skipped_with_message(self):
+    with unittest.mock.patch("builtins.print") as printed:
+      ids = config._user_ids("abc,222222222222222222,-1")
+    self.assertEqual(ids, (222222222222222222,))
+    self.assertEqual(printed.call_count, 2)
+
+
 class OnOffTest(unittest.TestCase):
   def test_on_values(self):
     for value in ("on", "ON", " true ", "1", "yes"):

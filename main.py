@@ -19,7 +19,7 @@ from config import (
   DICT_DB,
   DISCORD_BOT_TOKEN,
   LAST_UPDATED,
-  OPERATOR_USER_ID,
+  OPERATOR_USER_IDS,
   SERVER_CONFIG_DB,
   SOUND_BOARDS_DB,
   SPEAKERS_JSON,
@@ -54,7 +54,7 @@ intents = discord.Intents.default()
 intents.message_content = True
 client = ManagedDiscordClient(intents=intents, enable_debug_events=True)
 tree = discord.app_commands.CommandTree(client)
-error_notifier = ErrorNotificationService(client, OPERATOR_USER_ID)
+error_notifier = ErrorNotificationService(client, OPERATOR_USER_IDS)
 client.set_error_notifier(error_notifier)
 
 # VOICEVOXの生成の記録。運営者が /synthesis-log で見る。メモリだけに持つ
@@ -157,7 +157,7 @@ update_watch = UpdateWatchService(
   UPDATE_STATE_DIR,
   status_service,
   error_notifier,
-  operator_user_id=OPERATOR_USER_ID,
+  operator_user_ids=OPERATOR_USER_IDS,
   current_version=VERSION,
 )
 client.register_closeable(update_watch)
@@ -202,7 +202,7 @@ user_cog = UserCog(tree, user_config, error_notifier)
 operator_cog = OperatorCog(
   tree,
   generation_log,
-  OPERATOR_USER_ID,
+  OPERATOR_USER_IDS,
   error_notifier,
 )
 lifecycle_cog = LifecycleCog(

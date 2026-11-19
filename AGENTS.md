@@ -15,7 +15,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `services/connection_service.py` | `/join`・`/leave`・単体メンション接続、AutoJoin、AccessNotice、強制切断後の状態復元を担当 |
 | `services/speech_service.py` | テキスト前処理、Soundboard/TTS選択、最大文字数処理、VOICEVOX生成依頼を担当 |
 | `services/voice_service.py` | ギルド別キュー、再生、スキップ、クリア、キープアライブを担当。外部API通信はClientへ委譲 |
-| `services/error_notification_service.py` | エラーのCLI出力と、任意設定された運営者へのDiscord Embed形式DM通知を担当 |
+| `services/error_notification_service.py` | エラーのCLI出力と、任意設定された運営者（複数人可）へのDiscord Embed形式DM通知を担当 |
 | `services/status_service.py` | STATUS_MESSAGEの検証・変数展開と、接続状態に応じたDiscordステータス更新を担当 |
 | `services/user_reading_service.py` | ユーザー設定の読み方を優先し、未設定時はDiscord表示名へ戻す共通名前解決を担当 |
 | `services/dictionary_transfer_service.py` | 読み辞書を.dictファイル（CSV形式。1行に1件の`単語, 読み`）へ書き出し、読み込む純粋な処理。SQLiteとDiscordは扱わない |
@@ -220,7 +220,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/clear` | `instant: bool` | 全員 |
 | `/user-reading` | `reading: str (1〜50文字)` | 全員（DM可・ephemeral応答） |
 | `/user-reading-reset` | — | 全員（DM可・ephemeral応答） |
-| `/synthesis-log` | `count: int (1〜500、既定はすべて)` | `OPERATOR_USER_ID`の人だけ（BotとのDMだけに出す。運営者以外への断りだけephemeral応答） |
+| `/synthesis-log` | `count: int (1〜500、既定はすべて)` | `OPERATOR_USER_ID`に書いた人だけ（BotとのDMだけに出す。運営者以外への断りだけephemeral応答） |
 | `/tsumugi-tts` | `text: str` | 全員（BotがVCに接続しているときだけ） |
 | `/t` | `text: str` | 全員（`/tsumugi-tts`の短縮） |
 | `/skip` | — | 全員 |
@@ -299,9 +299,9 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 - インストーラーは、更新（手でも自動でも、`repair`も）を始めるときに`updating.json`（インストーラーのプロセスID・前後のバージョン）を置き、終わったときと、新しいバージョンのBotを起動する直前に消す。Botはこのファイルがあるあいだ、ステータスを「取り込み中」と「📥アップデート中…　操作を受け付けない場合があります」にし、なくなったら元の表示に戻す。書いたプロセスがもういなければ、残ったファイルとして無視する。
 - `StatusService.set_override()`の表示は`clear_override()`まで、ふだんのステータス更新で上書きしない。
-- `last-update.json`（更新・入れ直し・戻したときの結果）を見張りのたびに読み、まだ知らせていなければ`OPERATOR_USER_ID`へEmbedでDMする。インストーラーは新しいバージョンのBotの起動を確かめてから結果を書くので、起動したときに1回読むだけでは間に合わない。成功も知らせる。知らせたら`update-notice.json`に印を付け、同じ結果を二度送らない。DMを送れなかったときは、次の見張りでもう一度送る。
+- `last-update.json`（更新・入れ直し・戻したときの結果）を見張りのたびに読み、まだ知らせていなければ`OPERATOR_USER_ID`の全員へEmbedでDMする。インストーラーは新しいバージョンのBotの起動を確かめてから結果を書くので、起動したときに1回読むだけでは間に合わない。成功も知らせる。知らせたら`update-notice.json`に印を付け、同じ結果を二度送らない。DMを1人にも送れなかったときは、次の見張りでもう一度送る（1人にでも送れたら知らせたものとし、送れた人へ二度送らない）。
 - `auto-update.json`の結果が`unfinished`（前回の更新が途中で止まっている）になったら、運営者へDMする。同じ状態が続くあいだは1回だけにし、ほかの結果に変わったら印を消す。
-- `available-update.json`に今と違うバージョンがあり、まだ知らせていなければ、運営者へ「今すぐ更新する」「VCが空いたら更新する」のボタン付きでDMする（同じバージョンは1回だけ）。ボタンは`UpdateButton`（`discord.ui.DynamicItem`。custom_idにバージョンを入れ、再起動したあとも押せる）で、押されたら`client.update_watch`が受ける。押せるのは`OPERATOR_USER_ID`の人だけ。「今すぐ」は`update-request.json`に依頼を書く。「VCが空いたら」は`pending-update.json`に残し、BotがどのVCにもつないでいないときに依頼を書く。今のバージョンと同じか、`available-update.json`と違うバージョンのボタンは、依頼を書かずに知らせる。押されたDMは`update-notice.json`の`button_message`に覚えておき、更新が始まった（`updating.json`が現れた）ら「更新を開始しました」に書き換える。見張りのすきまで更新が終わったときは、新しいバージョンで起動したあとに書き換える。
+- `available-update.json`に今と違うバージョンがあり、まだ知らせていなければ、運営者へ「今すぐ更新する」「VCが空いたら更新する」のボタン付きでDMする（同じバージョンは1回だけ）。ボタンは`UpdateButton`（`discord.ui.DynamicItem`。custom_idにバージョンを入れ、再起動したあとも押せる）で、押されたら`client.update_watch`が受ける。押せるのは`OPERATOR_USER_ID`に書いた人だけ（複数人なら誰でもよい）。「今すぐ」は`update-request.json`に依頼を書く。「VCが空いたら」は`pending-update.json`に残し、BotがどのVCにもつないでいないときに依頼を書く。今のバージョンと同じか、`available-update.json`と違うバージョンのボタンは、依頼を書かずに知らせる。お知らせを送ったら、運営者ごとのメッセージIDを`update-notice.json`の`offered_messages`に覚えておく。ボタンが押されたら、押されたDMとほかの運営者へ送った同じお知らせを`button_message`（`version`と`messages`の一覧）に覚えておき、更新が始まった（`updating.json`が現れた）ら「更新を開始しました」に書き換える。見張りのすきまで更新が終わったときは、新しいバージョンで起動したあとに書き換える。書き換えられなかったDMだけを残し、次の見張りでもう一度試す。運営者が1人だった版の`button_message`（`message_id`だけ）は、`OPERATOR_USER_ID`の先頭の人のDMとして扱う。
 
 ## 止めるときと、再起動のあとのつなぎ直し（`services/reconnect_service.py`）
 
@@ -445,7 +445,7 @@ Botが接続し直したときは、`VoiceService.reset_speaking_soon()`が1秒�
 | 変数 | デフォルト | 説明 |
 |---|---|---|
 | `DISCORD_BOT_TOKEN` | 必須 | Discordボットトークン |
-| `OPERATOR_USER_ID` | `""` | エラー通知DMを受け取る運営者のDiscordユーザーID（未設定・空欄で無効） |
+| `OPERATOR_USER_ID` | `""` | エラー・更新のDMを受け取り、運営者用のコマンドとボタンを使える人のDiscordユーザーID。カンマ区切りで複数人を書ける（全員へ送り、誰でも使える）。読めない項目は表示して飛ばす。未設定・空欄で無効。`config.py`は`OPERATOR_USER_IDS`（タプル）として公開する |
 | `VOICEVOX_URL` | `http://127.0.0.1:50021` | VOICEVOX エンドポイント |
 | `DEFAULT_SPEAKER` | `8` | デフォルト話者ID（Speaker=NULL時に使用） |
 | `VOICEVOX_STREAMING` | `off` | 実験的な機能。`on`なら`/streaming_synthesis`で、音声を作り終える前に読み上げを始める。`on`・`off`のほか`true`・`false`・`1`・`0`・`yes`・`no`を読み、読めない値は表示してオフにする |

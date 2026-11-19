@@ -15,18 +15,23 @@ from dotenv import load_dotenv
 load_dotenv(os.getenv("TSUMUGIUM_ENV_FILE") or None)
 
 
-def _optional_user_id(value: str | None) -> int | None:
-  if value is None or not value.strip():
-    return None
-  try:
-    user_id = int(value)
-  except ValueError:
-    print("OPERATOR_USER_ID must be a Discord user ID; DM notifications are disabled")
-    return None
-  if user_id <= 0:
-    print("OPERATOR_USER_ID must be a Discord user ID; DM notifications are disabled")
-    return None
-  return user_id
+def _user_ids(value: str | None) -> tuple[int, ...]:
+  """カンマ区切りのDiscordユーザーIDを読む。読めない項目は表示して飛ばす。"""
+  user_ids: list[int] = []
+  for item in (value or "").split(","):
+    item = item.strip()
+    if not item:
+      continue
+    try:
+      user_id = int(item)
+    except ValueError:
+      user_id = 0
+    if user_id <= 0:
+      print(f"OPERATOR_USER_ID: {item!r} is not a Discord user ID; it is ignored")
+      continue
+    if user_id not in user_ids:
+      user_ids.append(user_id)
+  return tuple(user_ids)
 
 def _on_off(name: str, value: str | None) -> bool:
   """on・off（true・false、1・0、yes・noも可）を読む。読めない値はオフにする。"""
@@ -39,7 +44,8 @@ def _on_off(name: str, value: str | None) -> bool:
 
 STATUS_MESSAGE = os.getenv("STATUS_MESSAGE", "")
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-OPERATOR_USER_ID = _optional_user_id(os.getenv("OPERATOR_USER_ID"))
+# 運営者（エラー・更新のDMを受け取り、運営者用コマンドを使える人）。カンマ区切りで複数人を書ける
+OPERATOR_USER_IDS = _user_ids(os.getenv("OPERATOR_USER_ID"))
 SERVER_CONFIG_DB  = os.getenv("SERVER_CONFIG_DB", "db/config.db")
 DICT_DB      = os.getenv("DICT_DB", "db/dict.db")
 SOUND_BOARDS_DB   = os.getenv("SOUND_BOARDS_DB", "db/soundboards.db")
@@ -61,5 +67,5 @@ BACKUP_INTERVAL_DAYS = os.getenv("BACKUP_INTERVAL_DAYS", "1")
 BACKUP_KEEP          = os.getenv("BACKUP_KEEP", "7")
 
 # バージョン情報
-VERSION      = "v4.4.0.72 (beta 8)"
+VERSION      = "v4.4.0.72 (beta 9)"
 LAST_UPDATED = "2026/11/16"
