@@ -10,6 +10,7 @@ import io
 import json
 import os
 import unittest
+from unittest import mock
 
 from aiohttp import web
 from aiohttp.test_utils import TestServer
@@ -447,8 +448,32 @@ class VoicevoxStreamingTest(LocalServerTestCase):
     import random as random_module
     self.client.streaming = VoicevoxClient.STREAMING_HYBRID
     self.client._choose = random_module.Random(1).random
-    choices = [self.client._wants_stream() for _ in range(1000)]
+    choices = [self.client._wants_stream(10) for _ in range(1000)]
     self.assertTrue(400 < choices.count(True) < 600)
+
+  async def test_hybrid_uses_threshold_when_set(self):
+    self.release_rest.set()
+    self.client.streaming = VoicevoxClient.STREAMING_HYBRID
+    self.client.stream_threshold_chars = 5
+    # 基準があるときは乱数を使わない
+    self.client._choose = mock.Mock(side_effect=AssertionError("random used"))
+    for message_id, text in ((47, "こんにち"), (48, "こんにちは"), (49, "こんばんは！")):
+      audio = await self.client.generate(text, DUMMY_GUILD_ID, message_id)
+      self.assertTrue(await audio.wait())
+    modes = [record.mode for record in reversed(self.log.recent(10))]
+    # 4字は通常、5字・6字はストリーミング
+    self.assertEqual(modes, [MODE_SYNTHESIS, MODE_STREAM, MODE_STREAM])
+
+  def test_threshold_decision(self):
+    self.client.streaming = VoicevoxClient.STREAMING_HYBRID
+    self.client.stream_threshold_chars = 50
+    self.assertFalse(self.client._wants_stream(49))
+    self.assertTrue(self.client._wants_stream(50))
+    # on は基準によらず常に、off は使わない
+    self.client.streaming = VoicevoxClient.STREAMING_ON
+    self.assertTrue(self.client._wants_stream(1))
+    self.client.streaming = VoicevoxClient.STREAMING_OFF
+    self.assertFalse(self.client._wants_stream(500))
 
   async def test_off_never_streams(self):
     self.client.streaming = VoicevoxClient.STREAMING_OFF

@@ -49,6 +49,24 @@ def _streaming_mode(value: str | None) -> str:
   return "off"
 
 
+def _stream_threshold_chars(value: str | None) -> int:
+  """VOICEVOX_STREAM_THRESHOLDを読む（文字数）。0は自動調整。読めない値・負の値は0にする。"""
+  text = (value or "").strip()
+  if not text:
+    return 0
+  try:
+    chars = int(text)
+  except ValueError:
+    chars = -1
+  if chars < 0:
+    print(
+      "VOICEVOX_STREAM_THRESHOLD must be 0 (automatic) or a number of characters; "
+      "it is treated as 0 (automatic)"
+    )
+    return 0
+  return chars
+
+
 def _stream_segment_seconds(value: str | None) -> float:
   """VOICEVOX_STREAM_SEGMENTを読む。0は自動調整。読めない値・負の値は0にする。"""
   text = (value or "").strip()
@@ -82,6 +100,10 @@ VOICEVOX_URL      = os.getenv("VOICEVOX_URL", "http://127.0.0.1:50021")
 # 実験的な機能: VOICEVOXの/streaming_synthesisで、音声を作り終える前に読み上げを始める。
 # "off"・"on"・"hybrid"（生成1件ごとに五分五分で振り分け、/synthesis-log で比べる）
 VOICEVOX_STREAMING = _streaming_mode(os.getenv("VOICEVOX_STREAMING", "off"))
+# hybridで、この文字数以上ならストリーミングする。0は自動調整（今は五分五分で振り分ける）
+VOICEVOX_STREAM_THRESHOLD = _stream_threshold_chars(
+  os.getenv("VOICEVOX_STREAM_THRESHOLD", "0")
+)
 # /streaming_synthesisで一度に作る音声の長さ（秒）。0は自動調整（今は1.0秒に固定）
 VOICEVOX_STREAM_SEGMENT = _stream_segment_seconds(
   os.getenv("VOICEVOX_STREAM_SEGMENT", "0")

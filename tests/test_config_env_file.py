@@ -77,6 +77,7 @@ class StreamingModeTest(unittest.TestCase):
       loaded = importlib.reload(config)
       self.assertEqual(loaded.VOICEVOX_STREAMING, "off")
       self.assertEqual(loaded.VOICEVOX_STREAM_SEGMENT, 0.0)
+      self.assertEqual(loaded.VOICEVOX_STREAM_THRESHOLD, 0)
     importlib.reload(config)
 
 
@@ -91,4 +92,18 @@ class StreamSegmentTest(unittest.TestCase):
       with self.subTest(value=value):
         with unittest.mock.patch("builtins.print") as printed:
           self.assertEqual(config._stream_segment_seconds(value), 0.0)
+        printed.assert_called_once()
+
+
+class StreamThresholdTest(unittest.TestCase):
+  def test_chars(self):
+    for value, expected in (("0", 0), ("", 0), (None, 0), ("50", 50), (" 120 ", 120)):
+      with self.subTest(value=value):
+        self.assertEqual(config._stream_threshold_chars(value), expected)
+
+  def test_invalid_or_negative_is_automatic_with_message(self):
+    for value in ("many", "-1", "1.5"):
+      with self.subTest(value=value):
+        with unittest.mock.patch("builtins.print") as printed:
+          self.assertEqual(config._stream_threshold_chars(value), 0)
         printed.assert_called_once()

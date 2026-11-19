@@ -76,6 +76,7 @@ class VoicevoxClient:
       generation_log=None,
       streaming: str = "on",
       stream_segment_seconds: float = 0.0,
+      stream_threshold_chars: int = 0,
       choose: Callable[[], float] = random.random,
   ):
     self.url = url.rstrip("/")
@@ -92,6 +93,8 @@ class VoicevoxClient:
     self.streaming = streaming
     # 一度に作る音声の長さ（秒）。0なら自動調整
     self.stream_segment_seconds = stream_segment_seconds
+    # hybridで、この文字数以上ならストリーミングする。0なら自動調整
+    self.stream_threshold_chars = stream_threshold_chars
     # hybridの振り分けに使う乱数（0以上1未満）。テストでは差し替える
     self._choose = choose
     # エンジンが/streaming_synthesisを持たないと分かったらFalseにする
@@ -246,7 +249,7 @@ class VoicevoxClient:
         return None
       path = os.path.join(self.tmp_dir, f"{guildid}-{msgid}.wav")
       await self._acquire_turn(timing)
-      timing.want_stream = self._wants_stream()
+      timing.want_stream = self._wants_stream(len(msg))
     except VoicevoxGenerationError as e:
       self._report_failure(e, msg, speaker, started_at, timing, guildid, msgid)
       return None
@@ -408,11 +411,18 @@ class VoicevoxClient:
     await self._generation_lock.acquire()
     timing.acquired_at = asyncio.get_running_loop().time()
 
-  def _wants_stream(self) -> bool:
-    """この生成でストリーミングを試すかを決める（順番が来たときに1回だけ）。"""
+  def _wants_stream(self, chars: int) -> bool:
+    """この生成でストリーミングを試すかを決める（順番が来たときに1回だけ）。
+
+    onは常に、offは使わない。hybridは基準の文字数（VOICEVOX_STREAM_THRESHOLD）以上なら
+    ストリーミングする。基準が0（自動調整）のあいだは、基準を決めるためのデータを
+    集められるよう、文字数によらず五分五分で振り分ける。
+    """
     if self.streaming == self.STREAMING_ON:
       return True
     if self.streaming == self.STREAMING_HYBRID:
+      if self.stream_threshold_chars > 0:
+        return chars >= self.stream_threshold_chars
       return self._choose() < 0.5
     return False
 

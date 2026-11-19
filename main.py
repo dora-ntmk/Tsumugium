@@ -30,6 +30,7 @@ from config import (
   USER_CONFIG_DB,
   VERSION,
   VOICEVOX_STREAM_SEGMENT,
+  VOICEVOX_STREAM_THRESHOLD,
   VOICEVOX_STREAMING,
   VOICEVOX_URL,
 )
@@ -70,6 +71,7 @@ voicevox_client = VoicevoxClient(
   generation_log=generation_log,
   streaming=VOICEVOX_STREAMING,
   stream_segment_seconds=VOICEVOX_STREAM_SEGMENT,
+  stream_threshold_chars=VOICEVOX_STREAM_THRESHOLD,
 )
 speaker_service = SpeakerService(SPEAKERS_JSON, error_notifier)
 
