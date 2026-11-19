@@ -63,13 +63,15 @@ class DictViewPaginator(discord.ui.View):
   async def prev_button(self, interaction: discord.Interaction, button: discord.ui.Button):
     self.page = (self.page - 1) % self.total_pages
     self._update_buttons()
-    await interaction.response.edit_message(embed=self.build_embed(), view=self)
+    embed = self.build_embed()
+    await interaction.response.edit_message(embed=embed, view=self)
 
   @discord.ui.button(label="▶️", style=discord.ButtonStyle.secondary)
   async def next_button(self, interaction: discord.Interaction, button: discord.ui.Button):
     self.page = (self.page + 1) % self.total_pages
     self._update_buttons()
-    await interaction.response.edit_message(embed=self.build_embed(), view=self)
+    embed = self.build_embed()
+    await interaction.response.edit_message(embed=embed, view=self)
 
   async def on_timeout(self):
     if self.message is not None:

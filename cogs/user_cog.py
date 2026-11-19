@@ -32,21 +32,11 @@ class UserCog:
         try:
           self.user_config.set_user_reading(ctx.user.id, reading)
         except ValueError as error:
-          await ctx.edit_original_response(
-            embed=make_embed(
-              "設定失敗",
-              str(error),
-              embed_type=EmbedType.ERROR,
-            )
-          )
+          embed = make_embed("設定失敗", str(error), embed_type=EmbedType.ERROR)
+          await ctx.edit_original_response(embed=embed)
           return
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "設定完了",
-            f"あなたの読み方を「{reading}」に設定しました",
-            embed_type=EmbedType.SUCCESS,
-          )
-        )
+        embed = make_embed("設定完了", f"あなたの読み方を「{reading}」に設定しました", embed_type=EmbedType.SUCCESS)
+        await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as error:
@@ -81,16 +71,9 @@ class UserCog:
         await ctx.response.defer(ephemeral=True)
         cleared = self.user_config.clear_user_reading(ctx.user.id)
         if cleared:
-          embed = make_embed(
-            "リセット完了",
-            "読み方の設定を削除しました　今後は表示名で読み上げます",
-            embed_type=EmbedType.SUCCESS,
-          )
+          embed = make_embed("リセット完了", "読み方の設定を削除しました　今後は表示名で読み上げます", embed_type=EmbedType.SUCCESS)
         else:
-          embed = make_embed(
-            "リセット不要",
-            "読み方は設定されていません　表示名で読み上げています",
-          )
+          embed = make_embed("リセット不要", "読み方は設定されていません　表示名で読み上げています")
         await ctx.edit_original_response(embed=embed)
       except discord.errors.InteractionResponded:
         return

@@ -43,11 +43,7 @@ def restart_embed(reason: str | None, bot_name: str):
 
 
 def reconnect_embed(voice_channel, text_channel):
-  embed = make_embed(
-    "再接続しました",
-    "再起動が完了したため、ボイスチャンネルに再接続しました",
-    embed_type=EmbedType.SUCCESS,
-  )
+  embed = make_embed("再接続しました", "再起動が完了したため、ボイスチャンネルに再接続しました", embed_type=EmbedType.SUCCESS)
   embed.add_field(
     name="接続情報",
     value=f"接続チャンネル：{voice_channel.mention}　読み上げチャンネル：{text_channel.mention}",
@@ -205,7 +201,8 @@ class ReconnectService:
       self.voice_service.get_session(guild.id).temporary_text_channel_id = text_channel_id
     notify_channel = self.connection_service.get_notify_channel(guild, voice_channel)
     if notify_channel is not None:
-      await notify_channel.send(embed=reconnect_embed(voice_channel, notify_channel))
+      embed = reconnect_embed(voice_channel, notify_channel)
+      await notify_channel.send(embed=embed)
     return True
 
   # 止めるとき
@@ -241,7 +238,8 @@ class ReconnectService:
       notify_channel = self.connection_service.get_notify_channel(guild, voice_client.channel)
       if notify_channel is not None:
         try:
-          await notify_channel.send(embed=restart_embed(reason, guild.me.display_name))
+          embed = restart_embed(reason, guild.me.display_name)
+          await notify_channel.send(embed=embed)
         except Exception as error:
           print(f"再起動の知らせを送れませんでした: {type(error).__name__}: {error}")
     # 止めるときの切断は、強制切断として扱わない（一時的な読み上げチャンネルを退避しない）

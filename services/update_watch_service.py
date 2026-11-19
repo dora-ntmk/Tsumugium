@@ -372,9 +372,8 @@ class UpdateWatchService:
         if user is None:
           user = await self.client.fetch_user(message.get("user_id"))
         channel = user.dm_channel or await user.create_dm()
-        await channel.get_partial_message(message.get("message_id")).edit(
-          embed=started_embed(version), view=None
-        )
+        embed = started_embed(version)
+        await channel.get_partial_message(message.get("message_id")).edit(embed=embed, view=None)
       except discord.NotFound:
         pass  # DMが消されていれば、書き換えずに忘れる
       except Exception as error:
@@ -415,9 +414,8 @@ class UpdateWatchService:
       )
       return
     if version == self.current_version:
-      await interaction.response.edit_message(
-        embed=make_embed("更新は済んでいます", f"すでに {version} です"), view=None
-      )
+      embed = make_embed("更新は済んでいます", f"すでに {version} です")
+      await interaction.response.edit_message(embed=embed, view=None)
       return
     available = (self._read(AVAILABLE_FILE) or {}).get("version")
     if available != version:
@@ -431,21 +429,17 @@ class UpdateWatchService:
       self._remove(PENDING_FILE)
       self._request(version, MODE_NOW, interaction.user.id)
       self._remember_button_message(interaction, version)
-      await interaction.response.edit_message(
-        embed=make_embed(
-          "更新を受け付けました",
-          f"まもなく {version} への更新を始めます。数分のあいだ、Botが止まります",
-          embed_type=EmbedType.SUCCESS,
-        ),
-        view=None,
+      embed = make_embed(
+        "更新を受け付けました",
+        f"まもなく {version} への更新を始めます。数分のあいだ、Botが止まります",
+        embed_type=EmbedType.SUCCESS,
       )
+      await interaction.response.edit_message(embed=embed, view=None)
       return
     self._write(PENDING_FILE, {"version": version, "requested_by": interaction.user.id})
     self._remember_button_message(interaction, version)
-    await interaction.response.edit_message(
-      embed=make_embed(
-        "VCが空いたら更新します",
-        f"BotがどのVCにもつないでいないときに、{version} に更新します。待たずに更新するときは、下のボタンを押してください",
-      ),
-      view=update_view(version, idle=False),
+    embed = make_embed(
+      "VCが空いたら更新します",
+      f"BotがどのVCにもつないでいないときに、{version} に更新します。待たずに更新するときは、下のボタンを押してください",
     )
+    await interaction.response.edit_message(embed=embed, view=update_view(version, idle=False))

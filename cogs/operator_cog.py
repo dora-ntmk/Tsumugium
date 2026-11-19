@@ -235,22 +235,14 @@ class OperatorCog:
     ):
       try:
         if not self.is_operator(ctx.user):
-          await ctx.response.send_message(
-            embed=make_embed(
-              "音声生成の記録",
-              "このコマンドはBotの運営者だけが使えます",
-              embed_type=EmbedType.ERROR,
-            ),
-            ephemeral=True,
-          )
+          embed = make_embed("音声生成の記録", "このコマンドはBotの運営者だけが使えます", embed_type=EmbedType.ERROR)
+          await ctx.response.send_message(embed=embed, ephemeral=True)
           return
         await ctx.response.defer()
         records = self.generation_log.recent(count)
         attachments = [build_log_file(records)] if records else []
-        await ctx.edit_original_response(
-          embed=self.build_log_embed(len(records)),
-          attachments=attachments,
-        )
+        embed = self.build_log_embed(len(records))
+        await ctx.edit_original_response(embed=embed, attachments=attachments)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as error:

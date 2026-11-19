@@ -28,20 +28,11 @@ class PlaybackCog:
     try:
       await ctx.response.defer()
       _, pending_files = self.voice_service.begin_clear(ctx.guild, instant)
-      await ctx.edit_original_response(
-        embed=make_embed(
-          "削除中",
-          "キューを削除しています　しばらくお待ちください",
-        )
-      )
+      embed = make_embed("削除中", "キューを削除しています　しばらくお待ちください")
+      await ctx.edit_original_response(embed=embed)
       await self.voice_service.finish_clear(ctx.guild.id, pending_files)
-      await ctx.edit_original_response(
-        embed=make_embed(
-          "キュークリア完了",
-          "すべての読み上げをキャンセルしました",
-          embed_type=EmbedType.SUCCESS,
-        )
-      )
+      embed = make_embed("キュークリア完了", "すべての読み上げをキャンセルしました", embed_type=EmbedType.SUCCESS)
+      await ctx.edit_original_response(embed=embed)
     except discord.errors.InteractionResponded:
       return
     except discord.errors.HTTPException as e:
@@ -53,11 +44,7 @@ class PlaybackCog:
     try:
       skipped = self.voice_service.skip_current(ctx.guild)
       if skipped:
-        embed = make_embed(
-          "スキップ",
-          "再生中の読み上げをスキップしました",
-          embed_type=EmbedType.SUCCESS,
-        )
+        embed = make_embed("スキップ", "再生中の読み上げをスキップしました", embed_type=EmbedType.SUCCESS)
       else:
         embed = make_embed("スキップ", "再生中の読み上げはありません")
       await ctx.response.send_message(embed=embed, ephemeral=True)
@@ -75,25 +62,13 @@ class PlaybackCog:
       guild = ctx.guild
       voice_client = guild.voice_client if guild is not None else None
       if voice_client is None:
-        await ctx.response.send_message(
-          embed=make_embed(
-            "音声ファイル",
-            "VCに接続しているときだけ使えます",
-            embed_type=EmbedType.ERROR,
-          ),
-          ephemeral=True,
-        )
+        embed = make_embed("音声ファイル", "VCに接続しているときだけ使えます", embed_type=EmbedType.ERROR)
+        await ctx.response.send_message(embed=embed, ephemeral=True)
         return
       text = text.strip()
       if not text:
-        await ctx.response.send_message(
-          embed=make_embed(
-            "音声ファイル",
-            "読み上げる文章を入力してください",
-            embed_type=EmbedType.ERROR,
-          ),
-          ephemeral=True,
-        )
+        embed = make_embed("音声ファイル", "読み上げる文章を入力してください", embed_type=EmbedType.ERROR)
+        await ctx.response.send_message(embed=embed, ephemeral=True)
         return
       await ctx.response.defer()
       tts_file = await self.message_service.speech_service.speak_and_export(
@@ -105,13 +80,8 @@ class PlaybackCog:
         received_at=received_at,
       )
       if tts_file is None:
-        await ctx.edit_original_response(
-          embed=make_embed(
-            "音声ファイル",
-            "音声を作れませんでした",
-            embed_type=EmbedType.ERROR,
-          )
-        )
+        embed = make_embed("音声ファイル", "音声を作れませんでした", embed_type=EmbedType.ERROR)
+        await ctx.edit_original_response(embed=embed)
         return
       await ctx.edit_original_response(attachments=[tts_file.to_discord_file()])
     except discord.errors.InteractionResponded:
