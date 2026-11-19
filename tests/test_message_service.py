@@ -3,6 +3,7 @@
 AGENTS.md「チャンネル判定ロジック」に沿って確かめる。
 """
 
+import asyncio
 import unittest
 from types import SimpleNamespace
 from unittest import mock
@@ -108,9 +109,18 @@ class HandleTest(MessageServiceTestCase):
   async def test_normal_message_is_spoken(self):
     service = self.make_service()
     message = make_message(DUMMY_VOICE_CHANNEL_ID)
-    await service.handle(message)
-    self.speech_service.add_message.assert_called_once_with(message)
+    await service.handle(message, received_at=12.5)
+    # on_message に入った時刻を読み上げまで渡す（/synthesis-log の first）
+    self.speech_service.add_message.assert_called_once_with(message, received_at=12.5)
     self.assertEqual(self.notifier.tasks, ["message speech"])
+
+  async def test_received_time_defaults_to_now(self):
+    service = self.make_service()
+    message = make_message(DUMMY_VOICE_CHANNEL_ID)
+    before = asyncio.get_running_loop().time()
+    await service.handle(message)
+    received_at = self.speech_service.add_message.call_args.kwargs["received_at"]
+    self.assertGreaterEqual(received_at, before)
 
   async def test_message_outside_target_is_ignored(self):
     service = self.make_service()
@@ -149,9 +159,9 @@ class HandleTest(MessageServiceTestCase):
   async def test_bot_message_is_checked_only_against_sound_dictionary(self):
     service = self.make_service()
     message = make_message(DUMMY_VOICE_CHANNEL_ID, bot=True)
-    await service.handle(message)
+    await service.handle(message, received_at=12.5)
     self.speech_service.add_message.assert_called_once_with(
-      message, sounddict_only=True
+      message, sounddict_only=True, received_at=12.5
     )
 
   async def test_bot_message_outside_target_is_ignored(self):

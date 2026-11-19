@@ -179,6 +179,12 @@ class SpeechServiceSkipRecordTest(TempDirTestCase, unittest.IsolatedAsyncioTestC
     item = call.args[1]
     self.assertIsNotNone(item.audio.received_at)
 
+  async def test_given_received_time_is_used(self):
+    self.release.set()
+    await self.speech.add_message(self.message(), received_at=12.5)
+    [call] = self.voice_service.enqueue.await_args_list
+    self.assertEqual(call.args[1].audio.received_at, 12.5)
+
   async def test_played_message_is_not_recorded_as_skip(self):
     self.release.set()
     await self.speech.add_message(self.message())

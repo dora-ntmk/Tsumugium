@@ -131,9 +131,17 @@ class SpeechService:
       volume=self.server_config.volume_to_vvtts(guild_id),
     )
 
-  async def add_message(self, message, *, sounddict_only: bool = False) -> None:
-    # /synthesis-log の first は、ここ（メッセージを受け取った時点）から数える
-    received_at = asyncio.get_running_loop().time()
+  async def add_message(
+      self,
+      message,
+      *,
+      sounddict_only: bool = False,
+      received_at: float | None = None,
+  ) -> None:
+    # /synthesis-log の first を数え始める時刻（loop.time()）。ふつうは on_message に
+    # 入った時刻を受け取る。渡されなかったときはここから数える
+    if received_at is None:
+      received_at = asyncio.get_running_loop().time()
     guild_id = message.guild.id
     session = self.voice_service.get_session(guild_id)
     if session.clearing:
@@ -194,6 +202,7 @@ class SpeechService:
       attachments=(),
       created_at: datetime | None = None,
       message_id: int | None = None,
+      received_at: float | None = None,
   ) -> TTSFile | None:
     """文章を読み上げ、同じ音声をファイルとして返す（`!t`・`/tsumugi-tts`）。
 
@@ -203,7 +212,8 @@ class SpeechService:
     読み上げないが、ファイルは返す。前処理のあとに読む文字が残らなかったときも
     音声を作らずにNoneを返す。
     """
-    received_at = asyncio.get_running_loop().time()
+    if received_at is None:
+      received_at = asyncio.get_running_loop().time()
     session = self.voice_service.get_session(guild.id)
     clear_generation = session.clear_generation
     original_text = text

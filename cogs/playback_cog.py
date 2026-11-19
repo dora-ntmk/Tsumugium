@@ -1,5 +1,7 @@
 """読み上げコマンドとメッセージイベントをサービスへ委譲する。"""
 
+import asyncio
+
 import discord
 
 from presentation.embeds import EmbedType, make_embed
@@ -67,6 +69,8 @@ class PlaybackCog:
       self.error_notifier.report(f"Exception in {command_name}: {e}")
 
   async def _run_tts_file(self, ctx, text: str, command_name: str) -> None:
+    # /synthesis-log の first は、コマンドがこのプログラムに届いたここから数える
+    received_at = asyncio.get_running_loop().time()
     try:
       guild = ctx.guild
       voice_client = guild.voice_client if guild is not None else None
@@ -98,6 +102,7 @@ class PlaybackCog:
         ctx.id,
         author_id=ctx.user.id,
         created_at=ctx.created_at,
+        received_at=received_at,
       )
       if tts_file is None:
         await ctx.edit_original_response(
@@ -163,7 +168,9 @@ class PlaybackCog:
 
     @self.client.event
     async def on_message(message):
-      await self.message_service.handle(message)
+      # /synthesis-log の first は、メッセージがこのプログラムに届いたここから数える
+      received_at = asyncio.get_running_loop().time()
+      await self.message_service.handle(message, received_at=received_at)
 
     @self.client.event
     async def on_raw_message_delete(payload):

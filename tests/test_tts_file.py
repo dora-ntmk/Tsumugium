@@ -194,9 +194,12 @@ class MessageCommandTest(unittest.IsolatedAsyncioTestCase):
     self.speech_service.speak_and_export.return_value = SimpleNamespace(
       to_discord_file=lambda: "file"
     )
-    await service.speak_and_send_file(message, "おはよう")
+    await service.speak_and_send_file(message, "おはよう", received_at=12.5)
     self.speech_service.speak_and_export.assert_awaited_once()
     self.assertEqual(self.speech_service.speak_and_export.await_args.args[1], "おはよう")
+    self.assertEqual(
+      self.speech_service.speak_and_export.await_args.kwargs["received_at"], 12.5
+    )
     message.reply.assert_awaited_once_with(file="file", mention_author=False)
 
   async def test_nothing_is_sent_without_file(self):
