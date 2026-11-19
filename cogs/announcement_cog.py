@@ -192,7 +192,6 @@ class AnnouncementCog:
       layout,
       announcements,
       hidden_count=hidden_count,
-      now=self.announcement_service.now(),
     )
 
   def resolve_period(

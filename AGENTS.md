@@ -45,7 +45,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `setting.py` | `/setting` コマンド群（サーバー管理者向け設定変更） |
 | `presentation/embeds.py` | Discord Embedの共通ひな形（色・タイトル・本文）。色は`embed_color()`でComponents v2の枠と共有する |
 | `presentation/layouts.py` | Components v2（`LayoutView`）のメッセージの共通ひな形。`make_embed`と同じく、色の付いた枠に見出しと本文を入れるだけで、中の部品は呼び出し側が足す |
-| `presentation/announcement_layout.py` | 運営者からのお知らせ欄（区切り線・見出し・各お知らせの文・画像・リンクボタン）を、`make_layout`で作った枠に足す |
+| `presentation/announcement_layout.py` | 運営者からのお知らせ（区切り線・各お知らせの文・リンクボタン・画像）を、`make_layout`で作った枠に足す |
 | `presentation/error_handler.py` | コマンド実行時の共通エラー応答 |
 | `models/audio_item.py` | 再生キュー要素（`TTSItem` / `SoundboardItem`）の型定義 |
 | `models/guild_session.py` | ギルド単位のキュー・タスク・一時チャンネル・スキップ状態を保持する `GuildSession` |
@@ -342,9 +342,10 @@ Embedで送っているメッセージを、Components v2（`discord.ui.LayoutVi
 ### 運営者からのお知らせ（`/announce`）
 
 - `ConnectionService.connected_message()`が`make_layout()`で枠を作り、`add_announcements()`でお知らせ欄を足す。`/announce`のプレビューも同じ組み合わせで作る。
-- 接続したときのメッセージで、本文の下に区切り線（`Separator`、`large`）と「## 📢お知らせ」を置き、お知らせを並べる。お知らせ同士のあいだは`small`の区切り線。お知らせがないときは区切り線から下を出さない。
-- 並び順は、恒久（古い順）のあとに期間限定（期限の近い順）。載せるのは3件までで、超えた分は「ほか N 件のお知らせがあります」とまとめる。期間限定のものは、期限まで接続のたびに毎回出し、タイトルの下に`-# MM/DD HH:MMまで`を出す。
-- 画像は`MediaGallery`（`attachment://`でファイルを参照）、リンクは`ActionRow`のリンクボタンで出す。ファイルを添付する権限（`attach_files`）がないチャンネルでは、画像だけを省く。お知らせを読めなかったときは、エラーを知らせてお知らせなしで送る。
+- 接続したときのメッセージで、本文の下にお知らせを並べる。「お知らせ」のような見出しは付けず、お知らせごとに区切り線（`Separator`、`large`）を引く。お知らせがないときは区切り線も出さない。
+- 1件のお知らせは、`## タイトル`と本文を1つの`TextDisplay`にまとめる。期限は表示しない。リンクがあれば`Section`にし、リンクボタンを右（`accessory`）に置く。画像はその下に置く。
+- 並び順は、恒久（古い順）のあとに期間限定（期限の近い順）。載せるのは3件までで、超えた分は「ほか N 件のお知らせがあります」とまとめる。期間限定のものは、期限まで接続のたびに毎回出す。
+- 画像は`MediaGallery`（`attachment://`でファイルを参照）で出す。ファイルを添付する権限（`attach_files`）がないチャンネルでは、画像だけを省く。お知らせを読めなかったときは、エラーを知らせてお知らせなしで送る。
 - `/announce add`・`edit`は、期間（`expires`・`starts`）をコマンドの引数で受け取り、タイトル・本文・画像・リンクURL・リンクの表示名の5つをModal（`Label`・`TextInput`・`FileUpload`）で受け取る。`expires`を省くと恒久。日時は日本時間の`YYYY-MM-DD HH:MM`（`/`区切り・時刻の省略も可）か、`3d`・`12h`・`30m`（組み合わせ可）。`starts`を指定したときは、`expires`の`3d`などは`starts`から数える。`edit`では省いた引数は今の値のままで、`none`で外す。
 - 編集のModalには今の値を入れておく。ファイル欄には今の画像を入れておけないので、空欄なら今の画像のまま、選べば差し替え、`remove_image:True`で消す（新しい画像を選んだときはそちらを使う）。
 - 画像は送信を受けた時点でダウンロードしてDBに保存する（Discordの添付のURLはしばらくすると開けなくなるため）。大きさは読み込む前に確かめ、形式は中身の先頭のバイト列で決める。

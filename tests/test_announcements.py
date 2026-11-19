@@ -254,23 +254,28 @@ class LayoutTest(ServiceTestCase):
       link_url="https://example.com/a",
     )
     shown, hidden = self.service.display()
-    layout = add_announcements(make_layout("接続しました", "本文"), shown, hidden_count=hidden, now=NOW)
-    items = walk(layout.view)
-    separators = [item for item in items if isinstance(item, discord.ui.Separator)]
+    layout = add_announcements(make_layout("接続しました", "本文"), shown, hidden_count=hidden)
+    children = layout.container.children
+    # 「お知らせ」の見出しは付けず、お知らせごとに large の区切り線を引く
     self.assertEqual(
-      [item.spacing for item in separators],
-      [discord.SeparatorSpacing.large, discord.SeparatorSpacing.small],
+      [type(item).__name__ for item in children],
+      ["TextDisplay", "Separator", "TextDisplay", "Separator", "Section", "MediaGallery"],
     )
-    self.assertIn("## 📢お知らせ", texts(layout.view))
-    self.assertIn("**メンテ**\n-# 01/15 18:00まで\nあした", texts(layout.view))
-    self.assertIn("**恒久**\nずっと", texts(layout.view))
-    gallery = next(item for item in items if isinstance(item, discord.ui.MediaGallery))
+    self.assertTrue(all(
+      item.spacing == discord.SeparatorSpacing.large
+      for item in children if isinstance(item, discord.ui.Separator)
+    ))
+    self.assertNotIn("📢", "".join(texts(layout.view)))
+    self.assertEqual(children[2].content, "## 恒久\nずっと")
+    section = children[4]
+    # 期限は表示しない
+    self.assertEqual(section.children[0].content, "## メンテ\nあした")
+    self.assertEqual(section.accessory.url, "https://example.com/a")
+    self.assertEqual(section.accessory.label, "詳しくはこちら")
+    self.assertEqual(section.accessory.style, discord.ButtonStyle.link)
     filename = layout.files[0].filename
-    self.assertEqual(gallery.items[0].media.url, f"attachment://{filename}")
+    self.assertEqual(children[5].items[0].media.url, f"attachment://{filename}")
     self.assertTrue(filename.endswith(".png"))
-    button = next(item for item in items if isinstance(item, discord.ui.Button))
-    self.assertEqual(button.url, "https://example.com/a")
-    self.assertEqual(button.label, "詳しくはこちら")
 
   def test_without_image_permission_skips_images(self):
     self.add(image=PNG, image_name="image.png")
@@ -482,7 +487,7 @@ class AnnounceCommandTest(ServiceTestCase):
     self.add(title="ひとつめ")
     interaction = self.run_command("preview")
     view = interaction.followup.sent[0]["view"]
-    self.assertIn("**ひとつめ**\nほんぶん", texts(view))
+    self.assertIn("## ひとつめ\nほんぶん", texts(view))
 
   def test_autocomplete(self):
     self.add(title="りんご")
@@ -528,7 +533,7 @@ class ConnectionMessageTest(ServiceTestCase, unittest.IsolatedAsyncioTestCase):
   def check_message(self, view, title, embed_type):
     self.assertEqual(texts(view)[0], f"## {title}\n<#vc>に接続しました。")
     self.assertEqual(view.children[0].accent_colour, embed_color(embed_type))
-    self.assertIn("**おしらせ**\nほんぶん", texts(view))
+    self.assertIn("## おしらせ\nほんぶん", texts(view))
 
   async def test_mention_join(self):
     message = SimpleNamespace(
@@ -568,7 +573,7 @@ class ConnectionMessageTest(ServiceTestCase, unittest.IsolatedAsyncioTestCase):
     self.attach_files = False
     layout = self.connection.connected_message("接続しました", self.voice_channel, self.text_channel)
     self.assertEqual(layout.files, [])
-    self.assertIn("**おしらせ**\nほんぶん", texts(layout.view))
+    self.assertIn("## おしらせ\nほんぶん", texts(layout.view))
 
   def test_announcement_failure_still_sends_connection_message(self):
     self.connection.announcement_service = mock.MagicMock()
