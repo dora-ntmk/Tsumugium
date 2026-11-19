@@ -178,7 +178,11 @@ class StreamingPlaybackTest(TempDirTestCase, unittest.IsolatedAsyncioTestCase):
     args, kwargs = ffmpeg.call_args
     reader = args[0]
     self.assertTrue(kwargs["pipe"])
-    self.assertEqual(kwargs["before_options"], "-f wav")
+    # 少しずつ届く音声を、ためずにすぐ出す（ためると数秒遅れる）
+    self.assertEqual(
+      kwargs["before_options"].split(),
+      ["-f", "wav", "-probesize", "32", "-analyzeduration", "0"],
+    )
     self.assertIs(self.voice_client.source.original, source)
     self.assertEqual(self.session.current_message_id, 1)
     self.assertFalse(reader.closed)

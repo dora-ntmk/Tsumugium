@@ -18,6 +18,7 @@ from models.generation_record import (
   GenerationRecord,
   GenerationSummary,
   ModeSummary,
+  counts_for_first,
 )
 
 
@@ -94,9 +95,7 @@ class GenerationLogService:
     ]
     waits = [record.wait_seconds for record in records if record.outcome != SKIPPED]
     first = sorted(
-      record.first_seconds
-      for record in successes
-      if record.first_seconds is not None
+      record.first_seconds for record in successes if counts_for_first(record)
     )
     return GenerationSummary(
       total=len(records),
@@ -135,7 +134,8 @@ def _summarize_mode(successes) -> ModeSummary:
     for record in successes
     if record.seconds_per_char is not None
   ]
-  played = [record for record in successes if record.first_seconds is not None]
+  # 前の読み上げを待ったものは、FFmpegの待ちが隠れて first が短く出るので除く
+  played = [record for record in successes if counts_for_first(record)]
   first = sorted(record.first_seconds for record in played)
   by_chars = []
   lower = 0
@@ -158,6 +158,7 @@ def _summarize_mode(successes) -> ModeSummary:
     first_average=_average(first),
     first_median=_percentile(first, 50),
     first_max=first[-1] if first else None,
+    first_count=len(played),
     first_median_by_chars=tuple(by_chars),
   )
 

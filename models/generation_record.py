@@ -39,12 +39,29 @@ class GenerationRecord:
   # メッセージを受け取ってから最初の音を再生するまでの時間（順番待ちを除く）。
   # 再生しなかったもの・メッセージから作っていないもの（入退室通知など）はNone
   first_seconds: float | None = None
+  # wait のうち、再生の順番（同じサーバーの前の読み上げが終わるの）を待った時間。再生しなかったものはNone
+  playback_wait_seconds: float | None = None
 
   @property
   def seconds_per_char(self) -> float | None:
     if self.outcome != SUCCESS or self.chars <= 0:
       return None
     return self.synth_seconds / self.chars
+
+
+# 「最初の音まで」の集計に入れる、再生の順番待ちの上限（秒）。前の読み上げを待っているあいだに
+# 音声がたまると、FFmpegの待ちが再生の順番待ちに隠れて first が短く出るので、待ったものは除く
+FIRST_PLAYBACK_WAIT_LIMIT = 0.5
+
+
+def counts_for_first(record) -> bool:
+  """「最初の音まで」の集計に入れるか（再生した、かつ前の読み上げをほぼ待たなかった）。"""
+  if record.first_seconds is None:
+    return False
+  return (
+    record.playback_wait_seconds is None
+    or record.playback_wait_seconds < FIRST_PLAYBACK_WAIT_LIMIT
+  )
 
 
 # 文字数で分けて比べるときの区切り（その文字数まで）。最後のNoneは「それより多い」
@@ -64,6 +81,8 @@ class ModeSummary:
   first_average: float | None = None
   first_median: float | None = None
   first_max: float | None = None
+  # 「最初の音まで」の集計に入れた件数（counts_for_first）
+  first_count: int = 0
   # CHAR_BUCKET_LIMITS の区切りごとの、firstの中央値（ない区切りはNone）
   first_median_by_chars: tuple[float | None, ...] = ()
 

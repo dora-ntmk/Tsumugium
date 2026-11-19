@@ -117,6 +117,23 @@ class GenerationLogServiceTest(unittest.TestCase):
     self.assertEqual(summary.first_median, 0.75)
     self.assertEqual(summary.first_max, 1.5)
 
+  def test_first_excludes_records_that_waited_for_playback(self):
+    log = make_log()
+    # 前の読み上げを待たなかった（再生の順番待ちが0.5秒未満）ものだけを数える
+    waited_little = log.record_success(20, 8, 0.0, 1.0, 1, mode=MODE_STREAM)
+    waited_little.first_seconds, waited_little.playback_wait_seconds = 1.2, 0.1
+    waited_long = log.record_success(20, 8, 0.0, 1.0, 1, mode=MODE_STREAM)
+    waited_long.first_seconds, waited_long.playback_wait_seconds = 0.5, 20.0
+    not_measured = log.record_success(20, 8, 0.0, 1.0, 1, mode=MODE_STREAM)
+    not_measured.first_seconds = 0.9  # 再生の順番待ちを測る前の記録
+    summary = log.summarize()
+    stream = summary.by_mode[MODE_STREAM]
+    self.assertEqual(stream.first_count, 2)
+    self.assertEqual(stream.first_max, 1.2)
+    self.assertAlmostEqual(summary.first_average, 1.05)
+    # 一覧（txt）には、待ったものの first もそのまま出す
+    self.assertEqual(waited_long.first_seconds, 0.5)
+
   def test_summary_by_mode(self):
     log = make_log()
     # ストリーミング: 文字数が増えても最初の音はあまり延びない
@@ -320,10 +337,10 @@ class FormatTest(unittest.TestCase):
           "\n通常: 平均 3.07秒（38ms/字） / 中央値 2.90秒 / 95% 5.50秒 / 最大 5.50秒",
         ),
         (
-          "最初の音まで（成功のみ・メッセージから・順番待ちを除く）",
-          "ストリーミング: 平均 0.73秒 / 中央値 0.70秒 / 最大 1.00秒"
+          "最初の音まで（成功のみ・前の読み上げを待たなかったもの）",
+          "ストリーミング: 平均 0.73秒 / 中央値 0.70秒 / 最大 1.00秒（3件）"
           "\n　文字数別の中央値: 〜30字 0.50秒 / 31〜100字 0.70秒 / 101字〜 1.00秒"
-          "\n通常: 平均 3.07秒 / 中央値 2.90秒 / 最大 5.50秒"
+          "\n通常: 平均 3.07秒 / 中央値 2.90秒 / 最大 5.50秒（3件）"
           "\n　文字数別の中央値: 〜30字 0.80秒 / 31〜100字 2.90秒 / 101字〜 5.50秒",
         ),
         ("待ち時間（生成と再生の順番待ち）", "平均 0.79秒 / 最大 2.50秒"),
