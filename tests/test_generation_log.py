@@ -271,24 +271,26 @@ class FormatTest(unittest.TestCase):
     self.assertEqual(
       fields,
       [
-        ("result", "SUCCESS 5 / SKIPPED 2 / FAILED 1\n(cleared 1, empty 1)"),
+        ("件数", "成功 5 / スキップ 2 / 失敗 1\n（スキップの内訳: クリア 1・読む文字なし 1）"),
         (
-          "synthesis (SUCCESS)",
-          "avg 2.20s (220ms/char) / median 2.00s / p95 4.00s / max 4.00s",
+          "生成時間（成功のみ）",
+          "平均 2.20秒（220ms/字） / 中央値 2.00秒 / 95% 4.00秒 / 最大 4.00秒",
         ),
-        ("first (SUCCESS)", "avg 1.25s / median 1.00s / max 2.00s / stream 1"),
-        ("wait", "avg 0.83s / max 2.50s"),
+        (
+          "最初の音まで（成功のみ・メッセージから・順番待ちを除く）",
+          "平均 1.25秒 / 中央値 1.00秒 / 最大 2.00秒（ストリーミング 1件）",
+        ),
+        ("順番待ち", "平均 0.83秒 / 最大 2.50秒"),
       ],
     )
 
   def test_summary_fields_without_records(self):
     fields = dict(format_summary_fields(make_log().summarize()))
     self.assertNotIn("記録の範囲", fields)
-    self.assertEqual(fields["result"], "SUCCESS 0 / SKIPPED 0 / FAILED 0")
+    self.assertEqual(fields["件数"], "成功 0 / スキップ 0 / 失敗 0")
     self.assertEqual(
-      fields["synthesis (SUCCESS)"], "avg - / median - / p95 - / max -"
+      fields["生成時間（成功のみ）"], "平均 — / 中央値 — / 95% — / 最大 —"
     )
-    self.assertEqual(fields["first (SUCCESS)"], "avg - / median - / max - / stream 0")
 
 
 class FakeResponse:
@@ -343,7 +345,7 @@ class SynthesisLogCommandTest(unittest.TestCase):
     [edit] = interaction.edits
     self.assertIn("直近2件", edit["embed"].description)
     fields = {field.name: field.value for field in edit["embed"].fields}
-    self.assertIn("SUCCESS 1 / SKIPPED 1 / FAILED 0", fields["result"])
+    self.assertIn("成功 1 / スキップ 1 / 失敗 0", fields["件数"])
     [file] = edit["attachments"]
     self.assertTrue(file.filename.startswith("synthesis-log-"))
     text = file.fp.read().decode("utf-8")

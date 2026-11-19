@@ -8,7 +8,12 @@ from datetime import datetime, timedelta, timezone
 
 import discord
 
-from models.generation_record import SKIPPED
+from models.generation_record import (
+  SKIP_CLEARED,
+  SKIP_DELETED,
+  SKIP_EMPTY,
+  SKIPPED,
+)
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error
 from services.error_notification_service import ensure_error_notifier
@@ -26,36 +31,49 @@ def _log_seconds(value) -> str:
   return "-" if value is None else f"{value:.2f}s"
 
 
+_SKIP_LABELS = {
+  SKIP_EMPTY: "読む文字なし",
+  SKIP_CLEARED: "クリア",
+  SKIP_DELETED: "削除",
+}
+
+
+def _summary_seconds(value) -> str:
+  return "—" if value is None else f"{value:.2f}秒"
+
+
 def format_summary_fields(summary) -> list[tuple[str, str]]:
-  """集計をEmbedのフィールド（名前と値）の一覧にする。名前と書き方は添付の表に合わせる。"""
-  result = (
-    f"SUCCESS {summary.success} / SKIPPED {summary.skipped} / FAILED {summary.failed}"
+  """集計をEmbedのフィールド（名前と値）の一覧にする。項目は添付の表の列に合わせる。"""
+  counts = (
+    f"成功 {summary.success} / スキップ {summary.skipped} / 失敗 {summary.failed}"
   )
   if summary.skip_reasons:
-    result += "\n(" + ", ".join(
-      f"{reason} {count}" for reason, count in sorted(summary.skip_reasons.items())
-    ) + ")"
-  synthesis = f"avg {_log_seconds(summary.synth_average)}"
+    counts += "\n（スキップの内訳: " + "・".join(
+      f"{_SKIP_LABELS.get(reason, reason)} {count}"
+      for reason, count in sorted(summary.skip_reasons.items())
+    ) + "）"
+  synthesis = f"平均 {_summary_seconds(summary.synth_average)}"
   if summary.seconds_per_char_average is not None:
-    synthesis += f" ({summary.seconds_per_char_average * 1000:.0f}ms/char)"
+    synthesis += f"（{summary.seconds_per_char_average * 1000:.0f}ms/字）"
   synthesis += (
-    f" / median {_log_seconds(summary.synth_median)}"
-    f" / p95 {_log_seconds(summary.synth_p95)}"
-    f" / max {_log_seconds(summary.synth_max)}"
+    f" / 中央値 {_summary_seconds(summary.synth_median)}"
+    f" / 95% {_summary_seconds(summary.synth_p95)}"
+    f" / 最大 {_summary_seconds(summary.synth_max)}"
   )
   return [
-    ("result", result),
-    ("synthesis (SUCCESS)", synthesis),
+    ("件数", counts),
+    ("生成時間（成功のみ）", synthesis),
     (
-      "first (SUCCESS)",
-      f"avg {_log_seconds(summary.first_average)}"
-      f" / median {_log_seconds(summary.first_median)}"
-      f" / max {_log_seconds(summary.first_max)}"
-      f" / stream {summary.streamed}",
+      "最初の音まで（成功のみ・メッセージから・順番待ちを除く）",
+      f"平均 {_summary_seconds(summary.first_average)}"
+      f" / 中央値 {_summary_seconds(summary.first_median)}"
+      f" / 最大 {_summary_seconds(summary.first_max)}"
+      f"（ストリーミング {summary.streamed}件）",
     ),
     (
-      "wait",
-      f"avg {_log_seconds(summary.wait_average)} / max {_log_seconds(summary.wait_max)}",
+      "順番待ち",
+      f"平均 {_summary_seconds(summary.wait_average)}"
+      f" / 最大 {_summary_seconds(summary.wait_max)}",
     ),
   ]
 
