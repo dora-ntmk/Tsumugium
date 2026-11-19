@@ -9,6 +9,7 @@ from dataclasses import dataclass, replace
 import discord
 
 from presentation.embeds import EmbedType, make_embed
+from presentation.announcement_layout import add_announcements
 from presentation.layouts import make_layout
 from services.announcement_service import (
   MAX_BODY_LENGTH,
@@ -181,13 +182,16 @@ class AnnouncementCog:
       self.error_notifier.report_exception(inner, f"{context} error response")
 
   def preview(self, announcements, *, header: str, hidden_count: int = 0):
-    return make_layout(
+    layout = make_layout(
       PREVIEW_TITLE,
       PREVIEW_DESCRIPTION,
       layout_type=EmbedType.SUCCESS,
-      announcements=announcements,
-      hidden_count=hidden_count,
       header=header,
+    )
+    return add_announcements(
+      layout,
+      announcements,
+      hidden_count=hidden_count,
       now=self.announcement_service.now(),
     )
 

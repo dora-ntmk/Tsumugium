@@ -4,13 +4,10 @@ import re
 import time
 import unicodedata
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from urllib.parse import urlsplit
 
-from models.announcement import Announcement
-
-
-JST = timezone(timedelta(hours=9), "JST")
+from models.announcement import JST, Announcement, format_time
 
 MAX_TITLE_LENGTH = 100
 MAX_BODY_LENGTH = 500
@@ -19,7 +16,6 @@ MAX_LINK_LABEL_LENGTH = 80
 MAX_IMAGE_BYTES = 5 * 1024 * 1024
 # 接続メッセージに載せる件数。超えた分は「ほか N 件」とまとめる
 MAX_DISPLAY = 3
-DEFAULT_LINK_LABEL = "詳しくはこちら"
 
 # 画像の中身の先頭のバイト列 → 拡張子
 _IMAGE_SIGNATURES = (
@@ -96,15 +92,6 @@ def parse_time(text: str | None, now: int, *, base: int | None = None) -> int | 
       continue
     return int(parsed.replace(tzinfo=JST).timestamp())
   raise AnnouncementError(f"日時を読めませんでした: {text}（{TIME_FORMAT_HELP}）")
-
-
-def format_time(timestamp: int, now: int | None = None) -> str:
-  """日本時間で表示する。今年なら年を省く。"""
-  moment = datetime.fromtimestamp(timestamp, JST)
-  this_year = datetime.fromtimestamp(time.time() if now is None else now, JST).year
-  if moment.year == this_year:
-    return moment.strftime("%m/%d %H:%M")
-  return moment.strftime("%Y/%m/%d %H:%M")
 
 
 def detect_image_extension(data: bytes) -> str | None:

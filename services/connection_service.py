@@ -7,6 +7,7 @@ import discord
 
 from models.audio_item import TTSItem
 from presentation.embeds import EmbedType, make_embed
+from presentation.announcement_layout import add_announcements
 from presentation.layouts import LayoutMessage, make_layout
 from presentation.error_handler import handle_internal_error, handle_os_error
 from services.error_notification_service import ensure_error_notifier
@@ -130,11 +131,14 @@ class ConnectionService:
       include_images = bool(
         getattr(text_channel.permissions_for(guild.me), "attach_files", True)
       )
-    return make_layout(
+    layout = make_layout(
       title,
       f"{voice_channel.mention}に接続しました。",
       layout_type=layout_type,
-      announcements=announcements,
+    )
+    return add_announcements(
+      layout,
+      announcements,
       hidden_count=hidden_count,
       include_images=include_images,
       now=now,

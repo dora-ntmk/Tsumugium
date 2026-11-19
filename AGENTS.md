@@ -44,14 +44,15 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `repositories/user_config_repository.py` | `users.db`のユーザー読みと、準備領域であるユーザー別個人辞書を管理するRepository |
 | `setting.py` | `/setting` コマンド群（サーバー管理者向け設定変更） |
 | `presentation/embeds.py` | Discord Embedの共通ひな形（色・タイトル・本文）。色は`embed_color()`でComponents v2の枠と共有する |
-| `presentation/layouts.py` | Components v2（`LayoutView`）のメッセージの共通ひな形。枠の中に見出し・本文と、運営者からのお知らせを並べる |
+| `presentation/layouts.py` | Components v2（`LayoutView`）のメッセージの共通ひな形。`make_embed`と同じく、色の付いた枠に見出しと本文を入れるだけで、中の部品は呼び出し側が足す |
+| `presentation/announcement_layout.py` | 運営者からのお知らせ欄（区切り線・見出し・各お知らせの文・画像・リンクボタン）を、`make_layout`で作った枠に足す |
 | `presentation/error_handler.py` | コマンド実行時の共通エラー応答 |
 | `models/audio_item.py` | 再生キュー要素（`TTSItem` / `SoundboardItem`）の型定義 |
 | `models/guild_session.py` | ギルド単位のキュー・タスク・一時チャンネル・スキップ状態を保持する `GuildSession` |
 | `models/dictionary_snapshot.py` | Repositoryから純粋な前処理へ渡す読み辞書・Soundboard条件のスナップショット |
 | `models/streaming_audio.py` | VOICEVOXから少しずつ届く音声をWAVファイルへ書きながら、別スレッド（FFmpegへ渡す側）に書かれた分だけ読ませる`StreamingAudio` |
 | `models/generation_record.py` | VOICEVOXの生成1回分の記録（`GenerationRecord`）と集計結果（`GenerationSummary`）の型 |
-| `models/announcement.py` | 運営者からのお知らせ1件分（`Announcement`）の型 |
+| `models/announcement.py` | 運営者からのお知らせ1件分（`Announcement`）の型と、ServiceとPresentationの両方で使う日時の表示（`format_time`、日本時間）・リンクの既定の表示名 |
 | `models/preprocess_result.py` | 前処理済みテキスト・置換範囲・Soundboard ID・空白区切り文章フラグを保持する結果型 |
 | `config.py` | `.env` から環境変数をロードし定数として公開 |
 | `backup.py` | SQLiteの定時バックアップとローテーション管理 |
@@ -322,9 +323,12 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。第一弾は接続したときのメッセージで、ほかは当面Embedのまま残す。
 
-- `make_layout(title, description, *, layout_type, announcements, hidden_count, include_images, header)`は`LayoutMessage(view, files)`を返す。送るときは`send(view=..., files=...)`、`/join`のように`defer()`したあとは`edit_original_response(view=..., attachments=...)`を使う。v2のメッセージには`content`・`embed`を一緒に付けられない。
-- 枠（`Container`）の色は`embed_color()`で、同じ場面のEmbedと同じ色にする。見出しは`## `で書く。
-- `discord.File`は一度しか送れないので、送るたびに`make_layout()`で作り直す。
+- `presentation/layouts.py`は`presentation/embeds.py`と同じく、汎用のひな形だけを持つ。`make_layout(title, description, *, layout_type, header)`は、色の付いた枠（`Container`）に`## 見出し`と本文を入れた`LayoutMessage(view, container, files)`を返す。`header`は枠の外（上）に出す一言。
+- 中の部品は、呼び出し側が`LayoutMessage.add_item()`（Embedの`add_field`に当たる）で枠の最後に足し、`attachment://`で参照するファイルは`add_file()`で足す。ある機能のための部品の組み立ては、`presentation/announcement_layout.py`のように別のファイルに分け、`layouts.py`に機能ごとの引数を足さない。
+- 送るときは`send(view=..., files=...)`、`/join`のように`defer()`したあとは`edit_original_response(view=..., attachments=...)`を使う。v2のメッセージには`content`・`embed`を一緒に付けられない。
+- 枠の色は`embed_color()`で、同じ場面のEmbedと同じ色にする。
+- `discord.File`は一度しか送れないので、送るたびに作り直す。
+- Presentationは`services/`に依存しない（`presentation/error_handler.py`のエラー通知を除く）。ServiceとPresentationの両方で使う値は`models/`に置く。
 
 ### 接続したときのメッセージ
 
@@ -337,6 +341,7 @@ Embedで送っているメッセージを、Components v2（`discord.ui.LayoutVi
 
 ### 運営者からのお知らせ（`/announce`）
 
+- `ConnectionService.connected_message()`が`make_layout()`で枠を作り、`add_announcements()`でお知らせ欄を足す。`/announce`のプレビューも同じ組み合わせで作る。
 - 接続したときのメッセージで、本文の下に区切り線（`Separator`、`large`）と「## 📢お知らせ」を置き、お知らせを並べる。お知らせ同士のあいだは`small`の区切り線。お知らせがないときは区切り線から下を出さない。
 - 並び順は、恒久（古い順）のあとに期間限定（期限の近い順）。載せるのは3件までで、超えた分は「ほか N 件のお知らせがあります」とまとめる。期間限定のものは、期限まで接続のたびに毎回出し、タイトルの下に`-# MM/DD HH:MMまで`を出す。
 - 画像は`MediaGallery`（`attachment://`でファイルを参照）、リンクは`ActionRow`のリンクボタンで出す。ファイルを添付する権限（`attach_files`）がないチャンネルでは、画像だけを省く。お知らせを読めなかったときは、エラーを知らせてお知らせなしで送る。

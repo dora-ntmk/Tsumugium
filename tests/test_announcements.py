@@ -13,11 +13,12 @@ from discord import app_commands
 
 from cogs.announcement_cog import AnnouncementCog, AnnouncementForm, AnnouncementModal, RetryView
 from presentation.embeds import EmbedType, embed_color
+from presentation.announcement_layout import add_announcements
 from presentation.layouts import make_layout
 from repositories.announcement_repository import AnnouncementRepository
 from repositories.guild_config_repository import GuildConfigRepository
+from models.announcement import JST
 from services.announcement_service import (
-  JST,
   MAX_BODY_LENGTH,
   MAX_DISPLAY,
   MAX_IMAGE_BYTES,
@@ -231,6 +232,17 @@ class LayoutTest(ServiceTestCase):
     self.assertTrue(layout.view.has_components_v2())
     self.assertEqual(layout.files, [])
 
+  def test_add_item_appends_inside_container(self):
+    layout = make_layout("t", "b", layout_type=EmbedType.WARNING)
+    returned = layout.add_item(discord.ui.TextDisplay("足した"))
+    self.assertIs(returned, layout)
+    self.assertEqual(layout.container.children[-1].content, "足した")
+    self.assertEqual(layout.view.total_children_count, 3)
+
+  def test_no_announcements_adds_nothing(self):
+    layout = add_announcements(make_layout("t"), [], hidden_count=3)
+    self.assertEqual(texts(layout.view), ["## t"])
+
   def test_announcements_with_image_link_and_period(self):
     self.add(title="恒久", body="ずっと")
     self.add(
@@ -242,7 +254,7 @@ class LayoutTest(ServiceTestCase):
       link_url="https://example.com/a",
     )
     shown, hidden = self.service.display()
-    layout = make_layout("接続しました", "本文", announcements=shown, hidden_count=hidden, now=NOW)
+    layout = add_announcements(make_layout("接続しました", "本文"), shown, hidden_count=hidden, now=NOW)
     items = walk(layout.view)
     separators = [item for item in items if isinstance(item, discord.ui.Separator)]
     self.assertEqual(
@@ -262,13 +274,13 @@ class LayoutTest(ServiceTestCase):
 
   def test_without_image_permission_skips_images(self):
     self.add(image=PNG, image_name="image.png")
-    layout = make_layout("t", announcements=self.service.active(), include_images=False)
+    layout = add_announcements(make_layout("t"), self.service.active(), include_images=False)
     self.assertEqual(layout.files, [])
     self.assertFalse(any(isinstance(item, discord.ui.MediaGallery) for item in walk(layout.view)))
 
   def test_hidden_count_and_header(self):
     self.add()
-    layout = make_layout("t", announcements=self.service.active(), hidden_count=2, header="ヘッダー")
+    layout = add_announcements(make_layout("t", header="ヘッダー"), self.service.active(), hidden_count=2)
     self.assertIsInstance(layout.view.children[0], discord.ui.TextDisplay)
     self.assertEqual(layout.view.children[0].content, "ヘッダー")
     self.assertIn("-# ほか2件のお知らせがあります", texts(layout.view))
@@ -284,7 +296,11 @@ class LayoutTest(ServiceTestCase):
         link_url="https://example.com/" + "a" * 400,
         link_label="う" * 80,
       )
-    layout = make_layout("接続しました", "<#1>に接続しました。", announcements=self.service.active(), hidden_count=99, header="h")
+    layout = add_announcements(
+      make_layout("接続しました", "<#1>に接続しました。", header="h"),
+      self.service.active(),
+      hidden_count=99,
+    )
     self.assertLessEqual(layout.view.content_length(), 4000)
     self.assertLessEqual(layout.view.total_children_count, 40)
 
