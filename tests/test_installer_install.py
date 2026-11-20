@@ -249,7 +249,7 @@ class InstallFlowTest(InstallTestCase):
     self.assertEqual(self.run_install(["--yes"]), install.EXIT_ERROR)
     self.assertTrue(record_path(self.system, "tsumugium").exists())
     self.assertTrue(self.system.path("/opt/tsumugium/app/main.py").exists())
-    self.assertIn("sudo systemctl restart tsumugium.service", self.output())
+    self.assertIn("sudo tsumugium-setup restart", self.output())
     self.assertNotIn("インストールが完了しました", self.output())
 
 

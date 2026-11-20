@@ -1,4 +1,4 @@
-"""status・start・stop・uninstall モード。"""
+"""status・start・stop・restart・uninstall モード。"""
 
 from __future__ import annotations
 
@@ -82,32 +82,60 @@ def show_status(args: argparse.Namespace, system: System, ui: UI) -> int:
   return EXIT_OK
 
 
-# start / stop
+# start / stop / restart
 
 def start(args: argparse.Namespace, system: System, ui: UI, *, wait=None) -> int:
   wait = wait or wait_ready
   instance = select_instance(system, ui, args.instance)
   with InstanceLock(system, instance):
     record = load_record(system, instance)
-    systemctl = Systemctl(system)
-    service = unit_name(record.service)
-    if systemctl.is_active(record.service):
-      ui.info(f"{service} はすでに動いています")
+    if Systemctl(system).is_active(record.service):
+      ui.info(f"{unit_name(record.service)} はすでに動いています")
       return EXIT_OK
-    systemctl.enable(record.service)
+    return _start_locked(system, ui, record, wait)
+
+
+def _start_locked(system: System, ui: UI, record: InstanceRecord, wait) -> int:
+  """ロックを取った状態で、止まっているBotを起動して確かめる。"""
+  systemctl = Systemctl(system)
+  systemctl.enable(record.service)
+  clear_ready(system, record.layout)
+  systemctl.start(record.service)
+  ui.info(f"{unit_name(record.service)} を起動しました。起動の完了を待っています（最大{int(READY_TIMEOUT)}秒）...")
+  return _confirm_started(system, ui, record, wait)
+
+
+def _confirm_started(system: System, ui: UI, record: InstanceRecord, wait) -> int:
+  """ready.json で起動を確かめ、未確認の更新の印を外す。"""
+  try:
+    wait(system, record.layout, record.service, record.version)
+  except ReadyError as error:
+    ui.error(str(error))
+    return EXIT_ERROR
+  if record.unverified:
+    save_record(system, replace(record, unverified=None))
+    ui.info(f"{record.version} の起動を確かめました")
+  ui.info("起動を確認しました")
+  return EXIT_OK
+
+
+def restart(args: argparse.Namespace, system: System, ui: UI, *, wait=None) -> int:
+  """動いているBotを再起動する。止まっていれば start と同じく起動する。
+
+  止める理由は書かないので、Botは再起動として扱い、つないでいたVCにつなぎ直す。
+  """
+  wait = wait or wait_ready
+  instance = select_instance(system, ui, args.instance)
+  with InstanceLock(system, instance):
+    record = load_record(system, instance)
+    systemctl = Systemctl(system)
+    if not systemctl.is_active(record.service):
+      ui.info(f"{unit_name(record.service)} は止まっているので、起動します")
+      return _start_locked(system, ui, record, wait)
     clear_ready(system, record.layout)
-    systemctl.start(record.service)
-    ui.info(f"{service} を起動しました。起動の完了を待っています（最大{int(READY_TIMEOUT)}秒）...")
-    try:
-      wait(system, record.layout, record.service, record.version)
-    except ReadyError as error:
-      ui.error(str(error))
-      return EXIT_ERROR
-    if record.unverified:
-      save_record(system, replace(record, unverified=None))
-      ui.info(f"{record.version} の起動を確かめました")
-    ui.info("起動を確認しました")
-    return EXIT_OK
+    systemctl.restart(record.service)
+    ui.info(f"{unit_name(record.service)} を再起動しました。起動の完了を待っています（最大{int(READY_TIMEOUT)}秒）...")
+    return _confirm_started(system, ui, record, wait)
 
 
 def stop(args: argparse.Namespace, system: System, ui: UI) -> int:

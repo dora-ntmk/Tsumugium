@@ -286,7 +286,15 @@ def scenario(work: Path, zips: dict[str, Path]) -> None:
   check(app_version("app.prev") == VERSION_B, "app.prev/ に版Bが残っている")
   check(VERSION_B not in db_lines(), "DBが版Bに更新する前の状態に戻った")
 
-  print("\n== 5. stop・start ==", flush=True)
+  print("\n== 5. restart・stop・start ==", flush=True)
+  # 偽のBotは restart-reason.json を読まないので、rollback が書いた理由が残っている。先に消しておく
+  reason_file = f"{PREFIX}/data/state/restart-reason.json"
+  sudo("rm", "-f", reason_file)
+  pid_before = read_json(f"{PREFIX}/data/state/ready.json")["pid"]
+  setup("restart")
+  assert_running(VERSION_A)
+  check(read_json(f"{PREFIX}/data/state/ready.json")["pid"] != pid_before, "restart で別のプロセスになった")
+  check(sudo("test", "-e", reason_file, check=False).returncode != 0, "restart は止める理由を書かない")
   setup("stop")
   check(not is_active(), "止まった")
   check("停止中（手動）" in status_text(), "status が停止中（手動）を表示する")

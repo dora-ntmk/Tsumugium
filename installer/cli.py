@@ -30,6 +30,7 @@ MODES = {
   "status": "インスタンスごとの状態を表示する",
   "start": "Botを動かす",
   "stop": "Botを止める",
+  "restart": "Botを再起動する（.envを変えたあとなど。VCにはつなぎ直す）",
   "auto-update": "自動更新を切り替える（on・off）",
 }
 
@@ -85,6 +86,7 @@ HANDLERS: dict[str, Callable[[argparse.Namespace, System, UI], int]] = {
   "status": manage.show_status,
   "start": manage.start,
   "stop": manage.stop,
+  "restart": manage.restart,
   "auto-update": autoupdate.run_mode,
 }
 
