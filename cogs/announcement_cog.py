@@ -255,7 +255,7 @@ class AnnouncementConfirm:
 
   async def _already_finished(self, interaction: discord.Interaction) -> None:
     layout = make_layout("お知らせ", "この確認はもう使えません", layout_type=EmbedType.WARNING)
-    await interaction.response.send_message(view=layout.view, ephemeral=True)
+    await interaction.response.send_message(view=layout.view, files=layout.files, ephemeral=True)
 
   async def _replace(self, interaction: discord.Interaction | None, layout) -> None:
     """確認のメッセージを layout に置き換える（ボタンは外れる）。"""
@@ -277,28 +277,20 @@ class AnnouncementConfirm:
         service.update(announcement_id, self.draft)
     except AnnouncementError as error:
       # 確認しているあいだに表示終了が過ぎた、編集中のお知らせが消された、など
-      await self._replace(
-        interaction,
-        make_layout(
-          f"お知らせを{self.verb}できませんでした",
-          str(error),
-          layout_type=EmbedType.ERROR,
-        ),
-      )
+      layout = make_layout(f"お知らせを{self.verb}できませんでした", str(error), layout_type=EmbedType.ERROR)
+      await self._replace(interaction, layout)
       await self.cog._send_error(
         interaction, "入力し直してください", retry=RetryView(self.cog, self.form)
       )
       return
     announcement = service.repository.get(announcement_id)
     status = service.status_text(announcement)
-    await self._replace(
-      interaction,
-      self.cog.preview(
-        [announcement],
-        header=f"ID {announcement_id} のお知らせを{self.verb}しました（{status}）。"
-        "接続したときは次のように表示されます",
-      ),
+    layout = self.cog.preview(
+      [announcement],
+      header=f"ID {announcement_id} のお知らせを{self.verb}しました（{status}）。"
+      "接続したときは次のように表示されます",
     )
+    await self._replace(interaction, layout)
 
   async def change(self, interaction: discord.Interaction) -> None:
     if self.finished:
@@ -311,20 +303,16 @@ class AnnouncementConfirm:
     if not self._finish():
       await self._already_finished(interaction)
       return
-    await self._replace(
-      interaction,
-      make_layout("お知らせを破棄しました", "入力した内容は保存していません"),
-    )
+    layout = make_layout("お知らせを破棄しました", "入力した内容は保存していません")
+    await self._replace(interaction, layout)
 
   async def supersede(self) -> None:
     """「内容を変更する」で新しい確認を出したので、この確認を終わらせる。"""
     if not self._finish():
       return
     try:
-      await self._replace(
-        None,
-        make_layout("内容を変更しました", "変更したあとの内容を下に表示しています"),
-      )
+      layout = make_layout("内容を変更しました", "変更したあとの内容を下に表示しています")
+      await self._replace(None, layout)
     except discord.HTTPException as error:
       self.cog.error_notifier.report_exception(error, "announce confirm supersede")
 
@@ -332,15 +320,13 @@ class AnnouncementConfirm:
     if not self._finish():
       return
     try:
-      await self._replace(
-        None,
-        make_layout(
-          "確認の期限が切れました",
-          f"{FORM_TIMEOUT_SECONDS // 60}分たったので保存していません。"
-          f"{self.command_name} からやり直してください",
-          layout_type=EmbedType.WARNING,
-        ),
+      layout = make_layout(
+        "確認の期限が切れました",
+        f"{FORM_TIMEOUT_SECONDS // 60}分たったので保存していません。"
+        f"{self.command_name} からやり直してください",
+        layout_type=EmbedType.WARNING,
       )
+      await self._replace(None, layout)
     except discord.HTTPException as error:
       self.cog.error_notifier.report_exception(error, "announce confirm timeout")
 
@@ -368,7 +354,7 @@ class AnnouncementCog:
       "このコマンドはBotの運営者だけが使えます",
       layout_type=EmbedType.ERROR,
     )
-    await interaction.response.send_message(view=layout.view, ephemeral=True)
+    await interaction.response.send_message(view=layout.view, files=layout.files, ephemeral=True)
 
   async def _send_error(self, interaction, message: str, retry: RetryView | None = None) -> None:
     """誤りを知らせる。retry を渡すと、枠の外（下）に「入力し直す」ボタンを付ける。"""
@@ -376,9 +362,9 @@ class AnnouncementCog:
     if retry is not None:
       retry.add_button()
     if interaction.response.is_done():
-      await interaction.followup.send(view=layout.view)
+      await interaction.followup.send(view=layout.view, files=layout.files)
     else:
-      await interaction.response.send_message(view=layout.view)
+      await interaction.response.send_message(view=layout.view, files=layout.files)
 
   async def report_error(self, interaction, error: Exception, context: str) -> None:
     self.error_notifier.report_exception(error, context)
@@ -617,7 +603,8 @@ class AnnouncementCog:
         if not self.is_operator(ctx.user):
           await self.deny(ctx)
           return
-        await ctx.response.send_message(view=self.build_list_layout().view)
+        layout = self.build_list_layout()
+        await ctx.response.send_message(view=layout.view, files=layout.files)
       except discord.errors.InteractionResponded:
         return
       except Exception as error:
@@ -640,7 +627,7 @@ class AnnouncementCog:
           f"ID {id}「{announcement.title}」",
           layout_type=EmbedType.SUCCESS,
         )
-        await ctx.response.send_message(view=layout.view)
+        await ctx.response.send_message(view=layout.view, files=layout.files)
       except discord.errors.InteractionResponded:
         return
       except Exception as error:
