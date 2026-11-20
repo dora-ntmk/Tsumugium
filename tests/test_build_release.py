@@ -37,9 +37,52 @@ class ParseVersionTest(TempDirTestCase):
         with self.assertRaises(ValueError):
           build_release.parse_version(version)
 
-  def test_repository_version_can_be_parsed(self):
+  def test_repository_version_can_be_resolved(self):
     version = build_release.read_version(ROOT / "config.py")
-    build_release.parse_version(version)
+    build_release.parse_version(build_release.resolve_version(version, []))
+
+
+class ResolveVersionTest(TempDirTestCase):
+  TAGS = ["v4.3.0.71", "v4.4.0.72-beta.19", "v4.4.0.72-beta.020", "not-a-version"]
+
+  def test_unreleased_stable_stays_stable(self):
+    self.assertEqual(build_release.resolve_version("v4.4.0.72", self.TAGS), "v4.4.0.72")
+
+  def test_released_stable_moves_to_next_patch_beta(self):
+    for released in (["v4.4.0.72"], []):
+      tags = self.TAGS + (["v4.4.0.72"] if not released else [])
+      with self.subTest(draft=bool(released)):
+        self.assertEqual(
+          build_release.resolve_version("v4.4.0.72", tags, released),
+          "v4.4.1.73 (beta 1)",
+        )
+
+  def test_next_patch_beta_continues_numbering(self):
+    tags = self.TAGS + ["v4.4.0.72", "v4.4.1.73-beta.001", "v4.4.1.73-beta.002"]
+    self.assertEqual(build_release.resolve_version("v4.4.0.72", tags), "v4.4.1.73 (beta 3)")
+
+  def test_explicit_beta_uses_its_own_numbering(self):
+    tags = self.TAGS + ["v4.4.0.72", "v4.4.1.73-beta.004"]
+    self.assertEqual(build_release.resolve_version("v4.5.0.73 (beta)", tags), "v4.5.0.73 (beta 1)")
+    self.assertEqual(build_release.resolve_version("v4.4.0.72 (beta)", tags), "v4.4.0.72 (beta 21)")
+
+  def test_numbered_beta_is_kept(self):
+    self.assertEqual(
+      build_release.resolve_version("v4.4.0.72 (beta 3)", self.TAGS), "v4.4.0.72 (beta 3)"
+    )
+
+  def test_invalid_source_is_rejected(self):
+    with self.assertRaises(ValueError):
+      build_release.resolve_version("v4.4.0", self.TAGS)
+
+  def test_stamp_config(self):
+    text = 'A = 1\nVERSION      = "v4.4.0.72"\nLAST_UPDATED = "開発版"\n'
+    self.assertEqual(
+      build_release.stamp_config(text, "v4.4.1.73 (beta 1)", "2026/11/20"),
+      'A = 1\nVERSION      = "v4.4.1.73 (beta 1)"\nLAST_UPDATED = "2026/11/20"\n',
+    )
+    with self.assertRaises(ValueError):
+      build_release.stamp_config('VERSION = "v1.0.0.1"\n', "v1.0.0.1", "2026/11/20")
 
 
 class FileSelectionTest(TempDirTestCase):
@@ -147,6 +190,22 @@ class BuildTest(TempDirTestCase):
       }
     self.assertEqual(modes[prefix + "install.sh"], 0o755)
     self.assertEqual(modes[prefix + "main.py"], 0o644)
+
+  def test_resolved_version_is_written_into_config(self):
+    (self.root / "config.py").write_text(
+      'VERSION      = "v4.4.0.72"\nLAST_UPDATED = "開発版"\n', encoding="utf-8",
+    )
+    zip_path, _, info = build_release.build(
+      self.root, self.out, self.lock, files=self.files, commit="0" * 40,
+      version="v4.4.1.73 (beta 1)", last_updated="2026/11/20",
+    )
+    self.assertEqual(zip_path.name, "tsumugium-v4.4.1.73-beta.001.zip")
+    self.assertEqual(info["version"], "v4.4.1.73 (beta 1)")
+    with zipfile.ZipFile(zip_path) as archive:
+      config = archive.read("tsumugium-v4.4.1.73-beta.001/config.py").decode("utf-8")
+    self.assertEqual(config, 'VERSION      = "v4.4.1.73 (beta 1)"\nLAST_UPDATED = "2026/11/20"\n')
+    # リポジトリのファイルは書き換えない
+    self.assertIn("開発版", (self.root / "config.py").read_text(encoding="utf-8"))
 
   def test_missing_lock_file_is_an_error(self):
     os.remove(self.lock)

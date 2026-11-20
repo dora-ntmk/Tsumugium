@@ -193,80 +193,49 @@ class BuildBetaNotesTest(GitRepoTestCase):
     self.assertNotIn("ベータ1", text)
 
 
-class CheckVersionBumpTest(GitRepoTestCase):
+class ShouldReleaseTest(GitRepoTestCase):
   def setUp(self):
     super().setUp()
     self.root = Path(self.tmp_dir)
     self.git("init", "-q", "-b", "main")
-    self.write_config("v4.4.0.72 (beta 9)", "feat: はじめ")
+    self.write_config("v4.4.0.72", "開発版", "feat: はじめ")
+    self.git("tag", "v4.4.0.72-beta.020")
 
-  def write_config(self, version, subject):
-    self.write_and_commit("config.py", f'VERSION      = "{version}"\n', subject)
+  def write_config(self, version, date, subject):
+    self.write_and_commit(
+      "config.py", f'VERSION      = "{version}"\nLAST_UPDATED = "{date}"\nX = 1\n', subject,
+    )
 
-  def branch(self):
-    self.git("checkout", "-q", "-b", "feat/x")
-
-  def check(self):
-    return release_notes.check_version_bump(self.root, "main")
-
-  def test_docs_and_tests_only_need_no_bump(self):
-    self.branch()
+  def test_docs_and_tests_only_are_not_released(self):
     self.write_and_commit("docs/INSTALL.md", "x\n", "docs: 手引き")
     self.write_and_commit("tests/test_x.py", "x\n", "test: テスト")
-    ok, message = self.check()
-    self.assertTrue(ok)
-    self.assertIn("上げなくてよい", message)
+    self.assertFalse(release_notes.should_release(self.root, "v4.4.1.73-beta.001"))
 
-  def test_code_change_without_bump_fails(self):
-    self.branch()
-    self.write_and_commit("main.py", "a\n", "feat: 足した")
-    ok, message = self.check()
-    self.assertFalse(ok)
-    self.assertIn("v4.4.0.72 (beta 9)", message)
-    self.assertIn("main.py", message)
+  def test_code_change_is_released(self):
+    self.write_and_commit("main.py", "a\n", "fix: 直した")
+    self.assertTrue(release_notes.should_release(self.root, "v4.4.1.73-beta.001"))
 
-  def test_code_change_with_bump_passes(self):
-    self.branch()
-    self.write_and_commit("main.py", "a\n", "feat: 足した")
-    self.write_config("v4.4.0.72 (beta 10)", "feat: 番号を上げる")
-    ok, message = self.check()
-    self.assertTrue(ok)
-    self.assertIn("beta 9) → v4.4.0.72 (beta 10)", message)
+  def test_version_lines_alone_are_not_code(self):
+    # 正式版にしただけのコミットのあとでは、同じ中身のベータを出さない
+    self.write_config("v4.5.0.73 (beta)", "2026/11/20", "release: 次の版")
+    self.assertFalse(release_notes.should_release(self.root, "v4.5.0.73-beta.001"))
+    (self.root / "config.py").write_text(
+      'VERSION      = "v4.5.0.73 (beta)"\nLAST_UPDATED = "開発版"\nX = 2\n', encoding="utf-8",
+    )
+    self.git("commit", "-q", "-am", "feat: 設定を変えた")
+    self.assertTrue(release_notes.should_release(self.root, "v4.5.0.73-beta.001"))
 
-  def test_same_number_taken_by_another_pr_fails(self):
-    self.branch()
-    self.write_and_commit("main.py", "a\n", "feat: 足した")
-    self.write_config("v4.4.0.72 (beta 10)", "feat: 番号を上げる")
-    # 先にほかのPRが beta 10 で main に入った
-    self.git("checkout", "-q", "main")
-    self.write_and_commit("setting.py", "b\n", "feat: ほかのPR")
-    self.write_config("v4.4.0.72 (beta 10)", "feat: ほかのPRの番号")
-    self.git("checkout", "-q", "feat/x")
-    ok, _ = self.check()
-    self.assertFalse(ok)
+  def test_stable_is_always_released(self):
+    self.assertTrue(release_notes.should_release(self.root, "v4.4.0.72"))
 
-  def test_main_moving_ahead_with_code_is_not_counted(self):
-    self.branch()
-    self.write_and_commit("docs/INSTALL.md", "x\n", "docs: 手引き")
-    self.git("checkout", "-q", "main")
-    self.write_and_commit("setting.py", "b\n", "feat: ほかのPR")
-    self.write_config("v4.4.0.72 (beta 10)", "feat: ほかのPRの番号")
-    self.git("checkout", "-q", "feat/x")
-    ok, _ = self.check()
-    self.assertTrue(ok)
+  def test_first_tag_is_released(self):
+    self.git("tag", "-d", "v4.4.0.72-beta.020")
+    self.assertTrue(release_notes.should_release(self.root, "v4.4.0.72-beta.001"))
 
-  def test_release_to_stable_counts_as_newer(self):
-    self.branch()
-    self.write_and_commit("main.py", "a\n", "feat: 足した")
-    self.write_config("v4.4.0.72", "release: v4.4.0.72")
-    ok, _ = self.check()
-    self.assertTrue(ok)
-
-  def test_cli_exit_code(self):
-    self.branch()
-    self.write_and_commit("main.py", "a\n", "feat: 足した")
+  def test_cli_prints_decision(self):
+    self.write_and_commit("main.py", "a\n", "fix: 直した")
     with mock.patch.object(release_notes, "ROOT", self.root), \
         mock.patch("sys.stdout", new_callable=io.StringIO) as out:
-      code = release_notes.main(["--check-version-bump", "main"])
-    self.assertEqual(code, 1)
-    self.assertTrue(out.getvalue().startswith("::error::"))
+      code = release_notes.main(["--should-release", "v4.4.1.73-beta.001"])
+    self.assertEqual(code, 0)
+    self.assertEqual(out.getvalue(), "true\n")

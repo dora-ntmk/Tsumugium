@@ -423,15 +423,15 @@ Embedで送っているメッセージを、Components v2（`discord.ui.LayoutVi
 | `installer/deploy.py` | venvの作成と、`requirements.lock`からの依存の導入 |
 | `installer/instance.py` | 名前の検証、置き場所の構成、記録（`/etc/tsumugium/<インスタンス名>.json`）、インスタンスごとのロック |
 | `installer/system.py`・`installer/ui.py` | コマンドの実行とパスの組み立て、端末での表示と質問。テストでは偽物に差し替える |
-| `scripts/build_release.py` | 配布用のzipと`.sha256`を作る（CIで使う） |
-| `scripts/release_notes.py` | GitHub Releaseの本文（正式版は見出しのひな形と前の正式版からのコミット名の一覧、ベータ版は前のタグからのコミット名の一覧）を作り、タグのあとでコードが変わったかを調べる。PRでコードを変えたのに`VERSION`を上げ忘れていないかも調べる（CIで使う） |
+| `scripts/build_release.py` | 配布物の版（ベータ番号）と`LAST_UPDATED`を決めて、配布用のzipと`.sha256`を作る（CIで使う） |
+| `scripts/release_notes.py` | GitHub Releaseの本文（正式版は見出しのひな形と前の正式版からのコミット名の一覧、ベータ版は前のタグからのコミット名の一覧）を作り、前のタグのあとでコードが変わったか（ベータ版を出すか）を調べる（CIで使う） |
 | `scripts/ci_installer_e2e.py` | CIの結合テスト。本物のsystemdでinstallからuninstallまでを動かす |
 | `scripts/migrate_legacy.py` | 旧環境から`.env`と`data/`を作る移行ツール。配布用のzipには入れず、移行する人に直接渡す |
 
 - 新しいバージョンへ引き継ぐ形式には番号（`installer/__init__.py`の`HANDOFF_VERSION`）を付ける。引き継ぐ項目の意味を変えるときは番号を上げる。知らない番号を受け取ったバージョンは、何も変えずに止まる。
 - インストーラーを別のプロセスで動かすときは、`python -m installer`を使わず、`installer.python_command()`（`python -I`で起動する）を使う。`-m`は今いるディレクトリの`installer/`を先に読むので、展開したzipやリポジトリの中で実行すると、違うバージョンが動くため。
 - インストーラーが作るunitと入口には`# Managed by tsumugium-setup`の印を付ける。印のない同じ名前のファイルは、上書きも削除もしない。
-- `main`にコミットが入ると、CIの`release`ジョブが`build`ジョブの配布物を添付したGitHub Releaseを作る。`VERSION`が正式版なら下書きを作り、ベータ版（`(beta X)`）ならタグ`vX.X.X.XX-beta.XXX`（ベータ番号は3桁にゼロ埋め）のプレリリースをすぐ公開して、新しいほうから5件を残して古いプレリリースとタグを消す。同じタグか下書きがすでにあれば作らず、そのタグのあとでコードが変わっていれば、`(beta X)`の上げ忘れとして警告を出す。書き込みの権限（`contents: write`）は、このジョブだけに付ける。
+- `main`にコミットが入ると、CIの`release`ジョブが版を決め（「バージョン表記」）、`build`ジョブと同じ`requirements.lock`で配布物を作ってGitHub Releaseを作る。番号が続けてのpushとぶつからないよう、版は直列に動く（`concurrency: release`）このジョブの中で、下書きを含むReleaseの一覧とタグから決める（`build`ジョブは下書きを読めないので、タグだけで決めた目安の版で作る）。正式版なら下書きを作り、ベータ版ならタグ`vX.X.X.XX-beta.XXX`（ベータ番号は3桁にゼロ埋め）のプレリリースをすぐ公開して、新しいほうから5件を残して古いプレリリースとタグを消す。同じタグか下書きがすでにあるとき、ベータ版で前のタグからコードが変わっていないときは作らない。書き込みの権限（`contents: write`）は、このジョブだけに付ける。
 - PRですべての確認が通ると、CIの`verified`ジョブが、確かめた中身（マージした結果のツリー）を`verified-tree-<ツリー>`という名前の成果物に残す。mainへのpushでは、`gate`ジョブがこのコミットと同じ中身の記録（同じリポジトリのPRのもの）を探し、見つかればテスト・静的チェック・インストーラーの結合テスト・秘密情報のスキャンを省いて、`build`・`lock-check`・`release`だけを動かす。`build`は`build-info.json`にコミットを書くため、省かない。記録にはPRで確かめた`requirements.lock`も入れ、マージ後に作り直したロックがこれとまったく同じなら`lock-check`も省く（依存は範囲指定なので、違うロックになることがある）。見つからないとき（PRを確かめたあとにmainが進んだ、mainへ直接pushした、など）は、すべて確かめる。
 - 配布用のzipには`.claude/`・`.github/`・`docs/`・`scripts/`・`tests/`・`.gitignore`・`AGENTS.md`を入れず、`build-info.json`と`requirements.lock`を加える。
 - `requirements.lock`は、CIで`uv pip compile --universal`を使ってハッシュ値つきで作る。`--universal`を付けると、Python 3.13以上だけで要る依存（`audioop-lts`など）も条件付きで書き出されるので、Python 3.10以上のどのバージョンでも同じロックを使える。インストーラーは`pip install --require-hashes`で入れる。CIの`lock-check`ジョブがPython 3.10〜3.14のそれぞれで入れられることを確かめる。
@@ -497,16 +497,19 @@ Botが接続し直したときは、`VoiceService.reset_speaking_soon()`が1秒�
 ## バージョン表記
 
 - 正式リリースのバージョンは`vX.X.X.XX`で表記する（例: `v4.1.0.69`）。先頭3つの`X.X.X`は[セマンティックバージョニング](https://semver.org/lang/ja/)に従う。末尾の`XX`は累積リリース回数であり、リリースのたびに1ずつ増やし、`X.X.X`が上がってもリセットしない。
-- ベータ版は`vX.X.X.XX (beta X)`で表記する。
-  - 前半の`vX.X.X.XX`には、次回リリースで使う予定のバージョンを書く。
-  - 後半の`(beta X)`には、前回リリース以降に公開したベータ版の通し番号を1から書く。コミットの数ではなく、ベータ版を1回出すごとに1つ上げる。
-  - ベータ版は、コードを書き換えた変更が`main`に入るたびに1つ公開される。そのため、PR（ブランチ）の中でコードを最初に書き換えるコミットで、`main`にある番号より1つ上げ、同じPRのそれ以降のコミットでは上げない。ドキュメントやテストだけのPRでは上げない。
-  - 先にほかのPRが`main`に入って同じ番号を使ったときは、`main`を取り込んで番号を上げ直してからマージする（同じ番号のまま入れると、タグがすでにあるのでベータ版が出ない）。
-  - 上げ忘れはCIの`静的チェック`で止める。PRのマージ先から配布物のコード（`scripts/release_notes.py`の`is_code()`。ドキュメント・テスト・`scripts/`・`.github/`などは含まない）が変わっているのに、`VERSION`がマージ先より新しくなっていなければ失敗にする（`release_notes.py --check-version-bump`）。マージ先が同じ番号まで進んだときも失敗になる。
-  - ベータ番号はリリースごとにリセットし、次のリリースに向けた最初のベータ版を`(beta 1)`とする。
-- 例: v4.1.0.69をリリースした後、次期リリースをマイナーバージョンアップとする場合、次期バージョンはv4.2.0.70となる。このとき最初にコードを書き換えたPRは`v4.2.0.70 (beta 1)`、3つ目のPRは`v4.2.0.70 (beta 3)`となる（それぞれのPRにいくつコミットがあっても、番号は1つだけ上がる）。v4.2.0.70のリリース後は、次期バージョンで再び`(beta 1)`から数える。
+- ベータ版は`vX.X.X.XX (beta X)`で表記する。前半は次回リリースで使う予定のバージョン、後半はその版のベータ版の通し番号（1から）。
+- ベータ番号と`LAST_UPDATED`はCIが決める。PRで`config.py`の`VERSION`・`LAST_UPDATED`を上げない。
+  - リポジトリの`config.py`の`VERSION`には、人が決めたことだけを書く。`vX.X.X.XX`（正式版の形）か`vX.X.X.XX (beta)`（番号なし）。`LAST_UPDATED`は`開発版`のままにする。
+  - `scripts/build_release.py`の`resolve_version()`が、配布物の版を次のように決め、zipの中の`config.py`と`build-info.json`に書き込む。`LAST_UPDATED`はそのコミットのコミット日（日本時間の`YYYY/MM/DD`）。リポジトリのファイルは書き換えず、CIはコミットしない。
+    - `vX.X.X.XX`で、その正式版をまだ出していない（タグも下書きもない）: 正式版。
+    - `vX.X.X.XX`で、その正式版をもう出している: 次のパッチ（3つ目と末尾を1つずつ上げる。例: `v4.4.0.72`→`v4.4.1.73`）のベータ。正式版のあと、次期をパッチかマイナーか決めていなくても、そのまま出せる。
+    - `vX.X.X.XX (beta)`: その版のベータ。次期をマイナー・メジャーに決めたら、`VERSION = "v4.5.0.73 (beta)"`のように書く。
+    - ベータ番号は、その版のベータのタグの最大＋1（なければ1）。古いプレリリースを消しても、新しい5件は残るので最大は失われない。
+  - ベータ版は、前のタグから配布物のコード（`scripts/release_notes.py`の`is_code()`。ドキュメント・テスト・`scripts/`・`.github/`、`config.py`の`VERSION`・`LAST_UPDATED`の行だけの変更は含まない）が変わったコミットが`main`に入るたびに1つ公開される（`release_notes.py --should-release`）。
+  - 正式版にするときは、`VERSION`を出す版の`vX.X.X.XX`にする（`(beta)`を外す、またはその版を書く）。
+- 例: v4.4.0.72をリリースした後、`VERSION`を`v4.4.0.72`のままにすれば、コードを変えたマージのたびに`v4.4.1.73 (beta 1)`、`(beta 2)`…が出る。途中でマイナーに決めて`v4.5.0.73 (beta)`と書けば、そこから`v4.5.0.73 (beta 1)`と数える。
 - GitHubのタグ名とReleaseのタイトルは、ベータ版では`vX.X.X.XX-beta.XXX`と表記し、ベータ番号を3桁にゼロ埋めする（例: `v4.3.0.71-beta.001`、`v4.3.0.71-beta.010`）。Gitのタグ名には空白を使えず、GitHubのReleasesはタグ名の文字列順で並ぶため、ゼロ埋めで桁をそろえて順番を保つ。タイトルはタグ名と同じ文字列にする。
-  - `config.py`の`VERSION`と`/version`の表示は、ゼロ埋めしない`vX.X.X.XX (beta X)`のままとする（例: `v4.3.0.71 (beta 10)`）。
+  - 配布物の`config.py`の`VERSION`と`/version`の表示は、ゼロ埋めしない`vX.X.X.XX (beta X)`のままとする（例: `v4.3.0.71 (beta 10)`）。
   - 正式リリースのタグ名とタイトルは`vX.X.X.XX`とする（例: `v4.3.0.71`）。
 
 ---

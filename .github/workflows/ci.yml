@@ -116,14 +116,6 @@ jobs:
           echo "比較の基準: $base"
           git diff --check "$base" HEAD
 
-      - name: コードを変えたのにVERSIONを上げ忘れていないかを確かめる
-        # AGENTS.md「バージョン表記」: コードを書き換えたPRは (beta X) を上げる。
-        # 上げ忘れると、mainに入っても同じタグがあるためベータ版が出ない
-        if: github.event_name == 'pull_request'
-        env:
-          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
-        run: python3 scripts/release_notes.py --check-version-bump "$PR_BASE_SHA"
-
       - name: 削除済み要素が残っていないかを確かめる
         run: |
           status=0
@@ -168,6 +160,9 @@ jobs:
       lock_same: ${{ steps.compare.outputs.same }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          # 版（ベータ番号）はタグから、LAST_UPDATED はコミット日から決めるので、履歴とタグをすべて取る
+          fetch-depth: 0
 
       - uses: actions/setup-python@v5
         with:
@@ -219,6 +214,7 @@ jobs:
 
       - name: zipとSHA256値を作る
         id: build
+        # 版はタグだけで決める（下書きはこの権限では見えない）。Releaseに使う版は release ジョブで決め直す
         run: python scripts/build_release.py --lock requirements.lock --out dist
 
       - name: 成果物として保存する
@@ -294,7 +290,7 @@ jobs:
           # パイプの途中で grep -q が先に終わると pipefail で失敗扱いになるため、一度変数に受ける
           changed="$(git diff --name-only "$base" HEAD)"
           pattern='^(installer/|install\.sh$|requirements\.txt$|services/ready_state_service\.py$|scripts/(build_release|ci_installer_e2e)\.py$|\.github/workflows/ci\.yml$)'
-          # config.py は、ベータ番号を上げるたびに VERSION・LAST_UPDATED の行が変わる。
+          # config.py の VERSION・LAST_UPDATED の行は、正式版を出すときなどに変わる。
           # 結合テストはこの2つの値を使わないので、ほかの行が変わったときだけ対象にする
           config_lines="$(git diff -U0 "$base" HEAD -- config.py | grep -E '^[+-]' | grep -vE '^(\+\+\+|---) ' || true)"
           config_other="$(grep -vE '^([+-](VERSION|LAST_UPDATED)[[:space:]]*=|$)' <<< "$config_lines" || true)"
@@ -436,9 +432,9 @@ jobs:
   release:
     name: Releaseの作成
     runs-on: ubuntu-latest
-    # mainに入ったときだけ動く。すべての確認が通った配布物を、作り直さずにそのまま使う。
-    #   正式版（VERSIONに (beta X) がない）: Releaseの下書きを作る。公開は人が本文を書いてから行う
-    #   ベータ版（VERSIONが (beta X)）: プレリリースをすぐ公開する。ベータのチャンネルの環境はこれを取りに行く
+    # mainに入ったときだけ動く。すべての確認が通ったコミットと requirements.lock から、版を決めて配布物を作る。
+    #   正式版（config.py の VERSION が vX.X.X.XX で、まだ出していない）: Releaseの下書きを作る。公開は人が本文を書いてから行う
+    #   ベータ版（それ以外）: 前のタグからコードが変わっていれば、プレリリースをすぐ公開する。ベータのチャンネルの環境はこれを取りに行く
     #   確かめ済みの中身なら、テストなどは省かれ、build と lock-check だけが通っていればよい。
     #   ロックもPRのときと同じなら、lock-check も省かれる
     needs: [gate, test, static-checks, build, lock-check, installer-e2e, secret-scan]
@@ -456,8 +452,6 @@ jobs:
       group: release
       cancel-in-progress: false
     env:
-      TAG: ${{ needs.build.outputs.tag }}
-      CHANNEL: ${{ needs.build.outputs.channel }}
       GH_TOKEN: ${{ github.token }}
       GH_REPO: ${{ github.repository }}
       # 残すプレリリースの数
@@ -465,40 +459,50 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          # 前のタグからのコミットの一覧を作るため、履歴とタグをすべて取る
+          # 版をタグから決め、前のタグからのコミットの一覧を作るため、履歴とタグをすべて取る
           fetch-depth: 0
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: requirements-lock
+
+      - name: 版を決めて配布物を作る
+        id: build
+        # ベータ番号が直前のpushのReleaseと重ならないよう、直列に動くこのジョブの中で決める。
+        # config.py の VERSION が出した正式版（下書きを含む）なら、次のパッチのベータにする（AGENTS.md「バージョン表記」）
+        run: |
+          gh release list --limit 100 --json tagName --jq '.[].tagName' > "$RUNNER_TEMP/released.txt"
+          python3 scripts/build_release.py --lock requirements.lock --out dist --released-file "$RUNNER_TEMP/released.txt"
 
       - name: 作るかどうかを決める
         id: decide
+        env:
+          TAG: ${{ steps.build.outputs.tag }}
         run: |
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" > /dev/null; then
             echo "タグ $TAG はもうあるので、Releaseは作りません"
             echo "create=false" >> "$GITHUB_OUTPUT"
-            # コードが変わったのにVERSIONが同じなら、(beta X) を上げ忘れている
-            changed="$(python3 scripts/release_notes.py --changed-code-since "$TAG")"
-            if [ -n "$changed" ]; then
-              echo "::warning::$TAG のあとでコードが変わっていますが、VERSIONが $TAG のままなので、新しい版を出せませんでした。VERSIONの (beta X) を上げてください。変わったファイル: $(echo "$changed" | paste -sd ' ')"
-            fi
-          elif gh release list --limit 100 --json tagName --jq '.[].tagName' | grep -qxF "$TAG"; then
+          elif grep -qxF "$TAG" "$RUNNER_TEMP/released.txt"; then
             echo "$TAG の下書きはもうあるので、作りません"
             echo "create=false" >> "$GITHUB_OUTPUT"
-          else
+          elif [ "$(python3 scripts/release_notes.py --should-release "$TAG")" = "true" ]; then
             echo "create=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "前のタグからコードが変わっていないので、$TAG は作りません"
+            echo "create=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - uses: actions/download-artifact@v4
-        if: steps.decide.outputs.create == 'true'
-        with:
-          name: release-assets-tsumugium-${{ needs.build.outputs.tag }}
-          path: dist
 
       - name: 本文を作る
         if: steps.decide.outputs.create == 'true'
+        env:
+          TAG: ${{ steps.build.outputs.tag }}
         run: python3 scripts/release_notes.py --tag "$TAG" --out "$RUNNER_TEMP/notes.md"
 
       - name: 正式版の下書きを作り、zipと.sha256を添付する
-        if: steps.decide.outputs.create == 'true' && needs.build.outputs.channel == 'stable'
+        if: steps.decide.outputs.create == 'true' && steps.build.outputs.channel == 'stable'
         # 下書きのあいだはタグを作らない。公開したときに、GitHubがこのコミットにタグを付ける。
+        env:
+          TAG: ${{ steps.build.outputs.tag }}
         run: |
           gh release create "$TAG" \
             "dist/tsumugium-$TAG.zip" \
@@ -510,8 +514,10 @@ jobs:
           echo "### Releaseの下書きを作りました: $TAG" >> "$GITHUB_STEP_SUMMARY"
 
       - name: ベータ版のプレリリースを公開し、zipと.sha256を添付する
-        if: steps.decide.outputs.create == 'true' && needs.build.outputs.channel == 'beta'
+        if: steps.decide.outputs.create == 'true' && steps.build.outputs.channel == 'beta'
         # 公開と同時に、このコミットにタグを付ける
+        env:
+          TAG: ${{ steps.build.outputs.tag }}
         run: |
           gh release create "$TAG" \
             "dist/tsumugium-$TAG.zip" \
@@ -523,7 +529,7 @@ jobs:
           echo "### ベータ版を公開しました: $TAG" >> "$GITHUB_STEP_SUMMARY"
 
       - name: 古いプレリリースを消す
-        if: steps.decide.outputs.create == 'true' && needs.build.outputs.channel == 'beta'
+        if: steps.decide.outputs.create == 'true' && steps.build.outputs.channel == 'beta'
         # 新しいほうから KEEP_PRERELEASES 件だけ残し、残りはReleaseとタグを消す。下書きと正式版は消さない。
         run: |
           old="$(gh release list --limit 100 --json tagName,isPrerelease,isDraft,createdAt \
