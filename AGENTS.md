@@ -522,6 +522,8 @@ Botが接続し直したときは、`VoiceService.reset_speaking_soon()`が1秒�
 - 特定モジュールだけ実行する場合は、例として `python -m unittest tests.test_http_clients -v` を使用する。
 - リリース・コミット前にも必要な回帰テストを実行する。
 - インストーラーの結合テストは、CIの`installer-e2e`ジョブが`scripts/ci_installer_e2e.py`で行う。本物の`sudo`・`useradd`・systemdを使い、`/opt/tsumugium`などを作って消すので、手元のマシンでは実行しない。
+- 結合テストのコマンドの出力は、開始からの秒数を付けてその場で表示する。60秒出力がなければ実行中のプロセス・通信・aptの様子を書き出し、15分を超えたら止めて失敗にする。
+- インストーラーがaptで入れるffmpegは、ランナーのミラーからの取得がとても遅いことがあるため、`installer-e2e`ジョブは取得した.debを`actions/cache`に残し、次の実行で`/var/cache/apt/archives/`へ戻す。インストーラーの`apt-get update`・`apt-get install`はそのまま動く。残すのはインストール済みの版と一致する.debだけで、キャッシュはmainで作ったものがすべてのPRで使われる（PRで作ったものはそのPRの中だけ）。
 
 ---
 
