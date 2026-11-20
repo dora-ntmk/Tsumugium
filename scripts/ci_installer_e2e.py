@@ -26,6 +26,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 from pathlib import Path
 
 
@@ -98,12 +99,111 @@ class Failure(Exception):
 
 # コマンド
 
-def run(args, *, check=True):
+# 1つのコマンドにかけてよい時間。超えたら様子を書き出してから止める
+COMMAND_TIMEOUT = 15 * 60
+# 出力がこの秒数途切れたら、何をしているかを書き出す
+SILENCE_REPORT = 60
+
+
+def _descendants(pid: int) -> list[int]:
+  """pid とその子孫のプロセスID（sudo の先で動く apt や pip を含む）。"""
+  listing = subprocess.run(["ps", "-eo", "pid=,ppid="], text=True, capture_output=True).stdout
+  children: dict[int, list[int]] = {}
+  for line in listing.splitlines():
+    parts = line.split()
+    if len(parts) == 2:
+      children.setdefault(int(parts[1]), []).append(int(parts[0]))
+  found, stack = [], [pid]
+  while stack:
+    current = stack.pop()
+    found.append(current)
+    stack.extend(children.get(current, []))
+  return found
+
+
+def _report(pid: int, reason: str) -> None:
+  """止まっているように見えるときに、子孫のプロセス・通信・apt の様子を書き出す。"""
+  print(f"\n---- {reason}: 実行中のプロセス ----", flush=True)
+  pids = ",".join(str(p) for p in _descendants(pid))
+  for args in (
+    ["ps", "-o", "pid,ppid,etimes,stat,pcpu,wchan:24,args", "-p", pids],
+    # 通信の相手と、送受信の進み具合（apt のミラー、pip の PyPI など）
+    ["sudo", "ss", "-tnpi", "state", "established"],
+    ["systemctl", "list-jobs", "--no-pager"],
+    ["sudo", "tail", "-n", "8", "/var/log/apt/term.log"],
+  ):
+    result = subprocess.run(args, text=True, capture_output=True, stdin=subprocess.DEVNULL)
+    text = (result.stdout + result.stderr).rstrip()
+    if args[1] == "ss":
+      # 子孫のプロセスの通信だけを残す
+      own = {f"pid={p}," for p in pids.split(",")}
+      lines = text.splitlines()
+      keep, take_next = [], False
+      for line in lines:
+        if take_next:
+          keep.append(line)
+          take_next = False
+        elif any(mark in line for mark in own):
+          keep.append(line)
+          take_next = True
+      text = "\n".join(keep) or "（このコマンドの通信はありません）"
+    print("$ " + " ".join(args) + "\n" + text, flush=True)
+  print("---- ここまで ----\n", flush=True)
+
+
+def run(args, *, check=True, timeout=COMMAND_TIMEOUT):
+  """コマンドを実行し、出力をその場で（経過秒数を付けて）流しながら受け取る。
+
+  出力を最後にまとめて表示すると、長くかかったときにどこで時間を使ったかが分からないため。
+  """
   print("$ " + " ".join(args), flush=True)
-  result = subprocess.run(args, text=True, capture_output=True, stdin=subprocess.DEVNULL)
-  for stream in (result.stdout, result.stderr):
-    if stream.strip():
-      print(stream.rstrip(), flush=True)
+  started = time.monotonic()
+  last_output = [started]
+  process = subprocess.Popen(
+    args, text=True, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    errors="replace", bufsize=1,
+  )
+  collected = {"stdout": [], "stderr": []}
+
+  def pump(stream, name):
+    for line in stream:
+      now = time.monotonic()
+      last_output[0] = now
+      collected[name].append(line)
+      mark = "!" if name == "stderr" else " "
+      print(f"[{now - started:7.1f}s]{mark} {line.rstrip()}", flush=True)
+
+  readers = [
+    threading.Thread(target=pump, args=(process.stdout, "stdout"), daemon=True),
+    threading.Thread(target=pump, args=(process.stderr, "stderr"), daemon=True),
+  ]
+  for reader in readers:
+    reader.start()
+  reported_at = started
+  while True:
+    try:
+      process.wait(timeout=5)
+      break
+    except subprocess.TimeoutExpired:
+      pass
+    now = time.monotonic()
+    if now - started > timeout:
+      _report(process.pid, f"{timeout}秒を超えたので止めます")
+      subprocess.run(["sudo", "kill", "-TERM", *(str(p) for p in _descendants(process.pid))])
+      process.wait()
+      raise Failure(f"{timeout}秒以内に終わりませんでした: {' '.join(args)}")
+    silent = now - last_output[0]
+    if silent >= SILENCE_REPORT and now - reported_at >= SILENCE_REPORT:
+      _report(process.pid, f"{silent:.0f}秒出力がありません（開始から{now - started:.0f}秒）")
+      reported_at = now
+  for reader in readers:
+    reader.join()
+  elapsed = time.monotonic() - started
+  if elapsed >= 10:
+    print(f"  （{elapsed:.1f}秒かかりました）", flush=True)
+  result = subprocess.CompletedProcess(
+    args, process.returncode, "".join(collected["stdout"]), "".join(collected["stderr"]),
+  )
   if check and result.returncode != 0:
     raise Failure(f"終了コード {result.returncode}: {' '.join(args)}")
   return result

@@ -262,6 +262,8 @@ jobs:
   installer-e2e:
     name: インストーラーの結合テスト
     runs-on: ubuntu-24.04
+    # 止まったときに既定の6時間待たないようにする（ふだんは3分ほど。aptが遅い日は10分を超える）
+    timeout-minutes: 40
     needs: [gate, test]
     if: needs.gate.outputs.verified != 'true'
     steps:
