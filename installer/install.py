@@ -369,7 +369,7 @@ class Installer:
     except ReadyError as error:
       self.ui.error(str(error))
       self.ui.info("インストールは済んでいます。原因を直してから、次のコマンドで起動してください:")
-      self.ui.info(f"  sudo systemctl restart {service}")
+      self.ui.info("  sudo tsumugium-setup restart")
       return EXIT_ERROR
     self.ui.info("起動を確認しました")
     return EXIT_OK
@@ -380,7 +380,7 @@ class Installer:
     self.ui.info("インストールが完了しました。")
     self.ui.info("  状態を見る:   sudo tsumugium-setup status")
     self.ui.info(f"  ログを見る:   sudo journalctl -u {service} -f")
-    self.ui.info(f"  設定を変える: sudo nano {record.layout.env_file} のあと sudo systemctl restart {service}")
+    self.ui.info(f"  設定を変える: sudo nano {record.layout.env_file} のあと sudo tsumugium-setup restart")
     self.ui.info("  更新する:     sudo tsumugium-setup upgrade")
     if record.auto_update_enabled:
       self.ui.info("  自動更新:     オン（10分おきに新しい版を確かめます。止めるときは sudo tsumugium-setup auto-update off）")

@@ -1,4 +1,4 @@
-"""status・start・stop・uninstall モードと、入口のスクリプト（installer/manage.py、entry.py）のテスト。"""
+"""status・start・stop・restart・uninstall モードと、入口のスクリプト（installer/manage.py、entry.py）のテスト。"""
 
 import io
 import json
@@ -141,6 +141,32 @@ class StartStopTest(ManageTestCase):
     self.add_instance()
     self.assertEqual(self.run_cli(["stop", "--disable"]), cli.EXIT_OK)
     self.assertEqual(self.systemctl(), [["stop", "tsumugium.service"], ["disable", "tsumugium.service"]])
+
+  def test_restart_waits_for_ready_without_reason(self):
+    record = self.add_instance(unverified=VERSION)
+    self.set_state(active=True)
+    self.assertEqual(self.run_cli(["restart"]), cli.EXIT_OK, self.output())
+    self.assertEqual(self.systemctl()[-1], ["restart", "tsumugium.service"])
+    self.assertNotIn(["stop", "tsumugium.service"], self.systemctl())
+    self.assertEqual(self.waits, [VERSION])
+    self.assertIsNone(load_record(self.system, "tsumugium").unverified)
+    # 理由を書かないので、Botは再起動として扱い、VCにつなぎ直す
+    self.assertFalse(self.system.path(f"{record.layout.state}/restart-reason.json").exists())
+
+  def test_restart_when_stopped_starts(self):
+    self.add_instance()
+    self.set_state(active=False)
+    self.assertEqual(self.run_cli(["restart"]), cli.EXIT_OK, self.output())
+    self.assertEqual(self.systemctl()[-2:], [["enable", "tsumugium.service"], ["start", "tsumugium.service"]])
+    self.assertNotIn(["restart", "tsumugium.service"], self.systemctl())
+    self.assertIn("止まっているので、起動します", self.output())
+
+  def test_restart_failure(self):
+    self.add_instance()
+    self.set_state(active=True)
+    self.wait_error = ReadyError("Botが起動の途中で止まりました")
+    self.assertEqual(self.run_cli(["restart"]), cli.EXIT_ERROR)
+    self.assertIn("起動の途中で止まりました", self.output())
 
   def test_multiple_instances_need_choice(self):
     self.add_instance("tsumugium")

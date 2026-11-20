@@ -394,7 +394,7 @@ Embedで送っているメッセージを、Components v2（`discord.ui.LayoutVi
 `main.py`は`ManagedDiscordClient.run_until_stopped()`でBotを動かす。`discord.Client.run()`はSIGTERMでDiscordとの接続を閉じずに終わり、終了前の処理が動かず、古い接続がしばらく残ってステータスも混ざるため、SIGTERM・SIGINTを受けたら`close()`を呼ぶ。`close()`は、登録した終了前の処理を動かしてからDiscordとの接続を閉じる。
 
 - `ReconnectService`は、つないでいるVC（サーバー・VC・一時的な読み上げチャンネル）を`UPDATE_STATE_DIR/voice-sessions.json`へ、Bot自身がVCにつないだ・抜けたときと、1分おきに書く。最後に動いていた時刻（`alive_at`）も書くので、異常で落ちたときも止まっていた時間がわかる。起動したときのつなぎ直しが終わるまでは書かない。
-- インストーラーはBotを止める前に、`restart-reason.json`へ止める理由を書く。更新・`rollback`は`update`、`tsumugium-setup stop`・`uninstall`は`manual_stop`。ファイルがなければ再起動（`systemctl restart`、マシンの再起動、異常で落ちたあとの自動の起動）として扱う。
+- インストーラーはBotを止める前に、`restart-reason.json`へ止める理由を書く。更新・`rollback`は`update`、`tsumugium-setup stop`・`uninstall`は`manual_stop`。`tsumugium-setup restart`は理由を書かない。ファイルがなければ再起動（`tsumugium-setup restart`・`systemctl restart`、マシンの再起動、異常で落ちたあとの自動の起動）として扱う。
 - 止めるとき（終了前の処理）は、理由が`manual_stop`なら`voice-sessions.json`を消して黙ってVCを抜ける。それ以外は、最後の状態を書いてから、読み上げチャンネル（一時的な読み上げチャンネル→`TextTarget`→VCのテキストチャットの順に最初にあるもの）へ「アップデートのため再起動しています」か「（Bot名）は再起動しています」を送り、VCを抜ける。知らせと切断は、合わせて最大10秒で打ち切る。この切断は自発的な切断として扱う。
 - 起動したときは、`on_ready`の処理のあとに`restart-reason.json`を読んで消す。理由が`manual_stop`でなく、`alive_at`から3分以内なら、記録したVCのうち人がいるVCにつなぎ直し、一時的な読み上げチャンネルを戻して「再接続しました」を送る。すでにつないでいるサーバーと、人がいないVCは飛ばす。
 
@@ -407,12 +407,12 @@ Embedで送っているメッセージを、Components v2（`discord.ui.LayoutVi
 | ファイル | 役割 |
 |---|---|
 | `install.sh` | 展開したzipから最初に実行する入口。Python 3.10以上かを確かめ、隣の`installer/`を呼ぶ |
-| `installer/cli.py` | 9つのモードの振り分け。想定している失敗は理由を表示して終了コード1で終える |
+| `installer/cli.py` | 10のモードの振り分け。想定している失敗は理由を表示して終了コード1で終える |
 | `installer/install.py` | `install`モード |
 | `installer/upgrade.py` | `upgrade`・`repair`モード。取得・照合・展開までを今のバージョンが行い、そのあとを新しいバージョンに引き継ぐ |
 | `installer/handoff.py` | 引き継ぎを受ける新しいバージョンの入口 |
 | `installer/rollback.py` | `rollback`モード。`app.prev/`にある1つ前のバージョンのインストーラーで動く |
-| `installer/manage.py` | `status`・`start`・`stop`・`uninstall`モード |
+| `installer/manage.py` | `status`・`start`・`stop`・`restart`・`uninstall`モード。`restart`は止まっていれば`start`と同じく起動し、どちらも`ready.json`で起動を確かめる |
 | `installer/autoupdate.py` | 自動更新のtimerとservice、`auto-update`モード（on・off）、更新の結果（`data/state/last-update.json`・`auto-update.json`）の書き残し。更新するかの判断は`upgrade.py`の`upgrade --auto`が行う |
 | `installer/entry.py` | `/usr/local/sbin/tsumugium-setup`の中身と、置き方・消し方 |
 | `installer/release.py` | GitHub Releasesからのバージョンの選択・取得、SHA256値の照合、zipの安全な展開、バージョンの比較 |

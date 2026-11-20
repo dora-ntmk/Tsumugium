@@ -87,6 +87,7 @@ sudo ./install.sh install --yes --admin <自分のユーザー名>
 | 状態を見る | `sudo tsumugium-setup status` |
 | 動かす | `sudo tsumugium-setup start` |
 | 止める | `sudo tsumugium-setup stop` |
+| 再起動する（`.env`を変えたあとなど） | `sudo tsumugium-setup restart` |
 | 止めて、マシンを再起動しても動かないようにする | `sudo tsumugium-setup stop --disable` |
 | 最新のバージョンに更新する | `sudo tsumugium-setup upgrade` |
 | バージョンを指定して更新する | `sudo tsumugium-setup upgrade --version v4.2.0.71` |
@@ -108,7 +109,7 @@ sudo nano /opt/tsumugium/.env
 ```
 
 ```bash
-sudo systemctl restart tsumugium
+sudo tsumugium-setup restart
 ```
 
 DBの場所、一時ファイルとバックアップの置き場所、VOICEVOXのURLは、インストーラーがsystemdのunitで渡します。`.env`に書いても使われません。VOICEVOXのURLを変えたいときは、記録（`/etc/tsumugium/<インスタンス名>.json`）の`voicevox_url`を`sudo nano`で直してから、`sudo tsumugium-setup repair`を実行します。`repair`がunitを書き直します。
@@ -169,7 +170,7 @@ Botを止めている間に`upgrade`すると、更新のあとで起動して�
 
 ## 止めるときと再起動のあと
 
-- 更新・`rollback`・`systemctl restart`・マシンの再起動でBotが止まるときは、読み上げチャンネルに「再起動します」と知らせてからVCを抜けます。起動したあと、止まっていた時間が3分以内なら、人がいるVCに自動でつなぎ直します。
+- 更新・`rollback`・`tsumugium-setup restart`・`systemctl restart`・マシンの再起動でBotが止まるときは、読み上げチャンネルに「再起動します」と知らせてからVCを抜けます。起動したあと、止まっていた時間が3分以内なら、人がいるVCに自動でつなぎ直します。
 - `sudo tsumugium-setup stop`で止めたときは、知らせずにVCを抜け、次に起動してもつなぎ直しません。
 
 ## 更新の知らせ
@@ -208,7 +209,7 @@ Botを止めている間に`upgrade`すると、更新のあとで起動して�
 |---|---|
 | VOICEVOXに接続できません | VOICEVOX ENGINEが動いているか、URLが合っているかを確かめます。`curl -s http://127.0.0.1:50021/version`でバージョン番号が返れば動いています |
 | 60秒待ちましたが、Botの準備が終わりませんでした | `sudo journalctl -u tsumugium -n 50`でBotのログを見ます。トークンの誤りやDiscordへの接続の失敗がよくある原因です |
-| Botのログに`Shard ID None session has been invalidated.`と出て止まる | BotのMessage Content Intentがオフである可能性があります。Developer PortalでBotを選び、「Bot」の「MESSAGE CONTENT INTENT」をオンにして保存してから、`sudo systemctl restart tsumugium`を実行してください。それでも解決しない場合は、同一TOKENで起動しているBotがないことや、インターネット接続が正常かを確認してください。 |
+| Botのログに`Shard ID None session has been invalidated.`と出て止まる | BotのMessage Content Intentがオフである可能性があります。Developer PortalでBotを選び、「Bot」の「MESSAGE CONTENT INTENT」をオンにして保存してから、`sudo tsumugium-setup restart`を実行してください。それでも解決しない場合は、同一TOKENで起動しているBotがないことや、インターネット接続が正常かを確認してください。 |
 | 前回の更新が途中で止まっています | `upgrade`を実行すると、`repair`（記録のバージョンを入れ直す）と`rollback`（1つ前のバージョンに戻す）のどちらで直すかを聞かれます |
 | ほかの処理が実行中です | 同じインスタンスで別の操作が動いています。終わってから実行し直します |
 | tsumugium-setup が作ったものではないため、上書きしません | 同じ名前のunitがすでにあります。インストールのときに別のサービス名を選ぶか、元のunitの名前を変えます |
