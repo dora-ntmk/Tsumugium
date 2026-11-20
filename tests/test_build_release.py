@@ -4,8 +4,10 @@ import hashlib
 import importlib.util
 import json
 import os
+import subprocess
 import zipfile
 from pathlib import Path
+from unittest import mock
 
 from tests.support import TempDirTestCase
 
@@ -83,6 +85,27 @@ class ResolveVersionTest(TempDirTestCase):
     )
     with self.assertRaises(ValueError):
       build_release.stamp_config('VERSION = "v1.0.0.1"\n', "v1.0.0.1", "2026/11/20")
+
+
+class CommitDateTest(TempDirTestCase):
+  def test_commit_date_is_in_japan_time(self):
+    # CIのランナーはUTCで動く。UTCの23:58は、日本時間では翌日の08:58
+    env = {
+      **os.environ,
+      "TZ": "UTC",
+      "GIT_AUTHOR_DATE": "2026-11-19T23:58:00+00:00",
+      "GIT_COMMITTER_DATE": "2026-11-19T23:58:00+00:00",
+    }
+    def git(*args):
+      subprocess.run(
+        ["git", "-c", "user.name=test", "-c", "user.email=test@example.invalid",
+         "-c", "commit.gpgsign=false", *args],
+        cwd=self.tmp_dir, check=True, capture_output=True, env=env,
+      )
+    git("init", "-q")
+    git("commit", "-q", "--allow-empty", "-m", "test")
+    with mock.patch.dict(os.environ, {"TZ": "UTC"}):
+      self.assertEqual(build_release.commit_date(Path(self.tmp_dir), "HEAD"), "2026/11/20")
 
 
 class FileSelectionTest(TempDirTestCase):
