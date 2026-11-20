@@ -323,9 +323,68 @@ jobs:
             --no-header \
             --output-file requirements-e2e.lock
 
+      # インストーラーが apt で入れる ffmpeg（80個ほど・約60MB）は、ランナーのミラーからの取得が
+      # 100kB/s 台まで落ちて10分近くかかることがある。前回取得した .deb を apt のキャッシュに戻しておき、
+      # インストーラー自身の apt-get update・apt-get install はそのまま動かして、取得だけを省く。
+      # apt は .deb をパッケージ一覧のハッシュ値と照合するので、版が変わったものや中身の違うものは取り直す
+      - name: apt で取得した .deb をキャッシュから戻す
+        id: apt-cache
+        if: steps.changes.outputs.run == 'true'
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ runner.temp }}/apt-debs
+          key: apt-debs-ubuntu-24.04-${{ github.run_id }}
+          restore-keys: apt-debs-ubuntu-24.04-
+
+      - name: 戻した .deb を apt のキャッシュに置く
+        if: steps.changes.outputs.run == 'true' && steps.apt-cache.outputs.cache-matched-key != ''
+        run: |
+          count="$(find "$RUNNER_TEMP/apt-debs" -maxdepth 1 -name '*.deb' | wc -l)"
+          echo "キャッシュから ${count} 個の .deb を戻します（${{ steps.apt-cache.outputs.cache-matched-key }}）"
+          sudo cp "$RUNNER_TEMP"/apt-debs/*.deb /var/cache/apt/archives/
+
       - name: install から uninstall までを通しで動かす
         if: steps.changes.outputs.run == 'true'
         run: python scripts/ci_installer_e2e.py --lock requirements-e2e.lock
+
+      - name: 今入っている版の .deb だけを集める
+        id: apt-debs
+        # 結合テストが途中で失敗しても、apt が取得し終えていれば残す
+        if: ${{ !cancelled() && steps.changes.outputs.run == 'true' }}
+        run: |
+          rm -rf "$RUNNER_TEMP/apt-debs"
+          mkdir -p "$RUNNER_TEMP/apt-debs"
+          # 古い版の .deb がたまらないよう、インストール済みの版と一致するものだけを残す
+          for deb in /var/cache/apt/archives/*.deb; do
+            [ -e "$deb" ] || continue
+            package="$(dpkg-deb -f "$deb" Package)"
+            version="$(dpkg-deb -f "$deb" Version)"
+            arch="$(dpkg-deb -f "$deb" Architecture)"
+            if [ "$arch" = "all" ]; then target="$package"; else target="$package:$arch"; fi
+            installed="$(dpkg-query -W -f='${Version}' "$target" 2>/dev/null || true)"
+            if [ "$installed" = "$version" ]; then
+              cp "$deb" "$RUNNER_TEMP/apt-debs/"
+            fi
+          done
+          count="$(find "$RUNNER_TEMP/apt-debs" -maxdepth 1 -name '*.deb' | wc -l)"
+          if [ "$count" -eq 0 ]; then
+            echo "残す .deb がありません（apt が取得していない、または取得後に消した）"
+            echo "key=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          digest="$(cd "$RUNNER_TEMP/apt-debs" && ls -1 *.deb | sort | sha256sum | cut -c1-16)"
+          echo "${count} 個の .deb を残します"
+          echo "key=apt-debs-ubuntu-24.04-${digest}" >> "$GITHUB_OUTPUT"
+
+      - name: .deb をキャッシュに残す
+        # 戻したものと同じ組み合わせなら残し直さない
+        if: >-
+          !cancelled() && steps.apt-debs.outputs.key != '' &&
+          steps.apt-debs.outputs.key != steps.apt-cache.outputs.cache-matched-key
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ runner.temp }}/apt-debs
+          key: ${{ steps.apt-debs.outputs.key }}
 
   secret-scan:
     name: 秘密情報のスキャン
