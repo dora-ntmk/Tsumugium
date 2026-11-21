@@ -376,7 +376,11 @@ class ConnectionService:
               "\n".join(issues),
               layout_type=EmbedType.ERROR,
             )
-            await notify_channel.send(view=layout.view, files=layout.files)
+            await notify_channel.send(
+              view=layout.view,
+              files=layout.files,
+              allowed_mentions=discord.AllowedMentions.none(),
+            )
           return
         def auto_join_still_valid():
           configured_target = self.server_config.get(guild.id, "VoiceTarget")
@@ -409,7 +413,12 @@ class ConnectionService:
             notify_channel,
             layout_type=EmbedType.INFO,
           )
-          await notify_channel.send(view=layout.view, files=layout.files)
+          # 自動接続は人の操作によらないので、メンションで誰にも通知しない
+          await notify_channel.send(
+            view=layout.view,
+            files=layout.files,
+            allowed_mentions=discord.AllowedMentions.none(),
+          )
         return
 
     if (
