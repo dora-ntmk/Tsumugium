@@ -42,8 +42,10 @@ UPDATING_FILE = "updating.json"
 RESTART_REASON_FILE = "restart-reason.json"
 # 自動更新がオフのときに見つけた新しい版。Botはこれを見て、ボタン付きのDMで知らせる
 AVAILABLE_FILE = "available-update.json"
-# Botの「更新する」ボタンからの依頼。path unit がこれを見て、更新を動かす
+# Botの「更新する」ボタンと /update コマンドからの依頼。path unit がこれを見て、更新を動かす
 REQUEST_FILE = "update-request.json"
+# 依頼の mode。check は新しい版を確かめるだけで、入れない（見つけたら available-update.json に書く）
+REQUEST_MODE_CHECK = "check"
 REASON_UPDATE = "update"
 REASON_MANUAL_STOP = "manual_stop"
 

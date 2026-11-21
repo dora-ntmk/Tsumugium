@@ -428,6 +428,43 @@ class RequestTest(AutoUpgradeTestCase):
     self.assertEqual(self.state()["result"], autoupdate.RESULT_BUSY)
     self.assertEqual(load_record(self.system, "tsumugium").version, OLD)
 
+  def check(self, record=None):
+    if record is not None:
+      save_record(self.system, record)
+    self.write(self.REQUEST, json.dumps({"mode": "check", "request_id": "abc"}))
+    self.assertEqual(self.auto(), cli.EXIT_OK, self.output())
+    self.assertFalse(self.exists(self.REQUEST))
+    self.assertEqual(self.read("/opt/tsumugium/app/main.py"), "old\n", "確かめるだけで入れない")
+    state = self.state()
+    self.assertEqual(state["request_id"], "abc")
+    return state
+
+  def test_check_request_notifies_new_version(self):
+    state = self.check(replace(self.record, auto_update=True))
+    self.assertEqual((state["result"], state["latest"]), (autoupdate.RESULT_NOTIFIED, NEW))
+    available = self.state(autoupdate.AVAILABLE_FILE)
+    self.assertEqual((available["version"], available["skipped"]), (NEW, False))
+
+  def test_check_request_marks_skipped_version(self):
+    self.check(with_skipped(self.record, NEW))
+    self.assertTrue(self.state(autoupdate.AVAILABLE_FILE)["skipped"])
+
+  def test_check_request_latest(self):
+    self.write("/opt/tsumugium/data/state/available-update.json", json.dumps({"version": OLD}))
+    state = self.check(replace(self.record, version=NEW))
+    self.assertEqual(state["result"], autoupdate.RESULT_LATEST)
+    self.assertFalse(self.exists("/opt/tsumugium/data/state/available-update.json"))
+
+  def test_check_request_with_unfinished_update(self):
+    state = self.check(replace(self.record, updating={"from": OLD, "to": NEW}))
+    self.assertEqual(state["result"], autoupdate.RESULT_UNFINISHED)
+
+  def test_check_request_error(self):
+    with unittest.mock.patch("installer.upgrade.select_release", side_effect=ReleaseError("つながりません")):
+      state = self.check()
+    self.assertEqual(state["result"], autoupdate.RESULT_ERROR)
+    self.assertIn("つながりません", state["message"])
+
   def test_failed_requested_update_is_reported(self):
     self.fail_versions = {NEW}
     self.request(NEW)

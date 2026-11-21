@@ -9,6 +9,9 @@
   ボタンが押されたら update-request.json に依頼を書き、インストーラーの path unit が更新を動かす。
   「VCが空いたら」のときは pending-update.json に残し、BotがどのVCにもつないでいないときに依頼を書く。
   押されたDMは、更新が始まったら「更新を開始しました」に書き換える。
+- 運営者の /update コマンドで、update-request.json に確認の依頼（mode: check）を書く。
+  インストーラーが新しい版を確かめて auto-update.json に結果を書いたら、それを返す。
+  新しい版があれば、上と同じボタン付きのDMを送る（すでに知らせた版なら、依頼した人へもう一度送る）。
 
 UPDATE_STATE_DIR が空欄（インストーラーを使わずに動かしている）なら何もしない。
 """
@@ -20,6 +23,7 @@ import json
 import os
 import tempfile
 import time
+import uuid
 from typing import Callable
 
 import discord
@@ -41,6 +45,16 @@ REQUEST_FILE = "update-request.json"
 PENDING_FILE = "pending-update.json"
 MODE_NOW = "now"
 MODE_IDLE = "idle"
+# /update コマンドの依頼。新しい版を確かめるだけで、入れるかはボタンで決める
+MODE_CHECK = "check"
+# 確認の結果（インストーラーが auto-update.json に書く）
+RESULT_NOTIFIED = "notified"
+RESULT_LATEST = "latest"
+# インストーラーの起動と GitHub への問い合わせを待つ
+CHECK_REQUEST_TIMEOUT = 60.0
+CHECK_POLL_INTERVAL = 1.0
+# 続けて頼まれても GitHub へ問い合わせすぎないよう、前の確認から空ける時間
+CHECK_REQUEST_COOLDOWN = 60.0
 
 UPDATING_TEXT = "📥アップデート中…　操作を受け付けない場合があります"
 CHECK_INTERVAL = 5.0
@@ -158,6 +172,11 @@ class UpdateWatchService:
       current_version: str | None = None,
       interval: float = CHECK_INTERVAL,
       process_exists: Callable[[int], bool] = process_exists,
+      check_timeout: float = CHECK_REQUEST_TIMEOUT,
+      check_poll_interval: float = CHECK_POLL_INTERVAL,
+      check_cooldown: float = CHECK_REQUEST_COOLDOWN,
+      # /update を続けて頼まれたときの間隔を測る（テストで差し替える）
+      clock: Callable[[], float] = time.monotonic,
   ):
     self.client = client
     self.current_version = current_version
@@ -170,6 +189,13 @@ class UpdateWatchService:
     self._task: asyncio.Task | None = None
     # このサービスが「アップデート中」の表示を出しているか
     self._showing_updating = False
+    self.check_timeout = check_timeout
+    self.check_poll_interval = check_poll_interval
+    self.check_cooldown = check_cooldown
+    self.clock = clock
+    self._last_check_request: float | None = None
+    # 見張りと /update の両方からボタン付きのDMを送るので、同じ版を二重に送らないようにする
+    self._offer_lock = asyncio.Lock()
 
   @property
   def enabled(self) -> bool:
@@ -308,26 +334,133 @@ class UpdateWatchService:
 
   # E 「更新する」ボタン
 
-  async def offer_available_update(self) -> None:
-    """新しい版があり、まだ知らせていなければ、ボタン付きのDMを送る。"""
+  async def offer_available_update(self, *, resend_to: int | None = None) -> bool:
+    """新しい版があり、まだ知らせていなければ、ボタン付きのDMを送る。
+
+    resend_to を渡すと、すでに知らせた版でも、その人へもう一度送る（/update で頼まれたとき）。
+    ボタン付きのDMを1通でも送れたら True を返す。
+    """
     if not self.operator_user_ids:
-      return
-    data = self._read(AVAILABLE_FILE)
-    version = (data or {}).get("version")
-    if not isinstance(version, str) or version == self.current_version:
-      return
-    if (self._read(NOTICE_FILE) or {}).get("offered_version") == version:
-      return
-    sent = await self._send_to_operators(available_embed(data), view=update_view(version))
-    if sent:
-      self._write_notice(
-        offered_version=version,
-        offered_messages=[
-          {"user_id": user_id, "message_id": message.id}
-          for user_id, message in sent
-          if message is not None
-        ],
+      return False
+    async with self._offer_lock:
+      data = self._read(AVAILABLE_FILE)
+      version = (data or {}).get("version")
+      if not isinstance(version, str) or version == self.current_version:
+        return False
+      notice = self._read(NOTICE_FILE) or {}
+      offered = notice.get("offered_version") == version
+      if offered and resend_to is None:
+        return False
+      if offered:
+        sent = await send_to_users(
+          self.client, (resend_to,), "更新の知らせ",
+          embed=available_embed(data), view=update_view(version),
+        )
+        previous = [record for record in notice.get("offered_messages") or [] if isinstance(record, dict)]
+      else:
+        sent = await self._send_to_operators(available_embed(data), view=update_view(version))
+        previous = []
+      if sent:
+        self._write_notice(
+          offered_version=version,
+          offered_messages=previous + [
+            {"user_id": user_id, "message_id": message.id}
+            for user_id, message in sent
+            if message is not None
+          ],
+        )
+      return bool(sent)
+
+  # F /update コマンド
+
+  async def request_check(self, user_id: int) -> discord.Embed:
+    """インストーラーに新しい版を確かめてもらい、結果を表すEmbedを返す。
+
+    新しい版があれば、ボタン付きのDMも送る。入れるかは運営者がボタンで決める。
+    """
+    title = "新しい版の確認"
+    if not self.enabled:
+      return make_embed(
+        title,
+        "このBotは tsumugium-setup で入れていないため、Discordからは更新できません",
+        embed_type=EmbedType.ERROR,
       )
+    if self.is_updating():
+      return make_embed(title, "いま更新しています。終わったら、結果をお知らせします", embed_type=EmbedType.WARNING)
+    if self._has_open_request():
+      return make_embed(
+        title,
+        "ほかの更新の依頼を処理しています。しばらくしてから、もう一度試してください",
+        embed_type=EmbedType.WARNING,
+      )
+    now = self.clock()
+    if self._last_check_request is not None and now - self._last_check_request < self.check_cooldown:
+      wait = int(self.check_cooldown - (now - self._last_check_request)) + 1
+      return make_embed(
+        title,
+        f"続けて確かめすぎないよう、{wait}秒ほど空けてから試してください",
+        embed_type=EmbedType.WARNING,
+      )
+    self._last_check_request = now
+
+    request_id = uuid.uuid4().hex
+    self._write(REQUEST_FILE, {
+      "mode": MODE_CHECK,
+      "request_id": request_id,
+      "requested_by": user_id,
+      "requested_at": time.time(),
+    })
+    result = await self._wait_check_result(request_id)
+    if result is None:
+      return make_embed(
+        title,
+        "確認を頼みましたが、時間内に結果が届きませんでした。"
+        "新しい版が見つかれば、ボタン付きのDMでお知らせします",
+        embed_type=EmbedType.WARNING,
+      )
+    code = result.get("result")
+    if code == RESULT_LATEST:
+      return make_embed(title, f"新しい版はありません（今の版 {self.current_version}）")
+    if code == RESULT_NOTIFIED:
+      version = result.get("latest")
+      if await self.offer_available_update(resend_to=user_id):
+        return make_embed(
+          title,
+          f"新しい版 {version} があります。ボタン付きのお知らせを送りました。ボタンから更新できます",
+          embed_type=EmbedType.SUCCESS,
+        )
+      return make_embed(
+        title,
+        f"新しい版 {version} がありますが、ボタン付きのお知らせを送れませんでした。"
+        "`sudo tsumugium-setup upgrade` で更新してください",
+        embed_type=EmbedType.WARNING,
+      )
+    return make_embed(title, str(result.get("message") or code), embed_type=EmbedType.ERROR)
+
+  def _has_open_request(self) -> bool:
+    """まだインストーラーが扱っていない依頼があるか。
+
+    確認の依頼が時間内に扱われずに残っているだけなら、新しい依頼で置き換えてよい。
+    ボタンで頼まれた更新の依頼は、置き換えない。
+    """
+    if not os.path.exists(self._path(REQUEST_FILE)):
+      return False
+    request = self._read(REQUEST_FILE) or {}
+    requested_at = request.get("requested_at")
+    if request.get("mode") != MODE_CHECK or not isinstance(requested_at, (int, float)):
+      return True
+    return time.time() - requested_at < self.check_timeout
+
+  async def _wait_check_result(self, request_id: str) -> dict | None:
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + self.check_timeout
+    while True:
+      data = self._read(AUTO_UPDATE_FILE)
+      if data is not None and data.get("request_id") == request_id:
+        return data
+      if loop.time() >= deadline:
+        return None
+      await asyncio.sleep(self.check_poll_interval)
 
   def _remember_button_message(self, interaction, version: str) -> None:
     """押されたDMと、ほかの運営者へ送った同じお知らせを覚えておき、更新が始まったら書き換える。"""

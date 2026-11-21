@@ -31,7 +31,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `cogs/general_cog.py` | `/version`を登録する一般コマンド層 |
 | `cogs/lifecycle_cog.py` | 起動・サーバー参加退出・Soundboard更新イベントを登録するライフサイクル層 |
 | `cogs/user_cog.py` | DMを含むユーザー単位設定コマンドを登録する層 |
-| `cogs/operator_cog.py` | Botの運営者（`OPERATOR_USER_ID`）だけが使うコマンドを登録する層。`/synthesis-log` |
+| `cogs/operator_cog.py` | Botの運営者（`OPERATOR_USER_ID`）だけが使うコマンドを登録する層。`/synthesis-log`・`/update` |
 | `cogs/announcement_cog.py` | 運営者だけが使う`/announce`コマンド群と、お知らせを入力するModal・入力し直すボタン・保存する前の確認（送信する・内容を変更する・破棄する）を登録する層 |
 | `clients/voicevox_client.py` | 再利用可能な非同期HTTPセッションでVOICEVOX生成とWAV保存を担当 |
 | `clients/discord_soundboard_client.py` | Discord Soundboard一覧取得・再生APIを担当する非同期HTTPクライアント |
@@ -253,6 +253,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/announce del` | `id` | 同上 |
 | `/announce preview` | `id`（省くと今の接続メッセージ） | 同上 |
 | `/synthesis-log` | `count: int (1〜500、既定はすべて)` | `OPERATOR_USER_ID`に書いた人だけ（BotとのDMだけに出す。運営者以外への断りだけephemeral応答） |
+| `/update` | — | `OPERATOR_USER_ID`に書いた人だけ（BotとのDMだけに出す。運営者以外への断りだけephemeral応答） |
 | `/tsumugi-tts` | `text: str` | 全員（BotがVCに接続しているときだけ） |
 | `/t` | `text: str` | 全員（`/tsumugi-tts`の短縮） |
 | `/skip` | — | 全員 |
@@ -388,6 +389,7 @@ Embedで送っているメッセージを、Components v2（`discord.ui.LayoutVi
 - `last-update.json`（更新・入れ直し・戻したときの結果）を見張りのたびに読み、まだ知らせていなければ`OPERATOR_USER_ID`の全員へEmbedでDMする。インストーラーは新しいバージョンのBotの起動を確かめてから結果を書くので、起動したときに1回読むだけでは間に合わない。成功も知らせる。知らせたら`update-notice.json`に印を付け、同じ結果を二度送らない。DMを1人にも送れなかったときは、次の見張りでもう一度送る（1人にでも送れたら知らせたものとし、送れた人へ二度送らない）。
 - `auto-update.json`の結果が`unfinished`（前回の更新が途中で止まっている）になったら、運営者へDMする。同じ状態が続くあいだは1回だけにし、ほかの結果に変わったら印を消す。
 - `available-update.json`に今と違うバージョンがあり、まだ知らせていなければ、運営者へ「今すぐ更新する」「VCが空いたら更新する」のボタン付きでDMする（同じバージョンは1回だけ）。ボタンは`UpdateButton`（`discord.ui.DynamicItem`。custom_idにバージョンを入れ、再起動したあとも押せる）で、押されたら`client.update_watch`が受ける。押せるのは`OPERATOR_USER_ID`に書いた人だけ（複数人なら誰でもよい）。「今すぐ」は`update-request.json`に依頼を書く。「VCが空いたら」は`pending-update.json`に残し、BotがどのVCにもつないでいないときに依頼を書く。今のバージョンと同じか、`available-update.json`と違うバージョンのボタンは、依頼を書かずに知らせる。お知らせを送ったら、運営者ごとのメッセージIDを`update-notice.json`の`offered_messages`に覚えておく。ボタンが押されたら、押されたDMとほかの運営者へ送った同じお知らせを`button_message`（`version`と`messages`の一覧）に覚えておき、更新が始まった（`updating.json`が現れた）ら「更新を開始しました」に書き換える。見張りのすきまで更新が終わったときは、新しいバージョンで起動したあとに書き換える。書き換えられなかったDMだけを残し、次の見張りでもう一度試す。運営者が1人だった版の`button_message`（`message_id`だけ）は、`OPERATOR_USER_ID`の先頭の人のDMとして扱う。
+- 運営者の`/update`は、`update-request.json`に確認の依頼（`mode: check`と`request_id`）を書き、インストーラーが`auto-update.json`に同じ`request_id`の結果を書くまで最大60秒（`CHECK_REQUEST_TIMEOUT`）待って、結果を返す。新しいバージョンがあれば、上と同じボタン付きのDMを送る。まだ知らせていないバージョンなら運営者全員へ、知らせ済みならコマンドを使った人へもう一度送る（見張りとDMが重ならないよう、送るところは`asyncio.Lock`で1つずつ動かす）。入れるかは、そのボタンで決める。更新中、扱われていない更新の依頼があるとき（60秒より前の確認の依頼は置き換える）、前の確認から60秒（`CHECK_REQUEST_COOLDOWN`）たっていないときは、依頼を書かずに断る。GitHubへ問い合わせすぎないため。時間内に結果が届かなければそう伝え、依頼は残す（インストーラーが扱えば、見張りがボタン付きのDMを送る）。`UPDATE_STATE_DIR`が空欄なら使えないと伝える。
 
 ## 止めるときと、再起動のあとのつなぎ直し（`services/reconnect_service.py`）
 
@@ -436,7 +438,7 @@ Embedで送っているメッセージを、Components v2（`discord.ui.LayoutVi
 - 配布用のzipには`.claude/`・`.github/`・`docs/`・`scripts/`・`tests/`・`.gitignore`・`AGENTS.md`を入れず、`build-info.json`と`requirements.lock`を加える。
 - `requirements.lock`は、CIで`uv pip compile --universal`を使ってハッシュ値つきで作る。`--universal`を付けると、Python 3.13以上だけで要る依存（`audioop-lts`など）も条件付きで書き出されるので、Python 3.10以上のどのバージョンでも同じロックを使える。インストーラーは`pip install --require-hashes`で入れる。CIの`lock-check`ジョブがPython 3.10〜3.14のそれぞれで入れられることを確かめる。
 - 自動更新は、`<サービス名>-update.timer`が24時間おきに`upgrade --auto`を動かす。既定は`beta`チャンネルならオン、`stable`ならオフ（記録の`auto_update`がないときもチャンネルで決める）。起動を確かめられずに戻したバージョンと、`rollback`で戻した元のバージョンは、記録の`skip_versions`に入れて自動更新では入れない。
-- 自動更新がオフでもtimerは止めない。オフのときは、新しいバージョンを見つけたら`data/state/available-update.json`に書くだけにし、新しいバージョンがなければ消す。Botの「更新する」ボタンは`data/state/update-request.json`に依頼を書き、`<サービス名>-update.path`（`PathChanged=`）が同じserviceを動かす。`upgrade --auto`は依頼を先に扱い、頼まれたバージョンがReleasesにあり、今より新しく、チャンネルで入れられるときだけ更新する（飛ばすバージョンでも入れる）。ほかの操作が実行中のときは依頼を残し、次の確認に回す。それ以外は依頼を消す。
+- 自動更新がオフでもtimerは止めない。オフのときは、新しいバージョンを見つけたら`data/state/available-update.json`に書くだけにし、新しいバージョンがなければ消す。Botの「更新する」ボタンは`data/state/update-request.json`に依頼を書き、`<サービス名>-update.path`（`PathChanged=`）が同じserviceを動かす。`upgrade --auto`は依頼を先に扱い、頼まれたバージョンがReleasesにあり、今より新しく、チャンネルで入れられるときだけ更新する（飛ばすバージョンでも入れる）。ほかの操作が実行中のときは依頼を残し、次の確認に回す。それ以外は依頼を消す。Botの`/update`からの確認の依頼（`mode: check`）は、自動更新のオン・オフによらず新しいバージョンを確かめるだけで入れず、あれば`available-update.json`に書く（飛ばすバージョンなら`skipped`を付ける）。結果は`auto-update.json`に依頼の`request_id`を付けて書き、依頼は先に消す。
 - 記録の形式を変えるときは、`installer/instance.py`の`RECORD_FORMAT`を上げる。知らない項目は読み飛ばすので、項目を足すだけなら上げなくてよい。
 
 ---

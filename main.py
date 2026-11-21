@@ -216,6 +216,7 @@ operator_cog = OperatorCog(
   generation_log,
   OPERATOR_USER_IDS,
   error_notifier,
+  update_watch=update_watch,
 )
 announcement_cog = AnnouncementCog(
   tree,
