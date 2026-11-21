@@ -16,9 +16,27 @@ from services.update_watch_service import (
   UPDATING_FILE,
   UPDATING_TEXT,
   UpdateWatchService,
-  last_update_embed,
+  last_update_layout,
 )
 from tests.support import DUMMY_OTHER_USER_ID, DUMMY_USER_ID, RecordingNotifier, TempDirTestCase
+
+
+class Shown:
+  """Components v2 のメッセージ（LayoutView）から、見出し・本文・枠の色・ボタンを取り出す。"""
+
+  def __init__(self, view):
+    self.view = view
+    [container] = [item for item in view.children if isinstance(item, discord.ui.Container)]
+    heading, _, self.description = container.children[0].content.partition("\n")
+    self.title = heading.removeprefix("## ")
+    self.color = container.accent_colour
+    # 「更新する」ボタンは、枠の外（下）の行に置く
+    self.buttons = [
+      (item.item.label, item.item.custom_id)
+      for row in view.children
+      if isinstance(row, discord.ui.ActionRow)
+      for item in row.children
+    ]
 
 
 class FakeUser:
@@ -26,10 +44,10 @@ class FakeUser:
     self.sent = []
     self.error = error
 
-  async def send(self, *, embed):
+  async def send(self, *, view):
     if self.error is not None:
       raise self.error
-    self.sent.append(embed)
+    self.sent.append(Shown(view))
 
 
 class FakeClient:
@@ -178,9 +196,13 @@ class LastUpdateTest(WatchTestCase):
     self.assertEqual(self.sent(), [])
 
 
-class EmbedTest(unittest.TestCase):
+def last_update_shown(data):
+  return Shown(last_update_layout(data).view)
+
+
+class LastUpdateLayoutTest(unittest.TestCase):
   def test_rolled_back(self):
-    embed = last_update_embed({"result": "rolled_back", "mode": "upgrade", "from": "v1", "to": "v2",
+    embed = last_update_shown({"result": "rolled_back", "mode": "upgrade", "from": "v1", "to": "v2",
                                "auto": True, "reason": "起動を確認できませんでした"})
     self.assertEqual(embed.title, "更新できませんでした")
     self.assertEqual(embed.color, discord.Color.red())
@@ -189,16 +211,16 @@ class EmbedTest(unittest.TestCase):
     self.assertIn("理由: 起動を確認できませんでした", embed.description)
 
   def test_repair_failed(self):
-    embed = last_update_embed({"result": "rolled_back", "mode": "repair", "from": "v1", "to": "v1"})
+    embed = last_update_shown({"result": "rolled_back", "mode": "repair", "from": "v1", "to": "v1"})
     self.assertIn("入れ直せなかった", embed.description)
     self.assertNotIn("自動更新では入れません", embed.description)
 
   def test_manual_update_and_others(self):
-    embed = last_update_embed({"result": "updated", "from": "v1", "to": "v2", "auto": False})
+    embed = last_update_shown({"result": "updated", "from": "v1", "to": "v2", "auto": False})
     self.assertEqual(embed.description, "v1 から v2 に更新しました")
     self.assertEqual(embed.color, discord.Color.green())
-    self.assertIn("v1 を入れ直しました", last_update_embed({"result": "repaired", "to": "v1"}).description)
-    rollback = last_update_embed({"result": "rollback", "from": "v2", "to": "v1"})
+    self.assertIn("v1 を入れ直しました", last_update_shown({"result": "repaired", "to": "v1"}).description)
+    rollback = last_update_shown({"result": "rollback", "from": "v2", "to": "v1"})
     self.assertEqual(rollback.title, "1つ前の版に戻しました")
     self.assertEqual(rollback.color, discord.Color.yellow())
 
@@ -312,7 +334,9 @@ class FakePartialMessage:
   async def edit(self, *, embed, view):
     if self.channel.error is not None:
       raise self.channel.error
-    self.channel.edits.append((self.id, embed, view))
+    # Embedで送った前の版のお知らせも、v2へ書き換えられるよう embed を外す
+    assert embed is None
+    self.channel.edits.append((self.id, Shown(view)))
 
 
 class FakeDMChannel:
@@ -330,8 +354,8 @@ class ViewUser(FakeUser):
     self.views = []
     self.dm_channel = FakeDMChannel()
 
-  async def send(self, *, embed, view=None):
-    self.sent.append(embed)
+  async def send(self, *, view):
+    self.sent.append(Shown(view))
     self.views.append(view)
 
 
@@ -341,7 +365,8 @@ class FakeResponse:
     self.messages = []
 
   async def edit_message(self, *, embed, view):
-    self.edits.append((embed, view))
+    assert embed is None
+    self.edits.append(Shown(view))
 
   async def send_message(self, text, *, ephemeral):
     self.messages.append((text, ephemeral))
@@ -387,11 +412,10 @@ class OfferTest(UpdateButtonTestCase):
     async def scenario():
       await self.watch.offer_available_update()
       await self.watch.offer_available_update()
-      view = self.client.user_obj.views[0]
-      return [(item.item.label, item.item.custom_id) for item in view.children]
 
-    buttons = asyncio.run(scenario())
+    asyncio.run(scenario())
     self.assertEqual(len(self.sent()), 1)
+    buttons = self.sent()[0].buttons
     self.assertIn(f"新しいバージョン {NEW_VERSION} があります", self.sent()[0].description)
     self.assertEqual(buttons, [
       ("今すぐ更新する", f"tsumugium:update:now:{NEW_VERSION}"),
@@ -432,16 +456,16 @@ class ButtonTest(UpdateButtonTestCase):
     response = self.press("now")
     request = self.read(REQUEST_FILE)
     self.assertEqual((request["version"], request["mode"], request["requested_by"]), (NEW_VERSION, "now", DUMMY_USER_ID))
-    embed, view = response.edits[0]
-    self.assertEqual(embed.title, "更新を受け付けました")
-    self.assertIsNone(view)
+    shown = response.edits[0]
+    self.assertEqual(shown.title, "更新を受け付けました")
+    self.assertEqual(shown.buttons, [])
 
   def test_idle_waits_until_no_voice_connection(self):
     self.offer()
     response = asyncio.run(self._press_idle())
     self.assertFalse(self.exists(REQUEST_FILE))
     self.assertEqual(self.read(PENDING_FILE)["version"], NEW_VERSION)
-    self.assertEqual(response.edits[0][0].title, "VCが空いたら更新します")
+    self.assertEqual(response.edits[0].title, "VCが空いたら更新します")
 
     self.client.voice_clients = [FakeVoiceClient()]
     self.watch.check_pending_update()
@@ -454,8 +478,10 @@ class ButtonTest(UpdateButtonTestCase):
   async def _press_idle(self):
     interaction = FakeInteraction(DUMMY_USER_ID)
     await self.watch.handle_button(interaction, "idle", NEW_VERSION)
-    _, view = interaction.response.edits[0]
-    self.assertEqual([item.item.label for item in view.children], ["今すぐ更新する"])
+    self.assertEqual(
+      interaction.response.edits[0].buttons,
+      [("今すぐ更新する", f"tsumugium:update:now:{NEW_VERSION}")],
+    )
     return interaction.response
 
   def test_now_after_idle_cancels_waiting(self):
@@ -474,7 +500,7 @@ class ButtonTest(UpdateButtonTestCase):
 
   def test_already_updated(self):
     response = self.press("now", version=CURRENT_VERSION)
-    self.assertEqual(response.edits[0][0].description, f"すでに {CURRENT_VERSION} です")
+    self.assertEqual(response.edits[0].description, f"すでに {CURRENT_VERSION} です")
     self.assertFalse(self.exists(REQUEST_FILE))
 
   def test_old_notice_points_to_newer_version(self):
@@ -520,10 +546,10 @@ class CheckRequestTest(UpdateButtonTestCase):
 
     async def scenario():
       task = asyncio.create_task(fake_installer()) if installer else None
-      embed = await self.watch.request_check(DUMMY_USER_ID)
+      layout = await self.watch.request_check(DUMMY_USER_ID)
       if task is not None:
         await task
-      return embed
+      return Shown(layout.view)
 
     return asyncio.run(scenario())
 
@@ -541,6 +567,7 @@ class CheckRequestTest(UpdateButtonTestCase):
     self.assertEqual(embed.description, f"新しいバージョン {NEW_VERSION} があります")
     self.assertEqual([len(user.sent) for user in self.users.values()], [1, 1])
     self.assertEqual(self.notice()["offered_version"], NEW_VERSION)
+    self.assertEqual([button for button, _ in self.users[DUMMY_USER_ID].sent[0].buttons], ["今すぐ更新する", "VCが空いたら更新する"])
 
   def test_already_offered_version_is_sent_again_to_requester(self):
     self.offer()
@@ -600,7 +627,7 @@ class CheckRequestTest(UpdateButtonTestCase):
 
   def test_disabled_without_installer(self):
     watch = UpdateWatchService(self.client, "", self.status, RecordingNotifier())
-    embed = asyncio.run(watch.request_check(DUMMY_USER_ID))
+    embed = Shown(asyncio.run(watch.request_check(DUMMY_USER_ID)).view)
     self.assertIn("手動で導入されているため", embed.description)
 
 
@@ -657,11 +684,11 @@ class StartedTest(UpdateButtonTestCase):
 
     asyncio.run(scenario())
     self.assertEqual(len(self.edits()), 1)
-    message_id, embed, view = self.edits()[0]
+    message_id, shown = self.edits()[0]
     self.assertEqual(message_id, 222222222222222222)
-    self.assertEqual(embed.title, "更新を開始しました")
-    self.assertIn(NEW_VERSION, embed.description)
-    self.assertIsNone(view)
+    self.assertEqual(shown.title, "更新を開始しました")
+    self.assertIn(NEW_VERSION, shown.description)
+    self.assertEqual(shown.buttons, [])
 
   def test_idle_message_is_rewritten_when_update_starts(self):
     self.offer()
@@ -732,7 +759,7 @@ class MultiOperatorTest(WatchTestCase):
     interaction = FakeInteraction(DUMMY_OTHER_USER_ID)
     interaction.message = type("M", (), {"id": 901})()
     asyncio.run(self.watch.handle_button(interaction, "now", NEW_VERSION))
-    self.assertEqual(interaction.response.edits[0][0].title, "更新を受け付けました")
+    self.assertEqual(interaction.response.edits[0].title, "更新を受け付けました")
     with open(os.path.join(self.tmp_dir, REQUEST_FILE), encoding="utf-8") as file:
       self.assertEqual(json.load(file)["requested_by"], DUMMY_OTHER_USER_ID)
 
@@ -742,8 +769,8 @@ class MultiOperatorTest(WatchTestCase):
     )
     asyncio.run(restarted.mark_update_started())
     for user_id, message_id in ((DUMMY_USER_ID, 900), (DUMMY_OTHER_USER_ID, 901)):
-      [(edited_id, embed, view)] = self.users[user_id].dm_channel.edits
-      self.assertEqual((edited_id, embed.title, view), (message_id, "更新を開始しました", None))
+      [(edited_id, shown)] = self.users[user_id].dm_channel.edits
+      self.assertEqual((edited_id, shown.title, shown.buttons), (message_id, "更新を開始しました", []))
     self.assertIsNone(self.notice()["button_message"])
 
   def test_old_single_operator_record_is_rewritten(self):
@@ -771,8 +798,8 @@ class MessageUser(ViewUser):
     self.message_id = message_id
     self.error = None
 
-  async def send(self, *, embed, view=None):
+  async def send(self, *, view):
     if self.error is not None:
       raise self.error
-    await super().send(embed=embed, view=view)
+    await super().send(view=view)
     return type("M", (), {"id": self.message_id})()

@@ -28,7 +28,8 @@ from typing import Callable
 
 import discord
 
-from presentation.embeds import EmbedType, make_embed
+from presentation.embeds import EmbedType
+from presentation.layouts import LayoutMessage, make_layout
 from services.error_notification_service import (
   ensure_error_notifier,
   operator_ids,
@@ -66,16 +67,16 @@ def process_exists(pid: int) -> bool:
   return os.path.exists(f"/proc/{pid}")
 
 
-def last_update_embed(data: dict) -> discord.Embed:
-  """last-update.json の中身から、運営者へ送るEmbedを作る。"""
+def last_update_layout(data: dict) -> LayoutMessage:
+  """last-update.json の中身から、運営者へ送るメッセージを作る。"""
   result = data.get("result")
   before = data.get("from")
   after = data.get("to")
   by = "（自動更新）" if data.get("auto") else ""
   if result == "updated":
-    return make_embed("更新しました", f"{before} から {after} に更新しました{by}", embed_type=EmbedType.SUCCESS)
+    return make_layout("更新しました", f"{before} から {after} に更新しました{by}", layout_type=EmbedType.SUCCESS)
   if result == "repaired":
-    return make_embed("入れ直しました", f"{after} を入れ直しました{by}", embed_type=EmbedType.SUCCESS)
+    return make_layout("入れ直しました", f"{after} を入れ直しました{by}", layout_type=EmbedType.SUCCESS)
   if result == "rolled_back":
     if data.get("mode") == "repair":
       text = f"{after} を入れ直せなかったため、元の状態に戻しました{by}"
@@ -87,46 +88,50 @@ def last_update_embed(data: dict) -> discord.Embed:
     reason = data.get("reason")
     if reason:
       text += f"\n\n理由: {reason}"
-    return make_embed("更新できませんでした", text, embed_type=EmbedType.ERROR)
+    return make_layout("更新できませんでした", text, layout_type=EmbedType.ERROR)
   if result == "rollback":
-    return make_embed(
+    return make_layout(
       "1つ前の版に戻しました",
       f"{before} から {after} に戻しました。{before} は、自動更新では入れません",
-      embed_type=EmbedType.WARNING,
+      layout_type=EmbedType.WARNING,
     )
-  return make_embed("更新の結果", f"{before} → {after}（{result}）")
+  return make_layout("更新の結果", f"{before} → {after}（{result}）")
 
 
-def attention_embed(data: dict) -> discord.Embed:
-  return make_embed(
+def attention_layout(data: dict) -> LayoutMessage:
+  return make_layout(
     "自動更新を止めています",
     f"{data.get('message')}\n\n`sudo tsumugium-setup status` で状態を確かめてください",
-    embed_type=EmbedType.WARNING,
+    layout_type=EmbedType.WARNING,
   )
 
 
-def available_embed(data: dict) -> discord.Embed:
+def available_layout(data: dict, *, idle: bool = True) -> LayoutMessage:
+  """新しいバージョンのお知らせ。枠の外（下）に「更新する」ボタンを置く。"""
   version = data.get("version")
   text = f"新しいバージョン {version} があります。更新すると、Botが数分止まります。"
   if data.get("skipped"):
     text += f"\n\n{version} は、前に起動を確かめられなかった（または戻した）版です。"
-  return make_embed("新しいバージョンがあります", text)
+  layout = make_layout("新しいバージョンがあります", text)
+  add_update_buttons(layout, version, idle=idle)
+  return layout
 
 
-def started_embed(version: str | None) -> discord.Embed:
-  return make_embed(
+def started_layout(version: str | None) -> LayoutMessage:
+  return make_layout(
     "更新を開始しました",
     f"{version} への更新を始めました。数分のあいだ、Botが止まります。終わったら、結果をお知らせします",
-    embed_type=EmbedType.SUCCESS,
+    layout_type=EmbedType.SUCCESS,
   )
 
 
-def update_view(version: str, *, idle: bool = True) -> discord.ui.View:
-  view = discord.ui.View(timeout=None)
-  view.add_item(UpdateButton(MODE_NOW, version))
+def add_update_buttons(layout: LayoutMessage, version: str, *, idle: bool = True) -> LayoutMessage:
+  """「今すぐ更新する」（と「VCが空いたら更新する」）を、枠の外（下）の1行に並べる。"""
+  buttons = [UpdateButton(MODE_NOW, version)]
   if idle:
-    view.add_item(UpdateButton(MODE_IDLE, version))
-  return view
+    buttons.append(UpdateButton(MODE_IDLE, version))
+  layout.view.add_item(discord.ui.ActionRow(*buttons))
+  return layout
 
 
 class UpdateButton(
@@ -297,13 +302,12 @@ class UpdateWatchService:
 
   # D 運営者へのDM
 
-  async def _send_to_operators(self, embed: discord.Embed, *, view=None) -> list[tuple]:
+  async def _send_to_operators(self, layout: LayoutMessage) -> list[tuple]:
     """運営者全員へ送り、送れた（ユーザーID, メッセージ）の一覧を返す。
 
     1人にでも送れたら、知らせたものとして扱う（送れた人へ二度送らないため）。
     """
-    kwargs = {"embed": embed} if view is None else {"embed": embed, "view": view}
-    return await send_to_users(self.client, self.operator_user_ids, "更新の知らせ", **kwargs)
+    return await send_to_users(self.client, self.operator_user_ids, "更新の知らせ", view=layout.view)
 
   async def notify_last_update(self) -> None:
     """まだ知らせていない更新の結果があれば、運営者へ送る。"""
@@ -313,7 +317,7 @@ class UpdateWatchService:
     at = data.get("at")
     if (self._read(NOTICE_FILE) or {}).get("last_update_at") == at:
       return
-    if await self._send_to_operators(last_update_embed(data)):
+    if await self._send_to_operators(last_update_layout(data)):
       self._write_notice(last_update_at=at)
 
   async def check_auto_update(self) -> None:
@@ -329,7 +333,7 @@ class UpdateWatchService:
     key = f"{data.get('result')}|{data.get('message')}"
     if notice.get("auto_update_attention") == key:
       return
-    if await self._send_to_operators(attention_embed(data)):
+    if await self._send_to_operators(attention_layout(data)):
       self._write_notice(auto_update_attention=key)
 
   # E 「更新する」ボタン
@@ -352,13 +356,11 @@ class UpdateWatchService:
       if offered and resend_to is None:
         return False
       if offered:
-        sent = await send_to_users(
-          self.client, (resend_to,), "更新のお知らせ",
-          embed=available_embed(data), view=update_view(version),
-        )
+        layout = available_layout(data)
+        sent = await send_to_users(self.client, (resend_to,), "更新のお知らせ", view=layout.view)
         previous = [record for record in notice.get("offered_messages") or [] if isinstance(record, dict)]
       else:
-        sent = await self._send_to_operators(available_embed(data), view=update_view(version))
+        sent = await self._send_to_operators(available_layout(data))
         previous = []
       if sent:
         self._write_notice(
@@ -373,33 +375,33 @@ class UpdateWatchService:
 
   # F /update コマンド
 
-  async def request_check(self, user_id: int) -> discord.Embed:
-    """インストーラーに新しいバージョンを確かめてもらい、結果を表すEmbedを返す。
+  async def request_check(self, user_id: int) -> LayoutMessage:
+    """インストーラーに新しいバージョンを確かめてもらい、結果を表すメッセージを返す。
 
     新しいバージョンがあれば、ボタン付きのDMも送る。入れるかは運営者がボタンで決める。
     """
     title = "新しいバージョンの確認"
     if not self.enabled:
-      return make_embed(
+      return make_layout(
         title,
         "このBotは手動で導入されているため、Discordからは更新できません",
-        embed_type=EmbedType.ERROR,
+        layout_type=EmbedType.ERROR,
       )
     if self.is_updating():
-      return make_embed(title, "更新中です。しばらくお待ちください", embed_type=EmbedType.WARNING)
+      return make_layout(title, "更新中です。しばらくお待ちください", layout_type=EmbedType.WARNING)
     if self._has_open_request():
-      return make_embed(
+      return make_layout(
         title,
         "ただいま、ほかで更新を問い合わせています。しばらくしてから、もう一度試してください",
-        embed_type=EmbedType.WARNING,
+        layout_type=EmbedType.WARNING,
       )
     now = self.clock()
     if self._last_check_request is not None and now - self._last_check_request < self.check_cooldown:
       wait = int(self.check_cooldown - (now - self._last_check_request)) + 1
-      return make_embed(
+      return make_layout(
         title,
         f"連続してのリクエストはできません。{wait}秒ほど空けてから試してください",
-        embed_type=EmbedType.WARNING,
+        layout_type=EmbedType.WARNING,
       )
     self._last_check_request = now
 
@@ -412,30 +414,30 @@ class UpdateWatchService:
     })
     result = await self._wait_check_result(request_id)
     if result is None:
-      return make_embed(
+      return make_layout(
         title,
         "更新を確認しましたが、時間内に応答がありませんでした。"
         "しばらくしてから、もう一度試してください",
-        embed_type=EmbedType.WARNING,
+        layout_type=EmbedType.WARNING,
       )
     code = result.get("result")
     if code == RESULT_LATEST:
-      return make_embed(title, f"更新はありません（今のバージョン {self.current_version}）")
+      return make_layout(title, f"更新はありません（今のバージョン {self.current_version}）")
     if code == RESULT_NOTIFIED:
       version = result.get("latest")
       if await self.offer_available_update(resend_to=user_id):
-        return make_embed(
+        return make_layout(
           title,
           f"新しいバージョン {version} があります",
-          embed_type=EmbedType.SUCCESS,
+          layout_type=EmbedType.SUCCESS,
         )
-      return make_embed(
+      return make_layout(
         title,
         f"新しいバージョン {version} が見つかりましたが、Discordからは更新できません。"
         "`sudo tsumugium-setup upgrade` で更新してください",
-        embed_type=EmbedType.WARNING,
+        layout_type=EmbedType.WARNING,
       )
-    return make_embed(title, str(result.get("message") or code), embed_type=EmbedType.ERROR)
+    return make_layout(title, str(result.get("message") or code), layout_type=EmbedType.ERROR)
 
   def _has_open_request(self) -> bool:
     """まだインストーラーが扱っていない依頼があるか。
@@ -505,8 +507,9 @@ class UpdateWatchService:
         if user is None:
           user = await self.client.fetch_user(message.get("user_id"))
         channel = user.dm_channel or await user.create_dm()
-        embed = started_embed(version)
-        await channel.get_partial_message(message.get("message_id")).edit(embed=embed, view=None)
+        layout = started_layout(version)
+        # Embedで送った前の版のお知らせも書き換えられるよう、embed を外す
+        await channel.get_partial_message(message.get("message_id")).edit(embed=None, view=layout.view)
       except discord.NotFound:
         pass  # DMが消されていれば、書き換えずに忘れる
       except Exception as error:
@@ -547,8 +550,8 @@ class UpdateWatchService:
       )
       return
     if version == self.current_version:
-      embed = make_embed("更新は済んでいます", f"すでに {version} です")
-      await interaction.response.edit_message(embed=embed, view=None)
+      layout = make_layout("更新は済んでいます", f"すでに {version} です")
+      await interaction.response.edit_message(embed=None, view=layout.view)
       return
     available = (self._read(AVAILABLE_FILE) or {}).get("version")
     if available != version:
@@ -562,17 +565,18 @@ class UpdateWatchService:
       self._remove(PENDING_FILE)
       self._request(version, MODE_NOW, interaction.user.id)
       self._remember_button_message(interaction, version)
-      embed = make_embed(
+      layout = make_layout(
         "更新を受け付けました",
         f"まもなく {version} への更新を始めます。数分のあいだ、Botが止まります",
-        embed_type=EmbedType.SUCCESS,
+        layout_type=EmbedType.SUCCESS,
       )
-      await interaction.response.edit_message(embed=embed, view=None)
+      await interaction.response.edit_message(embed=None, view=layout.view)
       return
     self._write(PENDING_FILE, {"version": version, "requested_by": interaction.user.id})
     self._remember_button_message(interaction, version)
-    embed = make_embed(
+    layout = make_layout(
       "VCが空いたら更新します",
       f"BotがどのVCにもつないでいないときに、{version} に更新します。待たずに更新するときは、下のボタンを押してください",
     )
-    await interaction.response.edit_message(embed=embed, view=update_view(version, idle=False))
+    add_update_buttons(layout, version, idle=False)
+    await interaction.response.edit_message(embed=None, view=layout.view)

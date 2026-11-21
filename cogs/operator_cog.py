@@ -24,6 +24,7 @@ from models.generation_record import (
 )
 from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error
+from presentation.layouts import make_layout
 from services.error_notification_service import ensure_error_notifier, operator_ids
 
 
@@ -268,17 +269,21 @@ class OperatorCog:
     async def update(ctx):
       try:
         if not self.is_operator(ctx.user):
-          embed = make_embed("Bot運営者専用コマンドです", "このコマンドはBotの運営者以外は使用できません", embed_type=EmbedType.ERROR)
-          await ctx.response.send_message(embed=embed, ephemeral=True)
+          layout = make_layout(
+            "Bot運営者専用コマンドです",
+            "このコマンドはBotの運営者以外は使用できません",
+            layout_type=EmbedType.ERROR,
+          )
+          await ctx.response.send_message(view=layout.view, files=layout.files, ephemeral=True)
           return
         if self.update_watch is None:
-          embed = make_embed("更新できません", "今は更新を受け付けることができません", embed_type=EmbedType.ERROR)
-          await ctx.response.send_message(embed=embed)
+          layout = make_layout("更新できません", "今は更新を受け付けることができません", layout_type=EmbedType.ERROR)
+          await ctx.response.send_message(view=layout.view, files=layout.files)
           return
         # インストーラーが GitHub へ問い合わせるのを待つので、先に応答しておく
         await ctx.response.defer()
-        embed = await self.update_watch.request_check(ctx.user.id)
-        await ctx.edit_original_response(embed=embed)
+        layout = await self.update_watch.request_check(ctx.user.id)
+        await ctx.edit_original_response(view=layout.view, attachments=layout.files)
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as error:

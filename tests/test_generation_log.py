@@ -19,6 +19,7 @@ from cogs.operator_cog import (
   format_log_table,
   format_summary_fields,
 )
+from presentation.layouts import make_layout
 from models.generation_record import (
   FAILED,
   MODE_FALLBACK,
@@ -462,7 +463,11 @@ class FakeUpdateWatch:
 
   async def request_check(self, user_id):
     self.requests.append(user_id)
-    return discord.Embed(title="新しいバージョンの確認", description="更新はありません")
+    return make_layout("新しいバージョンの確認", "更新はありません")
+
+
+def layout_texts(view):
+  return [item.content for item in view.walk_children() if isinstance(item, discord.ui.TextDisplay)]
 
 
 class UpdateCommandTest(unittest.TestCase):
@@ -487,14 +492,20 @@ class UpdateCommandTest(unittest.TestCase):
     self.assertEqual(interaction.response.deferred, {})
     self.assertEqual(self.watch.requests, [DUMMY_USER_ID])
     [edit] = interaction.edits
-    self.assertEqual(edit["embed"].description, "更新はありません")
+    self.assertNotIn("embed", edit)
+    self.assertEqual(layout_texts(edit["view"]), ["## 新しいバージョンの確認\n更新はありません"])
+    self.assertEqual(edit["attachments"], [])
 
   def test_others_are_refused(self):
     interaction = self.run_command(DUMMY_OTHER_USER_ID)
     self.assertEqual(self.watch.requests, [])
     [sent] = interaction.response.sent
     self.assertTrue(sent["ephemeral"])
-    self.assertEqual(sent["embed"].title, "Bot運営者専用コマンドです")
+    self.assertNotIn("embed", sent)
+    self.assertEqual(
+      layout_texts(sent["view"]),
+      ["## Bot運営者専用コマンドです\nこのコマンドはBotの運営者以外は使用できません"],
+    )
 
 
 if __name__ == "__main__":

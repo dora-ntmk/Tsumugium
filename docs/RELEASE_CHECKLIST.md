@@ -25,7 +25,7 @@ python -m unittest discover -s tests -v
 - [ ] 接続状態の退避・復元
 - [ ] 音声キュー型
 - [ ] Repositoryと旧DBカラム補完
-- [ ] Embed共通ひな形
+- [ ] Embed・Components v2の共通ひな形
 - [ ] VOICEVOX・Soundboard HTTP Client
 - [ ] インストーラー（各モード、`.env`、unit、版の取得と照合）
 - [ ] 移行ツール
