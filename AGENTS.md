@@ -245,6 +245,8 @@ temp_text_targets（一時設定）→ TextTarget（永続設定）の順で参�
 
 AutoJoinは、`VoiceTarget`のVCへ人間ユーザーが入り、そのVCの人間が1人になったときだけ動く。Botが入ってきてもつながない。人が残っているVCからBotが抜けたとき（`/leave`・メンション・Discord上での切断など、理由を問わない）は、そのVCを`GuildSession.auto_join_suppressed_channel_id`に記録し、そのVCから人間がいなくなるか、Botがどこかへつなぐまで、誰が来てもAutoJoinしない。
 
+AutoJoinで送るメッセージ（接続したとき・権限エラー）は`allowed_mentions=discord.AllowedMentions.none()`で送り、メンションで誰にも通知しない（人の操作によらずに出るため）。
+
 **Botメッセージの扱い（2026-06-27 追加）:**  
 Bot からのメッセージは通常 TTS をスキップするが、sounddict に一致する場合のみサウンドボードを再生する。チャンネル判定は人間ユーザーと同じロジック（`TextTarget` / VC テキストチャット）を適用。`SpeechService.add_message(sounddict_only=True)` で呼び出される。
 

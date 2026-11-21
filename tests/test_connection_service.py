@@ -163,6 +163,16 @@ class AutoJoinAfterLeaveTest(unittest.IsolatedAsyncioTestCase):
       await self.join(self.member(1))
     self.connect.assert_awaited_once()
 
+  async def test_auto_join_message_disables_mentions(self):
+    with mock.patch("asyncio.sleep", mock.AsyncMock()):
+      await self.join(self.member(1))
+    kwargs = self.voice_channel.send.await_args.kwargs
+    allowed = kwargs["allowed_mentions"]
+    self.assertFalse(allowed.everyone)
+    self.assertFalse(allowed.users)
+    self.assertFalse(allowed.roles)
+    self.assertFalse(allowed.replied_user)
+
   async def test_bot_joining_does_not_trigger_auto_join(self):
     self.voice_channel.members.append(self.member(1))
     with mock.patch("asyncio.sleep", mock.AsyncMock()):
