@@ -82,7 +82,7 @@ class StreamingModeTest(unittest.TestCase):
     env_file = os.path.join(os.path.dirname(__file__), "no-such.env")
     with unittest.mock.patch.dict(os.environ, {"TSUMUGIUM_ENV_FILE": env_file}, clear=True):
       loaded = importlib.reload(config)
-      self.assertEqual(loaded.VOICEVOX_STREAMING, "off")
+      self.assertEqual(loaded.VOICEVOX_STREAMING, "hybrid")
       self.assertEqual(loaded.VOICEVOX_STREAM_SEGMENT, 0.0)
       self.assertEqual(loaded.VOICEVOX_STREAM_THRESHOLD, 0)
     importlib.reload(config)

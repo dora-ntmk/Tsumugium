@@ -85,10 +85,8 @@ class EnvTemplateTest(unittest.TestCase):
     self.assertEqual(missing, ADDED_KEYS)
 
   def test_streaming_follows_version_default_in_template(self):
-    # 書き足されても、そのバージョンの既定に従う（今の既定はoff）。
-    # あとのリリースで既定を変えると、この行のままの環境にも効く
     self.assertEqual(self.active["VOICEVOX_STREAMING"], "auto")
-    self.assertEqual(config.DEFAULT_VOICEVOX_STREAMING, "off")
+    self.assertEqual(config.DEFAULT_VOICEVOX_STREAMING, "hybrid")
     # 0は自動調整。今までと同じ長さで動く
     self.assertEqual(self.active["VOICEVOX_STREAM_SEGMENT"], "0")
     self.assertEqual(self.active["VOICEVOX_STREAM_THRESHOLD"], "0")
