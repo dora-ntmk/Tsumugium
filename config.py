@@ -36,7 +36,7 @@ def _user_ids(value: str | None) -> tuple[int, ...]:
 
 # VOICEVOX_STREAMING を auto（または空欄）にしたときに使う、このバージョンの既定。
 # あとのリリースでここを変えると、auto の環境にはそのまま効く（off と書いた環境は変わらない）
-DEFAULT_VOICEVOX_STREAMING = "off"
+DEFAULT_VOICEVOX_STREAMING = "hybrid"
 
 
 def _streaming_mode(value: str | None) -> str:
