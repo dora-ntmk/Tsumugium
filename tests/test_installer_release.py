@@ -300,8 +300,11 @@ class BuildReleaseCompatibilityTest(TempDirTestCase):
     lock = Path(self.tmp_path("requirements.lock"))
     lock.write_text("discord.py==0.0.0 --hash=sha256:dummy\n", encoding="utf-8")
     files = ["config.py", "main.py", "install.sh", "installer/__init__.py", ".env.template"]
+    # CIと同じく、リポジトリの VERSION から版を決めて書き込む
+    version = build_release.resolve_version(build_release.read_version(root / "config.py"), [])
     zip_path, sha_path, info = build_release.build(
-      root, Path(self.tmp_path("dist")), lock, files=files, commit="0" * 40
+      root, Path(self.tmp_path("dist")), lock, files=files, commit="0" * 40,
+      version=version, last_updated="2026/11/21",
     )
     system = System(Path(self.tmp_dir) / "root")
     fetched = extract_from_file(system, make_ui(), Layout.of("/opt/tsumugium"), zip_path)

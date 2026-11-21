@@ -4,7 +4,7 @@
   python scripts/release_notes.py --tag v4.3.0.71 --out notes.md
   python scripts/release_notes.py --tag v4.3.0.71-beta.002 --out notes.md
   python scripts/release_notes.py --changed-code-since v4.3.0.71-beta.001
-  python scripts/release_notes.py --check-version-bump origin/main
+  python scripts/release_notes.py --should-release v4.4.1.73-beta.001
 
 正式版（下書き）の本文には、docs/RELEASE_CHECKLIST.md「リリースノートの書き方」の見出しの
 ひな形と、前の正式版のタグからのコミット名の一覧（参考）を入れる。一覧はHTMLのコメントに
@@ -12,11 +12,10 @@
 ベータ版（自動で公開するプレリリース）の本文には、前のタグからのコミット名の一覧をそのまま入れる。
 
 --changed-code-since は、そのタグから配布物のコードが変わったファイルを表示する。
-VERSIONの (beta X) を上げ忘れたことを見つけるために使う。
+config.py の VERSION・LAST_UPDATED の行だけの変更は数えない（版はCIが決めて書き込むため）。
 
---check-version-bump は、PRの確認で使う。比べる元（PRのマージ先）からコードが変わっているのに、
-config.py の VERSION が比べる元より新しくなっていなければ、終了コード1で終える。
-ドキュメントやテストだけの変更なら、VERSIONを上げなくてよい（AGENTS.md「バージョン表記」）。
+--should-release は、そのタグのReleaseを作るかを true・false で表示する。正式版は常に true。
+ベータ版は、前のタグからコードが変わったときだけ true（ドキュメントやテストだけなら出さない）。
 """
 
 from __future__ import annotations
@@ -144,41 +143,37 @@ def is_code(path: str) -> bool:
   return not path.endswith(NON_CODE_SUFFIXES)
 
 
+# config.py のうち、版を表す行。CIが配布物に書き込むので、この行だけの変更はコードの変更に数えない
+VERSION_LINE_RE = re.compile(r"^[+-](VERSION|LAST_UPDATED)\s*=")
+
+
+def _only_version_lines(root: Path, since: str, until: str, path: str) -> bool:
+  diff = git(root, "diff", "-U0", f"{since}..{until}", "--", path)
+  lines = [
+    line for line in diff.splitlines()
+    if line.startswith(("+", "-")) and not line.startswith(("+++ ", "--- "))
+  ]
+  return all(VERSION_LINE_RE.match(line) for line in lines)
+
+
 def changed_code_files(root: Path, since: str, until: str = "HEAD") -> list[str]:
   output = git(root, "diff", "--name-only", f"{since}..{until}")
-  return [path for path in output.splitlines() if path and is_code(path)]
+  return [
+    path for path in output.splitlines()
+    if path and is_code(path)
+    and not (path == "config.py" and _only_version_lines(root, since, until, path))
+  ]
 
 
-def version_at(root: Path, revision: str) -> str:
-  """そのコミットの config.py に書かれた VERSION。"""
-  text = git(root, "show", f"{revision}:config.py")
-  match = _build_release.CONFIG_VERSION_RE.search(text)
-  if match is None:
-    raise ValueError(f"{revision} の config.py に VERSION が見つかりません")
-  return match.group(1)
-
-
-def version_key(version: str) -> tuple:
-  return tag_key(_build_release.parse_version(version)["tag"])
-
-
-def check_version_bump(root: Path, base: str, until: str = "HEAD") -> tuple[bool, str]:
-  """コードを変えたのに VERSION を上げていないかを調べる。(よいか, 説明) を返す。"""
-  # 比べる元から分かれたところからの変更だけを見る（マージ先が先に進んでいても、その分は数えない）
-  merge_base = git(root, "merge-base", base, until).strip()
-  changed = changed_code_files(root, merge_base, until)
-  before = version_at(root, base)
-  after = version_at(root, until)
-  if not changed:
-    return True, f"コードの変更はないので、VERSION は上げなくてよい（{after}）"
-  listed = "\n".join(f"  {path}" for path in changed)
-  if version_key(after) > version_key(before):
-    return True, f"VERSION を上げている（{before} → {after}）\n変わったコード:\n{listed}"
-  return False, (
-    f"コードを変えているのに、VERSION が {before} より新しくなっていません（今: {after}）。"
-    "config.py の (beta X) を1つ上げてください。"
-    f"\n変わったコード:\n{listed}"
-  )
+def should_release(root: Path, tag: str, *, until: str = "HEAD") -> bool:
+  """そのタグのReleaseを作るか。ベータ版は、前のタグからコードが変わったときだけ作る。"""
+  if is_stable(tag):
+    return True
+  tags = git(root, "tag", "--list", "v*").split()
+  previous = previous_tag(tags, tag, stable_only=False)
+  if previous is None:
+    return True
+  return bool(changed_code_files(root, previous, until))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -186,21 +181,11 @@ def main(argv: list[str] | None = None) -> int:
   parser.add_argument("--tag", help="作るReleaseのタグ名（例 v4.3.0.71、v4.3.0.71-beta.002）")
   parser.add_argument("--out", help="本文を書き出すファイル")
   parser.add_argument("--changed-code-since", metavar="TAG", help="そのタグから変わったコードのファイルを表示する")
-  parser.add_argument(
-    "--check-version-bump",
-    metavar="BASE",
-    help="BASE からコードが変わったのに VERSION を上げていなければ、終了コード1で終える",
-  )
+  parser.add_argument("--should-release", metavar="TAG", help="そのタグのReleaseを作るかを true・false で表示する")
   args = parser.parse_args(argv)
-  if args.check_version_bump:
-    ok, message = check_version_bump(ROOT, args.check_version_bump)
-    if ok:
-      print(message)
-      return 0
-    first, _, rest = message.partition("\n")
-    print(f"::error::{first}")
-    print(rest)
-    return 1
+  if args.should_release:
+    print("true" if should_release(ROOT, args.should_release) else "false")
+    return 0
   if args.changed_code_since:
     for path in changed_code_files(ROOT, args.changed_code_since):
       print(path)

@@ -47,9 +47,10 @@ MODULES = [
   "services.voice_service",
 ]
 
-# AGENTS.md「バージョン表記」: vX.X.X.XX、ベータは vX.X.X.XX (beta X)
-VERSION_PATTERN = re.compile(r"^v\d+\.\d+\.\d+\.\d+( \(beta [1-9]\d*\))?$")
-LAST_UPDATED_PATTERN = re.compile(r"^\d{4}/\d{2}/\d{2}$")
+# AGENTS.md「バージョン表記」: リポジトリには vX.X.X.XX か vX.X.X.XX (beta) を書く。
+# 配布物には、CIが vX.X.X.XX (beta X) と日付を書き込む
+VERSION_PATTERN = re.compile(r"^v\d+\.\d+\.\d+\.\d+( \(beta( [1-9]\d*)?\))?$")
+LAST_UPDATED_PATTERN = re.compile(r"^(\d{4}/\d{2}/\d{2}|開発版)$")
 
 
 class ImportTest(unittest.TestCase):
@@ -69,7 +70,7 @@ class VersionTest(unittest.TestCase):
     self.assertRegex(config.LAST_UPDATED, LAST_UPDATED_PATTERN)
 
   def test_version_pattern_examples(self):
-    for valid in ("v4.1.0.69", "v4.2.0.70 (beta 1)", "v4.2.0.70 (beta 12)"):
+    for valid in ("v4.1.0.69", "v4.2.0.70 (beta)", "v4.2.0.70 (beta 1)", "v4.2.0.70 (beta 12)"):
       with self.subTest(version=valid):
         self.assertRegex(valid, VERSION_PATTERN)
     for invalid in ("v4.2.0", "4.2.0.70", "v4.2.0.70 (beta 0)", "v4.2.0.70-beta.1"):
