@@ -76,7 +76,7 @@ class UnitTest(TempDirTestCase):
     text = autoupdate.render_update_timer(make_record())
     for expected in (
         "OnBootSec=5min",
-        "OnUnitActiveSec=10min",
+        "OnUnitActiveSec=24h",
         "RandomizedDelaySec=1min",
         "Unit=tsumugium-update.service",
         "WantedBy=timers.target",
@@ -302,7 +302,7 @@ class StatusTest(AutoUpgradeTestCase):
     self.ui = UI(assume_yes=True, stdin=io.StringIO(), stdout=io.StringIO(), stderr=io.StringIO())
     self.assertEqual(cli.main(["status"], system=self.system, ui=self.ui), cli.EXIT_OK)
     output = self.ui.stdout.getvalue()
-    self.assertIn("自動更新    オン（10分おき）", output)
+    self.assertIn("自動更新    オン（24時間おき）", output)
     self.assertIn("新しい版は飛ばす版だったので更新しなかった", output)
     self.assertIn(f"飛ばす版    {NEW}", output)
 

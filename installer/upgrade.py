@@ -302,7 +302,7 @@ def _run_requested(system, ui, record, request, client, launch, done) -> int:
 
   ui.info(f"頼まれた {wanted} に更新します（{request.get('mode', 'now')}）")
   code = _upgrade_to(system, ui, record, str(wanted), client, launch, done, auto=False)
-  # ほかの操作が実行中だったときだけ、依頼を残して次の機会（10分おきの確認）に回す
+  # ほかの操作が実行中だったときだけ、依頼を残して次の機会（24時間おきの確認）に回す
   if read_check_result_code(system, load_record(system, record.instance)) != RESULT_BUSY:
     clear_update_request(system, record.layout)
   return code

@@ -356,7 +356,7 @@ def scenario(work: Path, zips: dict[str, Path]) -> None:
   check("自動更新    オフ" in status_text(), "status が自動更新オフを表示する")
   setup("auto-update", "on")
   check(record()["auto_update"] is True, "auto-update on が記録に残った")
-  check("自動更新    オン（10分おき）" in status_text(), "status が自動更新オンを表示する")
+  check("自動更新    オン（24時間おき）" in status_text(), "status が自動更新オンを表示する")
   setup("auto-update", "off")
   check(record()["auto_update"] is False, "auto-update off が記録に残った")
   check(timer_enabled(), "auto-update off でも timer は有効のまま")

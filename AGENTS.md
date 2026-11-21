@@ -435,7 +435,7 @@ Embedで送っているメッセージを、Components v2（`discord.ui.LayoutVi
 - PRですべての確認が通ると、CIの`verified`ジョブが、確かめた中身（マージした結果のツリー）を`verified-tree-<ツリー>`という名前の成果物に残す。mainへのpushでは、`gate`ジョブがこのコミットと同じ中身の記録（同じリポジトリのPRのもの）を探し、見つかればテスト・静的チェック・インストーラーの結合テスト・秘密情報のスキャンを省いて、`build`・`lock-check`・`release`だけを動かす。`build`は`build-info.json`にコミットを書くため、省かない。記録にはPRで確かめた`requirements.lock`も入れ、マージ後に作り直したロックがこれとまったく同じなら`lock-check`も省く（依存は範囲指定なので、違うロックになることがある）。見つからないとき（PRを確かめたあとにmainが進んだ、mainへ直接pushした、など）は、すべて確かめる。
 - 配布用のzipには`.claude/`・`.github/`・`docs/`・`scripts/`・`tests/`・`.gitignore`・`AGENTS.md`を入れず、`build-info.json`と`requirements.lock`を加える。
 - `requirements.lock`は、CIで`uv pip compile --universal`を使ってハッシュ値つきで作る。`--universal`を付けると、Python 3.13以上だけで要る依存（`audioop-lts`など）も条件付きで書き出されるので、Python 3.10以上のどのバージョンでも同じロックを使える。インストーラーは`pip install --require-hashes`で入れる。CIの`lock-check`ジョブがPython 3.10〜3.14のそれぞれで入れられることを確かめる。
-- 自動更新は、`<サービス名>-update.timer`が10分おきに`upgrade --auto`を動かす。既定は`beta`チャンネルならオン、`stable`ならオフ（記録の`auto_update`がないときもチャンネルで決める）。起動を確かめられずに戻したバージョンと、`rollback`で戻した元のバージョンは、記録の`skip_versions`に入れて自動更新では入れない。
+- 自動更新は、`<サービス名>-update.timer`が24時間おきに`upgrade --auto`を動かす。既定は`beta`チャンネルならオン、`stable`ならオフ（記録の`auto_update`がないときもチャンネルで決める）。起動を確かめられずに戻したバージョンと、`rollback`で戻した元のバージョンは、記録の`skip_versions`に入れて自動更新では入れない。
 - 自動更新がオフでもtimerは止めない。オフのときは、新しいバージョンを見つけたら`data/state/available-update.json`に書くだけにし、新しいバージョンがなければ消す。Botの「更新する」ボタンは`data/state/update-request.json`に依頼を書き、`<サービス名>-update.path`（`PathChanged=`）が同じserviceを動かす。`upgrade --auto`は依頼を先に扱い、頼まれたバージョンがReleasesにあり、今より新しく、チャンネルで入れられるときだけ更新する（飛ばすバージョンでも入れる）。ほかの操作が実行中のときは依頼を残し、次の確認に回す。それ以外は依頼を消す。
 - 記録の形式を変えるときは、`installer/instance.py`の`RECORD_FORMAT`を上げる。知らない項目は読み飛ばすので、項目を足すだけなら上げなくてよい。
 

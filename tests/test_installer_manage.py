@@ -99,7 +99,7 @@ class StatusTest(ManageTestCase):
     self.assertIn("未確認の更新あり", output)
     self.assertIn("更新が途中で止まっています", output)
     self.assertIn("自動更新    オフ", output)
-    self.assertIn("自動更新    オン（10分おき）", output)
+    self.assertIn("自動更新    オン（24時間おき）", output)
     self.run_cli(["status", "--instance", "tsumugium-beta"])
     self.assertNotIn("[tsumugium]", self.output())
 
