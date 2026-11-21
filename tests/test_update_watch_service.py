@@ -217,7 +217,7 @@ class AutoUpdateAttentionTest(WatchTestCase):
   def test_sends_again_after_it_is_resolved(self):
     self.write(AUTO_UPDATE_FILE, self.UNFINISHED)
     asyncio.run(self.watch.check_auto_update())
-    self.write(AUTO_UPDATE_FILE, {"result": "latest", "message": "新しい版はありません"})
+    self.write(AUTO_UPDATE_FILE, {"result": "latest", "message": "更新はありません"})
     asyncio.run(self.watch.check_auto_update())
     self.assertIsNone(self.notice()["auto_update_attention"])
     self.write(AUTO_UPDATE_FILE, self.UNFINISHED)
@@ -538,7 +538,7 @@ class CheckRequestTest(UpdateButtonTestCase):
   def test_new_version_is_offered_to_every_operator(self):
     embed = self.run_check(self.answer("notified", latest=NEW_VERSION))
     self.assertEqual(embed.title, "新しい版の確認")
-    self.assertIn(f"新しい版 {NEW_VERSION} があります", embed.description)
+    self.assertEqual(embed.description, f"新しいバージョン {NEW_VERSION} があります")
     self.assertEqual([len(user.sent) for user in self.users.values()], [1, 1])
     self.assertEqual(self.notice()["offered_version"], NEW_VERSION)
 
@@ -546,7 +546,7 @@ class CheckRequestTest(UpdateButtonTestCase):
     self.offer()
     asyncio.run(self.watch.offer_available_update())
     embed = self.run_check(self.answer("notified", latest=NEW_VERSION))
-    self.assertIn("ボタン付きのお知らせを送りました", embed.description)
+    self.assertEqual(embed.description, f"新しいバージョン {NEW_VERSION} があります")
     self.assertEqual([len(user.sent) for user in self.users.values()], [2, 1])
     self.assertEqual(
       [record["message_id"] for record in self.notice()["offered_messages"]],
@@ -558,28 +558,28 @@ class CheckRequestTest(UpdateButtonTestCase):
 
   def test_latest(self):
     embed = self.run_check(self.answer("latest"))
-    self.assertEqual(embed.description, f"新しい版はありません（今の版 {CURRENT_VERSION}）")
+    self.assertEqual(embed.description, f"更新はありません（今のバージョン {CURRENT_VERSION}）")
     self.assertEqual([len(user.sent) for user in self.users.values()], [0, 0])
 
   def test_installer_message_is_shown_on_error(self):
-    embed = self.run_check(self.answer("error", message="新しい版を確かめられませんでした: つながりません"))
+    embed = self.run_check(self.answer("error", message="更新を確かめられませんでした: つながりません"))
     self.assertIn("つながりません", embed.description)
 
   def test_result_of_other_request_is_ignored(self):
     self.write(AUTO_UPDATE_FILE, {"result": "latest", "request_id": "old"})
     embed = self.run_check()
-    self.assertIn("時間内に結果が届きませんでした", embed.description)
+    self.assertIn("時間内に応答がありませんでした", embed.description)
     self.assertEqual(self.read(REQUEST_FILE)["mode"], "check")
 
   def test_stale_check_request_is_replaced(self):
     self.write(REQUEST_FILE, {"mode": "check", "request_id": "old", "requested_at": 0, "requested_by": None})
     embed = self.run_check(self.answer("latest"))
-    self.assertIn("新しい版はありません", embed.description)
+    self.assertIn("更新はありません", embed.description)
 
   def test_update_request_is_not_replaced(self):
     self.write(REQUEST_FILE, {"version": NEW_VERSION, "mode": "now"})
     embed = self.run_check()
-    self.assertIn("ほかの更新の依頼を処理しています", embed.description)
+    self.assertIn("ほかで更新を問い合わせています", embed.description)
     self.assertEqual(self.read(REQUEST_FILE)["mode"], "now")
 
   def test_cooldown(self):
@@ -590,18 +590,18 @@ class CheckRequestTest(UpdateButtonTestCase):
     self.assertFalse(self.exists(REQUEST_FILE))
     self.now[0] += 60
     embed = self.run_check(self.answer("latest"))
-    self.assertIn("新しい版はありません", embed.description)
+    self.assertIn("更新はありません", embed.description)
 
   def test_refused_while_updating(self):
     self.write(UPDATING_FILE, {"pid": 1234})
     embed = self.run_check()
-    self.assertIn("いま更新しています", embed.description)
+    self.assertIn("更新中です", embed.description)
     self.assertFalse(self.exists(REQUEST_FILE))
 
   def test_disabled_without_installer(self):
     watch = UpdateWatchService(self.client, "", self.status, RecordingNotifier())
     embed = asyncio.run(watch.request_check(DUMMY_USER_ID))
-    self.assertIn("tsumugium-setup で入れていない", embed.description)
+    self.assertIn("手動で導入されているため", embed.description)
 
 
 class DynamicItemTest(unittest.TestCase):

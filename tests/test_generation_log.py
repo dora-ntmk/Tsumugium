@@ -462,7 +462,7 @@ class FakeUpdateWatch:
 
   async def request_check(self, user_id):
     self.requests.append(user_id)
-    return discord.Embed(title="新しい版の確認", description="新しい版はありません")
+    return discord.Embed(title="新しい版の確認", description="更新はありません")
 
 
 class UpdateCommandTest(unittest.TestCase):
@@ -487,13 +487,14 @@ class UpdateCommandTest(unittest.TestCase):
     self.assertEqual(interaction.response.deferred, {})
     self.assertEqual(self.watch.requests, [DUMMY_USER_ID])
     [edit] = interaction.edits
-    self.assertEqual(edit["embed"].description, "新しい版はありません")
+    self.assertEqual(edit["embed"].description, "更新はありません")
 
   def test_others_are_refused(self):
     interaction = self.run_command(DUMMY_OTHER_USER_ID)
     self.assertEqual(self.watch.requests, [])
     [sent] = interaction.response.sent
     self.assertTrue(sent["ephemeral"])
+    self.assertEqual(sent["embed"].title, "Bot運営者専用コマンドです")
 
 
 if __name__ == "__main__":
