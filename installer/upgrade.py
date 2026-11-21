@@ -26,6 +26,7 @@ from typing import Callable
 from installer import HANDOFF_VERSION, python_command
 from installer.autoupdate import (
   REASON_UPDATE,
+  REQUEST_MODE_CHECK,
   RESULT_BUSY,
   RESULT_ERROR,
   RESULT_FAILED,
@@ -192,7 +193,7 @@ def run_auto(
 ) -> int:
   """自動更新の timer と、更新の依頼の path unit から呼ばれる。
 
-  1. Botの「更新する」ボタンからの依頼（update-request.json）があれば、それを先に扱う。
+  1. Botの「更新する」ボタンと /update コマンドからの依頼（update-request.json）があれば、それを先に扱う。
   2. 自動更新がオンなら、新しい版を入れる。オフなら、新しい版を見つけたら
      available-update.json に書くだけにする（Botがボタン付きのDMで知らせる）。
   更新しない条件に当たれば、理由を残して終わる。
@@ -208,13 +209,15 @@ def run_auto(
     return code
 
   request = read_update_request(system, record.layout)
+  if request is not None and request.get("mode") == REQUEST_MODE_CHECK:
+    return _run_check_request(system, record, request, client or GitHubClient(), done)
   if request is not None:
     return _run_requested(system, ui, record, request, client or GitHubClient(), launch, done)
 
   if record.updating:
     return done(
       RESULT_UNFINISHED,
-      "前回の更新が途中で止まっているため、更新しません。"
+      "前回の更新が途中で止まっているため、更新できません。"
       "sudo tsumugium-setup repair か sudo tsumugium-setup rollback で直してください",
     )
   if record.auto_update_enabled and not Systemctl(system).is_active(record.service):
@@ -224,21 +227,21 @@ def run_auto(
   try:
     release = select_release(client, record.repo, record.channel)
   except ReleaseError as error:
-    return done(RESULT_ERROR, f"新しい版を確かめられませんでした: {error}")
+    return done(RESULT_ERROR, f"更新を確かめられませんでした: {error}")
   latest = str(release.version)
   if not release.version > Version.parse(record.version):
     clear_available_update(system, record.layout)
-    return done(RESULT_LATEST, f"新しい版はありません（今の版 {record.version}）")
+    return done(RESULT_LATEST, f"更新はありません（今のバージョン {record.version}）")
   skipped = latest in record.skip_versions
 
   if not record.auto_update_enabled:
     # 自動では入れず、Botにボタン付きのDMで知らせてもらう
     write_available_update(system, record, latest, skipped=skipped)
-    return done(RESULT_NOTIFIED, f"新しい版 {latest} があることを知らせました（自動更新はオフ）", latest=latest)
+    return done(RESULT_NOTIFIED, f"新しいバージョン {latest} があります（自動更新はオフ）", latest=latest)
   if skipped:
     return done(
       RESULT_SKIPPED,
-      f"{latest} は前に起動を確かめられなかった（または戻した）版なので、入れません。"
+      f"{latest} は前に起動を確認できなかったか、戻したバージョンのため、更新できません。"
       "入れるときは sudo tsumugium-setup upgrade を手で実行してください",
       latest=latest,
     )
@@ -273,6 +276,39 @@ def _upgrade_to(system, ui, record, version, client, launch, done, *, auto: bool
   )
 
 
+def _run_check_request(system, record, request, client, done) -> int:
+  """Botの /update コマンドで頼まれた確認。新しい版を確かめるだけで、入れない。
+
+  自動更新のオン・オフによらず、新しい版を見つけたら available-update.json に書き、
+  Botにボタン付きのDMで知らせてもらう。入れるかは、運営者がボタンで決める。
+  結果には依頼の request_id を付け、Botがどの依頼の結果かを見分けられるようにする。
+  """
+  clear_update_request(system, record.layout)
+  request_id = request.get("request_id")
+  if record.updating:
+    return done(
+      RESULT_UNFINISHED,
+      "前回の更新が途中で止まっているため、更新できません。"
+      "sudo tsumugium-setup repair か sudo tsumugium-setup rollback で直してください",
+      request_id=request_id,
+    )
+  try:
+    release = select_release(client, record.repo, record.channel)
+  except ReleaseError as error:
+    return done(RESULT_ERROR, f"更新を確かめられませんでした: {error}", request_id=request_id)
+  latest = str(release.version)
+  if not release.version > Version.parse(record.version):
+    clear_available_update(system, record.layout)
+    return done(RESULT_LATEST, f"更新はありません（今のバージョン {record.version}）", request_id=request_id)
+  write_available_update(system, record, latest, skipped=latest in record.skip_versions)
+  return done(
+    RESULT_NOTIFIED,
+    f"新しいバージョン {latest} があります",
+    latest=latest,
+    request_id=request_id,
+  )
+
+
 def _run_requested(system, ui, record, request, client, launch, done) -> int:
   """Botの「更新する」ボタンで頼まれた更新。人が決めたものなので、飛ばす版でも入れる。"""
   version = request.get("version")
@@ -302,7 +338,7 @@ def _run_requested(system, ui, record, request, client, launch, done) -> int:
 
   ui.info(f"頼まれた {wanted} に更新します（{request.get('mode', 'now')}）")
   code = _upgrade_to(system, ui, record, str(wanted), client, launch, done, auto=False)
-  # ほかの操作が実行中だったときだけ、依頼を残して次の機会（10分おきの確認）に回す
+  # ほかの操作が実行中だったときだけ、依頼を残して次の機会（24時間おきの確認）に回す
   if read_check_result_code(system, load_record(system, record.instance)) != RESULT_BUSY:
     clear_update_request(system, record.layout)
   return code

@@ -456,5 +456,46 @@ class SynthesisLogCommandTest(unittest.TestCase):
     self.assertEqual(interaction.edits, [])
 
 
+class FakeUpdateWatch:
+  def __init__(self):
+    self.requests = []
+
+  async def request_check(self, user_id):
+    self.requests.append(user_id)
+    return discord.Embed(title="新しい版の確認", description="更新はありません")
+
+
+class UpdateCommandTest(unittest.TestCase):
+  def setUp(self):
+    client = discord.Client(intents=discord.Intents.none())
+    self.tree = app_commands.CommandTree(client)
+    self.watch = FakeUpdateWatch()
+    OperatorCog(self.tree, make_log(), DUMMY_USER_ID, RecordingNotifier(), update_watch=self.watch)
+    self.command = self.tree.get_command("update")
+
+  def run_command(self, user_id):
+    interaction = FakeInteraction(user_id)
+    asyncio.run(self.command.callback(interaction))
+    return interaction
+
+  def test_command_is_dm_only(self):
+    contexts = self.command.allowed_contexts
+    self.assertEqual((contexts.guild, contexts.dm_channel, contexts.private_channel), (False, True, False))
+
+  def test_operator_requests_check(self):
+    interaction = self.run_command(DUMMY_USER_ID)
+    self.assertEqual(interaction.response.deferred, {})
+    self.assertEqual(self.watch.requests, [DUMMY_USER_ID])
+    [edit] = interaction.edits
+    self.assertEqual(edit["embed"].description, "更新はありません")
+
+  def test_others_are_refused(self):
+    interaction = self.run_command(DUMMY_OTHER_USER_ID)
+    self.assertEqual(self.watch.requests, [])
+    [sent] = interaction.response.sent
+    self.assertTrue(sent["ephemeral"])
+    self.assertEqual(sent["embed"].title, "Bot運営者専用コマンドです")
+
+
 if __name__ == "__main__":
   unittest.main()

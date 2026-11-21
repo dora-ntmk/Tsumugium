@@ -1,10 +1,10 @@
 """自動更新の timer と service、オン・オフの切り替え、結果の書き残し。
 
-自動更新は、systemd の timer が10分おきに `tsumugium-setup upgrade --auto` を動かして行う。
+自動更新は、systemd の timer が24時間おきに `tsumugium-setup upgrade --auto` を動かして行う。
 更新するかどうかの判断と更新そのものは installer/upgrade.py が行う。
 
 service は、今の app/ にこのファイルがあるときだけ動く（ConditionPathExists）。
-自動更新のない古い版に rollback したときに、10分おきに失敗し続けないようにするため。
+自動更新のない古い版に rollback したときに、定期的に失敗し続けないようにするため。
 """
 
 from __future__ import annotations
@@ -26,7 +26,8 @@ from installer.ui import UI
 
 EXIT_OK = 0
 
-INTERVAL = "10min"
+# GitHub への問い合わせが多すぎるとアカウントを止められることがあるため、1日1回にする
+INTERVAL = "24h"
 FIRST_RUN = "5min"
 RANDOM_DELAY = "1min"
 # 更新では依存の導入や起動の確認を待つので、長めにする
@@ -41,8 +42,10 @@ UPDATING_FILE = "updating.json"
 RESTART_REASON_FILE = "restart-reason.json"
 # 自動更新がオフのときに見つけた新しい版。Botはこれを見て、ボタン付きのDMで知らせる
 AVAILABLE_FILE = "available-update.json"
-# Botの「更新する」ボタンからの依頼。path unit がこれを見て、更新を動かす
+# Botの「更新する」ボタンと /update コマンドからの依頼。path unit がこれを見て、更新を動かす
 REQUEST_FILE = "update-request.json"
+# 依頼の mode。check は新しい版を確かめるだけで、入れない（見つけたら available-update.json に書く）
+REQUEST_MODE_CHECK = "check"
 REASON_UPDATE = "update"
 REASON_MANUAL_STOP = "manual_stop"
 
@@ -284,7 +287,7 @@ def run_mode(args: argparse.Namespace, system: System, ui: UI) -> int:
     save_record(system, record)
     apply_auto_update(system, record)
   if record.auto_update:
-    ui.info(f"インスタンス {instance} の自動更新を有効にしました（{record.channel} の新しい版を10分おきに確かめます）")
+    ui.info(f"インスタンス {instance} の自動更新を有効にしました（{record.channel} の新しい版を24時間おきに確かめます）")
   else:
     ui.info(
       f"インスタンス {instance} の自動更新を無効にしました。新しい版を見つけたら、"
@@ -296,7 +299,7 @@ def run_mode(args: argparse.Namespace, system: System, ui: UI) -> int:
 def describe(system: System, record: InstanceRecord) -> list[str]:
   """status に出す自動更新の行。"""
   enabled = record.auto_update_enabled
-  lines = [f"  自動更新    {'オン（10分おき）' if enabled else 'オフ（新しい版を見つけたらDMで知らせます）'}"]
+  lines = [f"  自動更新    {'オン（24時間おき）' if enabled else 'オフ（新しい版を見つけたらDMで知らせます）'}"]
   state = read_state(system, record.layout, STATE_FILE)
   if state and isinstance(state.get("checked_at"), str):
     label = RESULT_LABELS.get(state.get("result"), str(state.get("result")))

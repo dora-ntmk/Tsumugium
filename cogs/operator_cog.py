@@ -1,5 +1,8 @@
 """Botの運営者（OPERATOR_USER_ID）だけが使うコマンドを登録する。
 
+- /synthesis-log: 音声生成の記録を表示する
+- /update: 新しい版を確かめ、あればボタン付きのDMで更新を頼めるようにする
+
 コマンドはBotとのDMにだけ出し、運営者以外が使ったときは断る。
 """
 
@@ -195,9 +198,11 @@ class OperatorCog:
       generation_log,
       operator_user_ids,
       error_notifier=None,
+      update_watch=None,
   ):
     self.tree = tree
     self.generation_log = generation_log
+    self.update_watch = update_watch
     self.operator_user_ids = operator_ids(operator_user_ids)
     self.error_notifier = ensure_error_notifier(error_notifier)
     self._register()
@@ -249,3 +254,34 @@ class OperatorCog:
         self.error_notifier.report_exception(error, "synthesis-log HTTP")
       except Exception as error:
         await handle_internal_error(ctx, error, "synthesis-log", self.error_notifier)
+
+    @self.tree.command(
+      name="update",
+      description="（運営者用）Tsumugiumの更新を確認します",
+    )
+    @discord.app_commands.allowed_contexts(
+      guilds=False,
+      dms=True,
+      private_channels=False,
+    )
+    @discord.app_commands.allowed_installs(guilds=True, users=False)
+    async def update(ctx):
+      try:
+        if not self.is_operator(ctx.user):
+          embed = make_embed("Bot運営者専用コマンドです", "このコマンドはBotの運営者以外は使用できません", embed_type=EmbedType.ERROR)
+          await ctx.response.send_message(embed=embed, ephemeral=True)
+          return
+        if self.update_watch is None:
+          embed = make_embed("更新できません", "今は更新を受け付けることができません", embed_type=EmbedType.ERROR)
+          await ctx.response.send_message(embed=embed)
+          return
+        # インストーラーが GitHub へ問い合わせるのを待つので、先に応答しておく
+        await ctx.response.defer()
+        embed = await self.update_watch.request_check(ctx.user.id)
+        await ctx.edit_original_response(embed=embed)
+      except discord.errors.InteractionResponded:
+        return
+      except discord.errors.HTTPException as error:
+        self.error_notifier.report_exception(error, "update HTTP")
+      except Exception as error:
+        await handle_internal_error(ctx, error, "update", self.error_notifier)

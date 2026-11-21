@@ -217,7 +217,7 @@ class AutoUpdateAttentionTest(WatchTestCase):
   def test_sends_again_after_it_is_resolved(self):
     self.write(AUTO_UPDATE_FILE, self.UNFINISHED)
     asyncio.run(self.watch.check_auto_update())
-    self.write(AUTO_UPDATE_FILE, {"result": "latest", "message": "新しい版はありません"})
+    self.write(AUTO_UPDATE_FILE, {"result": "latest", "message": "更新はありません"})
     asyncio.run(self.watch.check_auto_update())
     self.assertIsNone(self.notice()["auto_update_attention"])
     self.write(AUTO_UPDATE_FILE, self.UNFINISHED)
@@ -488,6 +488,120 @@ class ButtonTest(UpdateButtonTestCase):
     self.watch.check_pending_update()
     self.assertFalse(self.exists(PENDING_FILE))
     self.assertFalse(self.exists(REQUEST_FILE))
+
+
+class CheckRequestTest(UpdateButtonTestCase):
+  """/update コマンドの確認の依頼。"""
+
+  def setUp(self):
+    super().setUp()
+    self.users = {DUMMY_USER_ID: MessageUser(900), DUMMY_OTHER_USER_ID: MessageUser(901)}
+    self.client.get_user = self.users.get
+    self.now = [1000.0]
+    self.watch = self.make_watch(
+      operator_user_ids=(DUMMY_USER_ID, DUMMY_OTHER_USER_ID),
+      current_version=CURRENT_VERSION,
+      check_timeout=1.0,
+      check_poll_interval=0.01,
+      clock=lambda: self.now[0],
+    )
+
+  def run_check(self, installer=None):
+    """installer(request) が、依頼を読んだインストーラーとして結果を書く。"""
+
+    async def fake_installer():
+      while True:
+        request = self.read(REQUEST_FILE) if self.exists(REQUEST_FILE) else {}
+        if request.get("requested_by") == DUMMY_USER_ID:
+          break
+        await asyncio.sleep(0.005)
+      self.remove(REQUEST_FILE)
+      installer(request)
+
+    async def scenario():
+      task = asyncio.create_task(fake_installer()) if installer else None
+      embed = await self.watch.request_check(DUMMY_USER_ID)
+      if task is not None:
+        await task
+      return embed
+
+    return asyncio.run(scenario())
+
+  def answer(self, result, **extra):
+    def installer(request):
+      self.assertEqual((request["mode"], request["requested_by"]), ("check", DUMMY_USER_ID))
+      if result == "notified":
+        self.offer()
+      self.write(AUTO_UPDATE_FILE, {"result": result, "request_id": request["request_id"], **extra})
+    return installer
+
+  def test_new_version_is_offered_to_every_operator(self):
+    embed = self.run_check(self.answer("notified", latest=NEW_VERSION))
+    self.assertEqual(embed.title, "新しい版の確認")
+    self.assertEqual(embed.description, f"新しいバージョン {NEW_VERSION} があります")
+    self.assertEqual([len(user.sent) for user in self.users.values()], [1, 1])
+    self.assertEqual(self.notice()["offered_version"], NEW_VERSION)
+
+  def test_already_offered_version_is_sent_again_to_requester(self):
+    self.offer()
+    asyncio.run(self.watch.offer_available_update())
+    embed = self.run_check(self.answer("notified", latest=NEW_VERSION))
+    self.assertEqual(embed.description, f"新しいバージョン {NEW_VERSION} があります")
+    self.assertEqual([len(user.sent) for user in self.users.values()], [2, 1])
+    self.assertEqual(
+      [record["message_id"] for record in self.notice()["offered_messages"]],
+      [900, 901, 900],
+    )
+    # 見張りからは、もう送らない
+    asyncio.run(self.watch.offer_available_update())
+    self.assertEqual([len(user.sent) for user in self.users.values()], [2, 1])
+
+  def test_latest(self):
+    embed = self.run_check(self.answer("latest"))
+    self.assertEqual(embed.description, f"更新はありません（今のバージョン {CURRENT_VERSION}）")
+    self.assertEqual([len(user.sent) for user in self.users.values()], [0, 0])
+
+  def test_installer_message_is_shown_on_error(self):
+    embed = self.run_check(self.answer("error", message="更新を確かめられませんでした: つながりません"))
+    self.assertIn("つながりません", embed.description)
+
+  def test_result_of_other_request_is_ignored(self):
+    self.write(AUTO_UPDATE_FILE, {"result": "latest", "request_id": "old"})
+    embed = self.run_check()
+    self.assertIn("時間内に応答がありませんでした", embed.description)
+    self.assertEqual(self.read(REQUEST_FILE)["mode"], "check")
+
+  def test_stale_check_request_is_replaced(self):
+    self.write(REQUEST_FILE, {"mode": "check", "request_id": "old", "requested_at": 0, "requested_by": None})
+    embed = self.run_check(self.answer("latest"))
+    self.assertIn("更新はありません", embed.description)
+
+  def test_update_request_is_not_replaced(self):
+    self.write(REQUEST_FILE, {"version": NEW_VERSION, "mode": "now"})
+    embed = self.run_check()
+    self.assertIn("ほかで更新を問い合わせています", embed.description)
+    self.assertEqual(self.read(REQUEST_FILE)["mode"], "now")
+
+  def test_cooldown(self):
+    self.run_check(self.answer("latest"))
+    self.now[0] += 10
+    embed = self.run_check()
+    self.assertIn("空けてから", embed.description)
+    self.assertFalse(self.exists(REQUEST_FILE))
+    self.now[0] += 60
+    embed = self.run_check(self.answer("latest"))
+    self.assertIn("更新はありません", embed.description)
+
+  def test_refused_while_updating(self):
+    self.write(UPDATING_FILE, {"pid": 1234})
+    embed = self.run_check()
+    self.assertIn("更新中です", embed.description)
+    self.assertFalse(self.exists(REQUEST_FILE))
+
+  def test_disabled_without_installer(self):
+    watch = UpdateWatchService(self.client, "", self.status, RecordingNotifier())
+    embed = asyncio.run(watch.request_check(DUMMY_USER_ID))
+    self.assertIn("手動で導入されているため", embed.description)
 
 
 class DynamicItemTest(unittest.TestCase):
