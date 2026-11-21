@@ -179,7 +179,7 @@ Botを止めるときは、`ReconnectService`がつないでいたVCを`data/sta
 - `guild_config.Language`は旧DB互換性のため残しますが、実行時には参照しません。
 - 旧DBに不足する`Greeting`、`SpacedSpeed`、`full_match`、`trigger_user_id`は起動時に補完します。
 - `SpacedSpeed`を追加する場合は、変更前の`config.db`を`backup_config_YYYYMMDD_HHMMSS_v3-latest.db`として先に保存します。バックアップに失敗した場合はDBを変更せず起動を中止し、移行前バックアップは通常ローテーションから除外します。
-- Bot終了時は`ManagedDiscordClient`がHTTPセッションとSQLite接続を閉じます。
+- Bot終了時は`ManagedDiscordClient`が、終了前の処理（`ReconnectService`がVCから抜け、そのあと`GenerationLogReportService`がまだ送っていない生成の記録を運営者へDMする）を動かしてから、HTTPセッションとSQLite接続を閉じます。
 - `users.db`は起動時にテーブルを作成して定時バックアップ対象に含めます。`/user-reading`はギルドとDMの両方から本人の`reading`を更新し、常にephemeralで応答します。`UserReadingService`が保存済みの読み方をDiscordの表示名より優先する共通名前解決を提供し、メンションと入退室通知の双方から利用します。
 
 ## インストーラーと更新

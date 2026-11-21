@@ -3,6 +3,9 @@
 成功・失敗はVoicevoxClientが、スキップ（読む文字がない、クリア・削除で
 捨てた）はSpeechServiceが記録する。Botを再起動すると記録は消える。
 読み上げた文章とサーバーは持たず、文字数だけを残す。
+
+運営者へ自動で送るため、まだ送っていない件数も数える。持てる件数（500件）まで
+たまったら、登録した関数（GenerationLogReportService）を呼ぶ。
 """
 
 import math
@@ -28,6 +31,9 @@ class GenerationLogService:
   def __init__(self, capacity: int = DEFAULT_CAPACITY, *, clock=time.time):
     self._records: deque[GenerationRecord] = deque(maxlen=capacity)
     self._clock = clock
+    # まだ運営者へ送っていない件数（新しいほうから数える）
+    self._unsent = 0
+    self._full_listener = None
 
   @property
   def capacity(self) -> int:
@@ -36,7 +42,27 @@ class GenerationLogService:
   def _add(self, **values) -> GenerationRecord:
     record = GenerationRecord(at=self._clock(), **values)
     self._records.append(record)
+    self._unsent = min(self._unsent + 1, self.capacity)
+    if self._unsent >= self.capacity and self._full_listener is not None:
+      # 次の記録で古いものが押し出される前に、呼ばれた側が take_unsent() で取り出す
+      self._full_listener()
     return record
+
+  def set_full_listener(self, listener) -> None:
+    """まだ送っていない記録が持てる件数までたまったら呼ぶ関数を登録する。"""
+    self._full_listener = listener
+
+  @property
+  def unsent_count(self) -> int:
+    return self._unsent
+
+  def take_unsent(self) -> list[GenerationRecord]:
+    """まだ送っていない記録を古い順で返し、送ったものとする。"""
+    count = min(self._unsent, len(self._records))
+    self._unsent = 0
+    if count <= 0:
+      return []
+    return list(self._records)[-count:]
 
   def record_success(
       self, chars, speaker, wait_seconds, synth_seconds, attempts,
@@ -78,8 +104,9 @@ class GenerationLogService:
     records = list(self._records)
     return records[-count:][::-1]
 
-  def summarize(self) -> GenerationSummary:
-    records = list(self._records)
+  def summarize(self, records=None) -> GenerationSummary:
+    """記録を集計する。records（古い順）を渡すと、その記録だけを集計する。"""
+    records = list(self._records if records is None else records)
     if not records:
       return GenerationSummary()
     outcomes = Counter(record.outcome for record in records)
