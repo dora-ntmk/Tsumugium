@@ -1,5 +1,5 @@
 """VOICEVOXの生成記録（services/generation_log_service.py）と、
-運営者用の /synthesis-log（cogs/operator_cog.py）のテスト。
+運営者用の /synthesis log（cogs/operator_cog.py）のテスト。
 """
 
 import asyncio
@@ -387,21 +387,23 @@ class SynthesisLogCommandTest(unittest.TestCase):
     self.log.record_success(10, 8, 0.0, 1.0, 1)
     self.log.record_skip(SKIP_EMPTY)
     OperatorCog(self.tree, self.log, DUMMY_USER_ID, RecordingNotifier())
-    self.command = self.tree.get_command("synthesis-log")
+    self.command = self.tree.get_command("synthesis").get_command("log")
 
   def run_command(self, user_id, count=500, tree=None):
-    command = self.command if tree is None else tree.get_command("synthesis-log")
+    command = self.command if tree is None else tree.get_command("synthesis").get_command("log")
     interaction = FakeInteraction(user_id)
     asyncio.run(command.callback(interaction, count))
     return interaction
 
-  def test_old_name_is_gone(self):
+  def test_old_names_are_gone(self):
     self.assertIsNone(self.tree.get_command("voicevox-log"))
+    self.assertIsNone(self.tree.get_command("synthesis-log"))
 
   def test_command_is_dm_only(self):
-    contexts = self.command.allowed_contexts
+    group = self.tree.get_command("synthesis")
+    contexts = group.allowed_contexts
     self.assertEqual((contexts.guild, contexts.dm_channel, contexts.private_channel), (False, True, False))
-    self.assertEqual((self.command.allowed_installs.guild, self.command.allowed_installs.user), (True, False))
+    self.assertEqual((group.allowed_installs.guild, group.allowed_installs.user), (True, False))
 
   def test_operator_gets_summary_and_file(self):
     interaction = self.run_command(DUMMY_USER_ID)

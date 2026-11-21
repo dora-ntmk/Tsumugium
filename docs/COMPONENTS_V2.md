@@ -4,7 +4,7 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 
 新しいコマンドとメッセージは、基本的にComponents v2（`make_layout()`）で作ります。Embedで作るのは、v2では表せないなど、理由があるときだけにしてください。
 
-調べた時点: `feat/update-components-v2`（更新の知らせ・更新ボタン・`/update`をv2にしたあと）
+調べた時点: `feat/streaming_synthesis-setup-on-discord`（`/synthesis`グループにストリーミング合成の設定を足したあと）
 
 ## 数え方
 
@@ -30,12 +30,13 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 再起動・再接続 | 0 | 2 | 0 | 2 | 0.0% |
 | サーバー退出 | 1 | 0 | 0 | 1 | 0.0% |
 | 運営者: お知らせ（`/announce`） | 0 | 0 | 16 | 16 | 100.0% |
-| 運営者: 生成の記録（`/synthesis-log`） | 0 | 3 | 0 | 3 | 0.0% |
+| 運営者: ストリーミング合成の設定（`/synthesis view`・`set`・`reset`） | 0 | 0 | 5 | 5 | 100.0% |
+| 運営者: 生成の記録（`/synthesis log`） | 0 | 3 | 0 | 3 | 0.0% |
 | 運営者: 更新の知らせ・更新ボタン・`/update` | 3 | 0 | 22 | 25 | 88.0% |
 | 運営者: エラー通知 | 0 | 1 | 0 | 1 | 0.0% |
-| **合計** | **10** | **68** | **46** | **124** | **37.1%** |
+| **合計** | **10** | **68** | **51** | **129** | **39.5%** |
 
-テキストを移し替えの対象から外し、Embedとv2だけで数えると、交換率は 46 / 114 = **40.4%** です。
+テキストを移し替えの対象から外し、Embedとv2だけで数えると、交換率は 51 / 119 = **42.9%** です。
 
 ---
 
@@ -188,9 +189,9 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 
 | 見出し | 場面 | 送り先 | 場所 |
 |---|---|---|---|
-| 音声生成の記録 | 運営者以外が実行 | 本人だけ | [operator_cog.py:244](../cogs/operator_cog.py#L244) |
-| 音声生成の記録（集計＋txt添付） | 記録がある | DM | [operator_cog.py:216](../cogs/operator_cog.py#L216)・[251](../cogs/operator_cog.py#L251) |
-| 音声生成の記録（記録はまだありません） | 記録がない | DM | [operator_cog.py:218](../cogs/operator_cog.py#L218) |
+| 音声生成の記録 | 運営者以外が実行 | 本人だけ | [operator_cog.py:411](../cogs/operator_cog.py#L411) |
+| 音声生成の記録（集計＋txt添付） | 記録がある | DM | [operator_cog.py:274](../cogs/operator_cog.py#L274)・[418](../cogs/operator_cog.py#L418) |
+| 音声生成の記録（記録はまだありません） | 記録がない | DM | [operator_cog.py:274](../cogs/operator_cog.py#L274) |
 
 ### 運営者: エラー通知（1）
 
@@ -200,7 +201,7 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 
 ---
 
-## Components v2（46）
+## Components v2（51）
 
 ### VCへの接続・切断（8）
 
@@ -232,8 +233,8 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 更新は済んでいます | 青 | 今と同じバージョンのボタンが押された | [update_watch_service.py:553](../services/update_watch_service.py#L553) |
 | 更新を受け付けました | 緑 | 「今すぐ更新する」 | [update_watch_service.py:568](../services/update_watch_service.py#L568) |
 | VCが空いたら更新します（更新ボタン付き） | 青 | 「VCが空いたら更新する」 | [update_watch_service.py:577](../services/update_watch_service.py#L577) |
-| Bot運営者専用コマンドです | 赤 | 運営者以外が`/update`を実行（本人だけ） | [operator_cog.py:272](../cogs/operator_cog.py#L272) |
-| 更新できません | 赤 | 更新の見張りがない（`/update`） | [operator_cog.py:280](../cogs/operator_cog.py#L280) |
+| Bot運営者専用コマンドです | 赤 | 運営者以外が`/update`・`/synthesis view`・`set`・`reset`を実行（本人だけ） | [operator_cog.py:280](../cogs/operator_cog.py#L280) |
+| 更新できません | 赤 | 更新の見張りがない（`/update`） | [operator_cog.py:444](../cogs/operator_cog.py#L444) |
 | 新しいバージョンの確認（手動で導入されている） | 赤 | `UPDATE_STATE_DIR`が空欄 | [update_watch_service.py:385](../services/update_watch_service.py#L385) |
 | 新しいバージョンの確認（更新中です） | 黄 | 更新中 | [update_watch_service.py:391](../services/update_watch_service.py#L391) |
 | 新しいバージョンの確認（ほかで更新を問い合わせています） | 黄 | 扱われていない依頼がある | [update_watch_service.py:393](../services/update_watch_service.py#L393) |
@@ -243,6 +244,18 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 新しいバージョンの確認（新しいバージョン … があります） | 緑 | 新しいバージョンがあり、ボタン付きのDMを送った | [update_watch_service.py:429](../services/update_watch_service.py#L429) |
 | 新しいバージョンの確認（… が見つかりましたが、Discordからは更新できません） | 黄 | 新しいバージョンがあるが、DMを送れなかった | [update_watch_service.py:434](../services/update_watch_service.py#L434) |
 | 新しいバージョンの確認（インストーラーの文） | 赤 | 確かめられなかった・前回の更新が途中で止まっている | [update_watch_service.py:440](../services/update_watch_service.py#L440) |
+
+### 運営者: ストリーミング合成の設定（5）
+
+運営者以外への断り（「Bot運営者専用コマンドです」）は、`/update`と同じメッセージなので「運営者: 更新の知らせ・更新ボタン・`/update`」で数えています。
+
+| 見出し | 色 | 場面 | 場所 |
+|---|---|---|---|
+| ストリーミング合成の設定 | 青 | `/synthesis view` | [operator_cog.py:318](../cogs/operator_cog.py#L318) |
+| ストリーミング合成の設定（変える項目を指定してください） | 赤 | `/synthesis set`で何も指定しなかった | [operator_cog.py:351](../cogs/operator_cog.py#L351) |
+| ストリーミング合成の設定（今は設定を変えることができません） | 赤 | 設定のサービスがない | [operator_cog.py:291](../cogs/operator_cog.py#L291) |
+| ストリーミング合成の設定を変えました | 緑 | `/synthesis set` | [operator_cog.py:363](../cogs/operator_cog.py#L363) |
+| ストリーミング合成の設定を既定に戻しました | 緑 | `/synthesis reset` | [operator_cog.py:387](../cogs/operator_cog.py#L387) |
 
 ### 運営者: お知らせ（16）
 

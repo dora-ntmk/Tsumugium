@@ -25,7 +25,7 @@ class StreamingAudio:
     self._succeeded = False
     self._file = None
     self._done = asyncio.Event()
-    # 記録用（/synthesis-log の first）。時刻はイベントループの時計（loop.time()）
+    # 記録用（/synthesis log の first）。時刻はイベントループの時計（loop.time()）
     self.received_at: float | None = None  # メッセージを受け取った時刻
     self.wait_seconds = 0.0                # 生成の順番を待った時間
     self.enqueued_at: float | None = None  # 再生のキューに入れた時刻
@@ -62,7 +62,7 @@ class StreamingAudio:
 
   @property
   def total_wait_seconds(self) -> float:
-    """待った時間の合計（生成の順番待ち＋再生の順番待ち）。/synthesis-log の wait。"""
+    """待った時間の合計（生成の順番待ち＋再生の順番待ち）。/synthesis log の wait。"""
     return self.wait_seconds + (self.playback_wait_seconds or 0.0)
 
   def attach_record(self, record) -> None:

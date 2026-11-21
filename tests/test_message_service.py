@@ -110,7 +110,7 @@ class HandleTest(MessageServiceTestCase):
     service = self.make_service()
     message = make_message(DUMMY_VOICE_CHANNEL_ID)
     await service.handle(message, received_at=12.5)
-    # on_message に入った時刻を読み上げまで渡す（/synthesis-log の first）
+    # on_message に入った時刻を読み上げまで渡す（/synthesis log の first）
     self.speech_service.add_message.assert_called_once_with(message, received_at=12.5)
     self.assertEqual(self.notifier.tasks, ["message speech"])
 

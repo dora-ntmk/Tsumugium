@@ -51,7 +51,7 @@ class MessageService:
     """メッセージを振り分ける。
 
     `received_at`は on_message に入った時刻（loop.time()）。読み上げまで渡し、
-    /synthesis-log の first をそこから数える。
+    /synthesis log の first をそこから数える。
     """
     if received_at is None:
       received_at = asyncio.get_running_loop().time()

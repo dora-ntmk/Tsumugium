@@ -56,7 +56,7 @@ class PlaybackCog:
       self.error_notifier.report(f"Exception in {command_name}: {e}")
 
   async def _run_tts_file(self, ctx, text: str, command_name: str) -> None:
-    # /synthesis-log の first は、コマンドがこのプログラムに届いたここから数える
+    # /synthesis log の first は、コマンドがこのプログラムに届いたここから数える
     received_at = asyncio.get_running_loop().time()
     try:
       guild = ctx.guild
@@ -138,7 +138,7 @@ class PlaybackCog:
 
     @self.client.event
     async def on_message(message):
-      # /synthesis-log の first は、メッセージがこのプログラムに届いたここから数える
+      # /synthesis log の first は、メッセージがこのプログラムに届いたここから数える
       received_at = asyncio.get_running_loop().time()
       await self.message_service.handle(message, received_at=received_at)
 
