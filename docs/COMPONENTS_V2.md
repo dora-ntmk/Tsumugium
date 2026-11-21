@@ -2,7 +2,9 @@
 
 Botが出すメッセージを、表示の形式（テキスト・Embed・Components v2）ごとに分け、分野別に並べた表です。Components v2への移し替えがどこまで進んだかを確かめるために使います。移し替えの方針は[`AGENTS.md`](../AGENTS.md)の「Components v2への移行」を参照してください。
 
-調べた時点: `main`（cf58255、`/announce`をv2にしたあと）
+新しいコマンドとメッセージは、基本的にComponents v2（`make_layout()`）で作ります。Embedで作るのは、v2では表せないなど、理由があるときだけにしてください。
+
+調べた時点: `feat/update-components-v2`（更新の知らせ・更新ボタン・`/update`をv2にしたあと）
 
 ## 数え方
 
@@ -29,11 +31,11 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | サーバー退出 | 1 | 0 | 0 | 1 | 0.0% |
 | 運営者: お知らせ（`/announce`） | 0 | 0 | 16 | 16 | 100.0% |
 | 運営者: 生成の記録（`/synthesis-log`） | 0 | 3 | 0 | 3 | 0.0% |
-| 運営者: 更新の知らせ・更新ボタン | 3 | 11 | 0 | 14 | 0.0% |
+| 運営者: 更新の知らせ・更新ボタン・`/update` | 3 | 0 | 22 | 25 | 88.0% |
 | 運営者: エラー通知 | 0 | 1 | 0 | 1 | 0.0% |
-| **合計** | **10** | **79** | **24** | **113** | **21.2%** |
+| **合計** | **10** | **68** | **46** | **124** | **37.1%** |
 
-テキストを移し替えの対象から外し、Embedとv2だけで数えると、交換率は 24 / 103 = **23.3%** です。
+テキストを移し替えの対象から外し、Embedとv2だけで数えると、交換率は 46 / 114 = **40.4%** です。
 
 ---
 
@@ -70,13 +72,13 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 
 | 表示 | 場面 | 送り先 | 場所 |
 |---|---|---|---|
-| 「今は更新を受け付けられません」 | 更新の見張りが動いていないときにボタンが押された | 本人だけ | [update_watch_service.py:144](../services/update_watch_service.py#L144) |
-| 「この操作は、Botを運営している人だけができます」 | 運営者以外がボタンを押した | 本人だけ | [update_watch_service.py:412](../services/update_watch_service.py#L412) |
-| 「新しい版 … があります」／「… への更新は、もう受け付けていません」 | 古いお知らせのボタンが押された | 本人だけ | [update_watch_service.py:426](../services/update_watch_service.py#L426) |
+| 「今は更新を受け付けられません」 | 更新の見張りが動いていないときにボタンが押された | 本人だけ | [update_watch_service.py:163](../services/update_watch_service.py#L163) |
+| 「この操作は、Botを運営している人だけができます」 | 運営者以外がボタンを押した | 本人だけ | [update_watch_service.py:548](../services/update_watch_service.py#L548) |
+| 「新しい版 … があります」／「… への更新は、もう受け付けていません」 | 古いお知らせのボタンが押された | 本人だけ | [update_watch_service.py:562](../services/update_watch_service.py#L562) |
 
 ---
 
-## Embed（79）
+## Embed（68）
 
 ### 読み上げの操作（7）
 
@@ -186,27 +188,9 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 
 | 見出し | 場面 | 送り先 | 場所 |
 |---|---|---|---|
-| 音声生成の記録 | 運営者以外が実行 | 本人だけ | [operator_cog.py:237](../cogs/operator_cog.py#L237) |
-| 音声生成の記録（集計＋txt添付） | 記録がある | DM | [operator_cog.py:212](../cogs/operator_cog.py#L212)・[249](../cogs/operator_cog.py#L249) |
-| 音声生成の記録（記録はまだありません） | 記録がない | DM | [operator_cog.py:211](../cogs/operator_cog.py#L211) |
-
-### 運営者: 更新の知らせ・更新ボタン（11）
-
-すべて運営者へのDM、またはそのDMの書き換えです。
-
-| 見出し | 場面 | 場所 |
-|---|---|---|
-| 更新しました | 更新の結果（`updated`） | [update_watch_service.py:62](../services/update_watch_service.py#L62) |
-| 入れ直しました | 更新の結果（`repaired`） | [update_watch_service.py:64](../services/update_watch_service.py#L64) |
-| 更新できませんでした | 更新の結果（`rolled_back`） | [update_watch_service.py:76](../services/update_watch_service.py#L76) |
-| 1つ前の版に戻しました | 更新の結果（`rollback`） | [update_watch_service.py:78](../services/update_watch_service.py#L78) |
-| 更新の結果 | 更新の結果（そのほか） | [update_watch_service.py:83](../services/update_watch_service.py#L83) |
-| 自動更新を止めています | 自動更新が人の手を要る（`unfinished`） | [update_watch_service.py:87](../services/update_watch_service.py#L87) |
-| 新しい版があります（更新ボタン付き） | 新しいバージョンを見つけた | [update_watch_service.py:99](../services/update_watch_service.py#L99)・[321](../services/update_watch_service.py#L321) |
-| 更新を開始しました | 更新が始まり、ボタンのDMを書き換える | [update_watch_service.py:103](../services/update_watch_service.py#L103)・[375](../services/update_watch_service.py#L375) |
-| 更新は済んでいます | 今と同じバージョンのボタンが押された | [update_watch_service.py:417](../services/update_watch_service.py#L417) |
-| 更新を受け付けました | 「今すぐ更新する」 | [update_watch_service.py:432](../services/update_watch_service.py#L432) |
-| VCが空いたら更新します（更新ボタン付き） | 「VCが空いたら更新する」 | [update_watch_service.py:441](../services/update_watch_service.py#L441) |
+| 音声生成の記録 | 運営者以外が実行 | 本人だけ | [operator_cog.py:244](../cogs/operator_cog.py#L244) |
+| 音声生成の記録（集計＋txt添付） | 記録がある | DM | [operator_cog.py:216](../cogs/operator_cog.py#L216)・[251](../cogs/operator_cog.py#L251) |
+| 音声生成の記録（記録はまだありません） | 記録がない | DM | [operator_cog.py:218](../cogs/operator_cog.py#L218) |
 
 ### 運営者: エラー通知（1）
 
@@ -216,7 +200,7 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 
 ---
 
-## Components v2（24）
+## Components v2（46）
 
 ### VCへの接続・切断（8）
 
@@ -230,6 +214,35 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 接続失敗 | 赤 | Discordとの音声接続に失敗した | [connection_service.py:252](../services/connection_service.py#L252) |
 | 権限エラー | 赤 | `/join`・メンション・AutoJoinで権限が足りない | [connection_service.py:231](../services/connection_service.py#L231)・[374](../services/connection_service.py#L374)・[439](../services/connection_service.py#L439) |
 | 自動退出 | 青 | VCに誰もいなくなった | [connection_service.py:326](../services/connection_service.py#L326) |
+
+### 運営者: 更新の知らせ・更新ボタン・`/update`（22）
+
+`/update`の応答のほかは、すべて運営者へのDM、またはそのDMの書き換えです。更新ボタンは枠の外（下）に置きます。Embedで送った前の版のDMを書き換えるときは、`embed=None`を渡してv2に置き換えます。
+
+| 見出し | 枠の色 | 場面 | 場所 |
+|---|---|---|---|
+| 更新しました | 緑 | 更新の結果（`updated`） | [update_watch_service.py:77](../services/update_watch_service.py#L77) |
+| 入れ直しました | 緑 | 更新の結果（`repaired`） | [update_watch_service.py:79](../services/update_watch_service.py#L79) |
+| 更新できませんでした | 赤 | 更新の結果（`rolled_back`） | [update_watch_service.py:91](../services/update_watch_service.py#L91) |
+| 1つ前の版に戻しました | 黄 | 更新の結果（`rollback`） | [update_watch_service.py:93](../services/update_watch_service.py#L93) |
+| 更新の結果 | 青 | 更新の結果（そのほか） | [update_watch_service.py:98](../services/update_watch_service.py#L98) |
+| 自動更新を止めています | 黄 | 自動更新が人の手を要る（`unfinished`） | [update_watch_service.py:102](../services/update_watch_service.py#L102) |
+| 新しい版があります（更新ボタン付き） | 青 | 新しいバージョンを見つけた・`/update`で見つけた | [update_watch_service.py:115](../services/update_watch_service.py#L115)・[360](../services/update_watch_service.py#L360)・[363](../services/update_watch_service.py#L363) |
+| 更新を開始しました | 緑 | 更新が始まり、ボタンのDMを書き換える | [update_watch_service.py:121](../services/update_watch_service.py#L121)・[512](../services/update_watch_service.py#L512) |
+| 更新は済んでいます | 青 | 今と同じバージョンのボタンが押された | [update_watch_service.py:553](../services/update_watch_service.py#L553) |
+| 更新を受け付けました | 緑 | 「今すぐ更新する」 | [update_watch_service.py:568](../services/update_watch_service.py#L568) |
+| VCが空いたら更新します（更新ボタン付き） | 青 | 「VCが空いたら更新する」 | [update_watch_service.py:577](../services/update_watch_service.py#L577) |
+| Bot運営者専用コマンドです | 赤 | 運営者以外が`/update`を実行（本人だけ） | [operator_cog.py:272](../cogs/operator_cog.py#L272) |
+| 更新できません | 赤 | 更新の見張りがない（`/update`） | [operator_cog.py:280](../cogs/operator_cog.py#L280) |
+| 新しい版の確認（手動で導入されている） | 赤 | `UPDATE_STATE_DIR`が空欄 | [update_watch_service.py:385](../services/update_watch_service.py#L385) |
+| 新しい版の確認（更新中です） | 黄 | 更新中 | [update_watch_service.py:391](../services/update_watch_service.py#L391) |
+| 新しい版の確認（ほかで更新を問い合わせています） | 黄 | 扱われていない依頼がある | [update_watch_service.py:393](../services/update_watch_service.py#L393) |
+| 新しい版の確認（連続してのリクエストはできません） | 黄 | 前の確認から60秒たっていない | [update_watch_service.py:401](../services/update_watch_service.py#L401) |
+| 新しい版の確認（時間内に応答がありませんでした） | 黄 | 60秒待っても結果が届かない | [update_watch_service.py:417](../services/update_watch_service.py#L417) |
+| 新しい版の確認（更新はありません） | 青 | 新しいバージョンがない | [update_watch_service.py:425](../services/update_watch_service.py#L425) |
+| 新しい版の確認（新しいバージョン … があります） | 緑 | 新しいバージョンがあり、ボタン付きのDMを送った | [update_watch_service.py:429](../services/update_watch_service.py#L429) |
+| 新しい版の確認（… が見つかりましたが、Discordからは更新できません） | 黄 | 新しいバージョンがあるが、DMを送れなかった | [update_watch_service.py:434](../services/update_watch_service.py#L434) |
+| 新しい版の確認（インストーラーの文） | 赤 | 確かめられなかった・前回の更新が途中で止まっている | [update_watch_service.py:440](../services/update_watch_service.py#L440) |
 
 ### 運営者: お知らせ（16）
 
