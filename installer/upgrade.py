@@ -217,7 +217,7 @@ def run_auto(
   if record.updating:
     return done(
       RESULT_UNFINISHED,
-      "前回の更新が途中で止まっているため、更新できません"
+      "前回の更新が途中で止まっているため、更新できません。"
       "sudo tsumugium-setup repair か sudo tsumugium-setup rollback で直してください",
     )
   if record.auto_update_enabled and not Systemctl(system).is_active(record.service):
@@ -241,7 +241,7 @@ def run_auto(
   if skipped:
     return done(
       RESULT_SKIPPED,
-      f"{latest} は前に起動を確認できなかったか、戻したバージョンのため、更新できません"
+      f"{latest} は前に起動を確認できなかったか、戻したバージョンのため、更新できません。"
       "入れるときは sudo tsumugium-setup upgrade を手で実行してください",
       latest=latest,
     )
@@ -288,7 +288,7 @@ def _run_check_request(system, record, request, client, done) -> int:
   if record.updating:
     return done(
       RESULT_UNFINISHED,
-      "前回の更新が途中で止まっているため、更新できません"
+      "前回の更新が途中で止まっているため、更新できません。"
       "sudo tsumugium-setup repair か sudo tsumugium-setup rollback で直してください",
       request_id=request_id,
     )
