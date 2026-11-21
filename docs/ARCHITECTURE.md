@@ -22,6 +22,8 @@ flowchart LR
     UserRepo["UserConfigRepository"]
     Announcement["AnnouncementService"]
     AnnouncementRepo["AnnouncementRepository"]
+    StreamingSetting["StreamingSettingService"]
+    BotSettingRepo["BotSettingRepository"]
     Voicevox["VoicevoxClient"]
     SoundClient["DiscordSoundboardClient"]
     ConfigDB[("config.db")]
@@ -45,6 +47,10 @@ flowchart LR
     Cogs --> Announcement
     Announcement --> AnnouncementRepo
     AnnouncementRepo --> ConfigDB
+    Cogs --> StreamingSetting
+    StreamingSetting --> BotSettingRepo
+    StreamingSetting --> Voicevox
+    BotSettingRepo --> ConfigDB
     Speech --> Dictionary
     Dictionary --> DictRepo
     Dictionary --> Swap
@@ -164,6 +170,7 @@ Botを止めるときは、`ReconnectService`がつないでいたVCを`data/sta
 |---|---|---|
 | `config.db` | `GuildConfigRepository` | サーバー設定 |
 | `config.db` | `AnnouncementRepository` | 運営者からのお知らせ（`announcements`表。別の接続で扱う） |
+| `config.db` | `BotSettingRepository` | 運営者が`/synthesis set`で決めるBot全体の設定（`bot_settings`表。別の接続で扱う） |
 | `dict.db` | `DictionaryRepository` | 読み辞書・音声辞書 |
 | `soundboards.db` | `SoundboardCacheRepository` | Soundboard候補キャッシュ |
 | `users.db` | `UserConfigRepository` | サーバー横断のユーザー読みと、準備領域であるユーザー別個人辞書 |

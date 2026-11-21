@@ -25,13 +25,14 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `services/update_watch_service.py` | インストーラーが`UPDATE_STATE_DIR`に置くファイルを見張る。更新中はステータスを「アップデート中」にし、更新の結果と、自動更新が人の手を要る状態を運営者へDMで知らせる |
 | `services/reconnect_service.py` | つないでいるVCを`UPDATE_STATE_DIR`に書き残し、止めるときは読み上げチャンネルへ知らせてVCを抜け、再起動・更新のあとに同じVCへつなぎ直す |
 | `services/ready_state_service.py` | 起動の準備が終わったことを、インストーラーへ`ready.json`で知らせる。`UPDATE_STATE_DIR`が空欄なら何もしない |
+| `services/streaming_setting_service.py` | ストリーミング合成の設定（モード・基準の文字数・一度に作る長さ）を`BotSettingRepository`へ保存し、`VoicevoxClient.configure_streaming()`で適用する。前の版の`.env`の値を起動時に一度だけ取り込む |
 | `services/generation_log_service.py` | VOICEVOXの音声生成の記録（成功・スキップ・失敗、文字数、順番待ちと生成にかかった時間）を直近500件までメモリに持ち、集計する |
 | `cogs/connection_cog.py` | `/join`・`/leave`とVC状態イベントを`ConnectionService`へ接続する登録層 |
 | `cogs/playback_cog.py` | `/clear`と`on_message`を読み上げサービスへ接続する登録層 |
 | `cogs/general_cog.py` | `/version`を登録する一般コマンド層 |
 | `cogs/lifecycle_cog.py` | 起動・サーバー参加退出・Soundboard更新イベントを登録するライフサイクル層 |
 | `cogs/user_cog.py` | DMを含むユーザー単位設定コマンドを登録する層 |
-| `cogs/operator_cog.py` | Botの運営者（`OPERATOR_USER_ID`）だけが使うコマンドを登録する層。`/synthesis-log`・`/update` |
+| `cogs/operator_cog.py` | Botの運営者（`OPERATOR_USER_ID`）だけが使うコマンドを登録する層。`/synthesis`グループ（`view`・`set`・`reset`・`log`）・`/update` |
 | `cogs/announcement_cog.py` | 運営者だけが使う`/announce`コマンド群と、お知らせを入力するModal・入力し直すボタン・保存する前の確認（送信する・内容を変更する・破棄する）を登録する層 |
 | `clients/voicevox_client.py` | 再利用可能な非同期HTTPセッションでVOICEVOX生成とWAV保存を担当 |
 | `clients/discord_soundboard_client.py` | Discord Soundboard一覧取得・再生APIを担当する非同期HTTPクライアント |
@@ -43,6 +44,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `repositories/dictionary_repository.py` | `dict.db`のSQLite操作と前処理用`DictionarySnapshot`の生成 |
 | `repositories/soundboard_cache_repository.py` | `soundboards.db`のSQLite操作とサウンド一覧同期 |
 | `repositories/announcement_repository.py` | `config.db`の`announcements`表（運営者からのお知らせ）のSQLite操作 |
+| `repositories/bot_setting_repository.py` | `config.db`の`bot_settings`表（運営者が決めるBot全体の設定。キーと値）のSQLite操作 |
 | `repositories/user_config_repository.py` | `users.db`のユーザー読みと、準備領域であるユーザー別個人辞書を管理するRepository |
 | `setting.py` | `/setting` コマンド群（サーバー管理者向け設定変更） |
 | `presentation/embeds.py` | Discord Embedの共通ひな形（色・タイトル・本文）。色は`embed_color()`でComponents v2の枠と共有する |
@@ -109,6 +111,17 @@ CREATE TABLE announcements (
 ```
 
 Botの運営者が全サーバーに向けて出すお知らせ。サーバー設定と同じ`config.db`に置き、`AnnouncementRepository`が別の接続で扱う（既存の定時バックアップで守られる）。`expires_at`がNULLなら恒久、値があれば期間限定。期限が過ぎた行は起動時とお知らせを追加したときに消す。
+
+### config.db — `bot_settings`
+
+```sql
+CREATE TABLE bot_settings (
+    key   TEXT PRIMARY KEY,
+    value TEXT NOT NULL
+)
+```
+
+運営者が決めるBot全体の設定（サーバーごとではない）。`BotSettingRepository`が別の接続で扱う。今の項目は、ストリーミング合成の`voicevox_streaming`（`off`・`on`・`hybrid`。行がなければ初期値の`hybrid`）・`voicevox_stream_threshold`（文字数。行がなければ0＝自動調整）・`voicevox_stream_segment`（秒。行がなければ0＝自動調整）と、前の版の`.env`の値を取り込み済みかの印`voicevox_streaming_env_imported`。基準・長さの0（自動調整）は行を消して表す。
 
 ### dict.db — `dict`
 
@@ -252,7 +265,10 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 | `/announce list` | — | 同上 |
 | `/announce del` | `id` | 同上 |
 | `/announce preview` | `id`（省くと今の接続メッセージ） | 同上 |
-| `/synthesis-log` | `count: int (1〜500、既定はすべて)` | `OPERATOR_USER_ID`に書いた人だけ（BotとのDMだけに出す。運営者以外への断りだけephemeral応答） |
+| `/synthesis view` | — | `OPERATOR_USER_ID`に書いた人だけ（BotとのDMだけに出す。運営者以外への断りだけephemeral応答） |
+| `/synthesis set` | `mode: off/on/hybrid`, `threshold: int (0〜500)`, `segment: float (0〜10)`（どれも省略可。1つ以上指定） | 同上 |
+| `/synthesis reset` | — | 同上 |
+| `/synthesis log` | `count: int (1〜500、既定はすべて)` | `OPERATOR_USER_ID`に書いた人だけ（BotとのDMだけに出す。運営者以外への断りだけephemeral応答） |
 | `/update` | — | `OPERATOR_USER_ID`に書いた人だけ（BotとのDMだけに出す。運営者以外への断りだけephemeral応答） |
 | `/tsumugi-tts` | `text: str` | 全員（BotがVCに接続しているときだけ） |
 | `/t` | `text: str` | 全員（`/tsumugi-tts`の短縮） |
@@ -301,8 +317,10 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ### ストリーミングでの音声合成（`/streaming_synthesis`）
 
-- 実験的な機能として、`.env`の`VOICEVOX_STREAMING`で使い方を決める。`auto`（テンプレートの値。空欄・行がないときも同じ）は、そのバージョンの既定（`config.py`の`DEFAULT_VOICEVOX_STREAMING`、今は`off`）に従う。インストーラーは更新のときにテンプレートの値を`.env`へ書き足すので、既定の値（`off`など）を書き足すと、あとのリリースで既定を変えても効かなくなる。そのため、テンプレートは`auto`にし、既定を変えたいときは`DEFAULT_VOICEVOX_STREAMING`を変える。利用者が`on`・`off`・`hybrid`を書いた環境は、その値のまま。`off`は使わない、`on`は常に使う、`hybrid`は基準の文字数（`.env`の`VOICEVOX_STREAM_THRESHOLD`）以上の文章だけ使う。基準が`0`（既定）は自動調整で、今は基準を決めるためのデータを集めるので、文字数によらず生成1件ごとに五分五分で振り分ける（Botを止めずに、`/synthesis-log`でストリーミングあり・なしを比べるため）。いずれ自動調整は、集めたデータから基準を決める形にする。`config.py`が読み、`main.py`が`VoicevoxClient(streaming=..., stream_threshold_chars=...)`へ渡す。文字数は、前処理と最大文字数の処理のあとの、VOICEVOXへ送る文章の長さ。使うかは、生成の順番が来たときに1回だけ決める（`_wants_stream()`、乱数は`choose`で差し替えられる）。使わないときも`generate()`は`StreamingAudio`を返すが、`/synthesis`で全体を作ってから返す（書き終えた状態）。
-- 一度に作る音声の長さ（`segment_length`）は、`.env`の`VOICEVOX_STREAM_SEGMENT`（秒）で決める。`0`（既定）は自動調整で、今は`VoicevoxClient.STREAM_SEGMENT_SECONDS`（1.0秒）に固定している。読めない値・負の値は`0`として扱う（Engineは0以下を受け付けない）。
+- 実験的な機能として、運営者が`/synthesis set`で使い方を決める。設定は`config.db`の`bot_settings`表に保存し（再起動しても残る）、全サーバーで共通。`StreamingSettingService`が起動時に読み、`VoicevoxClient.configure_streaming()`で適用する。`/synthesis set`で変えた値は、次の生成から使う（使うかは生成の順番が来たときに決めるため、生成中のものは変えない）。`/synthesis reset`は保存した値を消し、初期値（`hybrid`・自動調整）に戻す。`/synthesis view`は今の設定と、エンジン・話者が非対応と分かっていればそれも表示する。応答はComponents v2。
+- モードは`off`・`on`・`hybrid`の3つ（前の版の`auto`は廃止）。決めていないときは初期値（`config.py`の`DEFAULT_VOICEVOX_STREAMING`＝`hybrid`）を使う。`/synthesis set`で選んだモードは、初期値と同じ`hybrid`でも保存する。`off`は使わない、`on`は常に使う、`hybrid`は基準の文字数（`threshold`）以上の文章だけ使う。基準が`0`（既定）は自動調整で、今は基準を決めるためのデータを集めるので、文字数によらず生成1件ごとに五分五分で振り分ける（Botを止めずに、`/synthesis log`でストリーミングあり・なしを比べるため）。いずれ自動調整は、集めたデータから基準を決める形にする。文字数は、前処理と最大文字数の処理のあとの、VOICEVOXへ送る文章の長さ。使うかは、生成の順番が来たときに1回だけ決める（`_wants_stream()`、乱数は`choose`で差し替えられる）。使わないときも`generate()`は`StreamingAudio`を返すが、`/synthesis`で全体を作ってから返す（書き終えた状態）。
+- 一度に作る音声の長さ（`segment_length`）は、`segment`（秒）で決める。`0`（既定）は自動調整で、今は`VoicevoxClient.STREAM_SEGMENT_SECONDS`（1.0秒）に固定している（Engineは0以下を受け付けない）。
+- 前の版では`.env`の`VOICEVOX_STREAMING`・`VOICEVOX_STREAM_THRESHOLD`・`VOICEVOX_STREAM_SEGMENT`で決めていた。`.env.template`からは消し、`config.py`は`LEGACY_VOICEVOX_STREAMING_ENV`として生の値だけを読む。`StreamingSettingService.load()`は、取り込み済みの印がなければ、モードの`auto`・空欄と基準・長さの0を除いた値を`bot_settings`へ保存して印を付け、以後`.env`の値は使わない（取り込んだときは表示する）。読めない値は前の版と同じく読み替える（モードは`off`、数値は0）。
 - `VoicevoxClient.generate()`は`StreamingAudio`を返す（作れなかったときはNone）。VOICEVOX Engine 0.26.0以降の`/streaming_synthesis`を使い、最初の部分が届いた時点で返す。残りは裏のタスクで受け取り、`TMP_DIR`の同じWAVファイルへ書き足す。WAVのヘッダーには全体の大きさが最初から入っている。
 - 生成の順番（全ギルドで1件ずつ）は、残りを受け取り終えるまで持ち続ける。最初の部分が届くまでは今までどおり再試行し、届いたあとに切れたときはやり直さずに失敗として記録・通知する（`VOICEVOX streaming`）。再生は届いた分までで終わる。
 - 順番が来てから30秒の期限で縛るのは、最初の部分が届くまで。残りは長い文章ほど時間がかかるので全体の時間では縛らず、`STREAM_READ_TIMEOUT_SECONDS`（15秒）届かなかったときだけ打ち切る。
@@ -310,23 +328,23 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - `VoiceService.play()`は、書き終えていない音声を`StreamingAudio.open_reader()`で開き、`discord.FFmpegOpusAudio(reader, pipe=True, before_options=STREAMING_FFMPEG_BEFORE_OPTIONS)`へ渡す。`STREAMING_FFMPEG_BEFORE_OPTIONS`は`-f wav -probesize 32 -analyzeduration 0`。形式はWAVと決まっているので、中身を調べるためにためる量を最小にする（付けないと、少しずつ届く音声を4〜6秒分ためるまで音が出ず、付けると1.5秒分ほどで出る）。読み手は届いていない分を待ち、書き終えたら残りを読んで終わる。30秒届かなければ打ち切る。再生が終わったとき・再生しなかったときは読み手を閉じ、待っているスレッドを終わらせる。書き終えた音声は今までどおり`from_probe()`でファイルから再生する。
 - クリア・削除・`!t`の扱いは今までと同じ。WAVファイルは書きかけでも同じ名前にあるので、消す処理はそのまま動く。`speak_and_export()`はファイルにするため、最後まで届くのを待ち、途中で切れたらNoneを返す。
 
-### 生成の記録（`/synthesis-log`）
+### 生成の記録（`/synthesis log`）
 
 - `GenerationLogService`が、VOICEVOXの生成の記録を直近500件までメモリに持つ。DBには書かず、Botを再起動すると消える。運営者が発言の内容を推し量れないよう、読み上げた文章と、どのサーバーの生成か（サーバーID・サーバー名）は持たず、文字数だけを残す。
 - 成功・失敗は`VoicevoxClient.generate()`が記録する。時間は、生成の順番（全ギルドで1件ずつ）を待った時間と、順番が来てから生成し終える（失敗なら諦める）までの時間に分け、試した回数と、失敗なら例外の名前も残す。音声の作り方（`mode`）も残す。`stream`はストリーミングした、`synthesis`は設定・振り分けで`/synthesis`を使った、`fallback`はストリーミングを試したかったがエンジン・話者が非対応で`/synthesis`へ戻した（比べるときに混ざらないよう分ける）。ストリーミングの成功は、残りを受け取り終えたときに記録する。
 - 記録の`wait`（待ち時間）は、生成の順番を待った時間と、再生の順番を待った時間（同じサーバーで前の読み上げが終わるのを待った時間。`VoiceService.enqueue()`でキューに入れてから、`play()`で再生を始められるまで）の合計。再生の順番待ちは再生を始めたときに分かるので、`StreamingAudio.mark_enqueued()`・`mark_playback_started()`で測り、記録に足す。再生しなかったものは、生成の順番待ちだけ。
 - 記録には`first`（メッセージを受け取ってから最初の音を再生するまでの時間から、`wait`〈生成と再生の順番待ち〉を除いたもの）も残す。数え始めは、メッセージがこのプログラムに届いた時刻（`PlaybackCog`の`on_message`に入った時刻。`/tsumugi-tts`・`/t`はコマンドの処理に入った時刻）で、`MessageService.handle()`から`SpeechService.add_message()`・`speak_and_export()`へ`received_at`として渡す（渡されなかったときは、それぞれの始めの時刻を使う）。`SpeechService`がこの時刻を、`VoicevoxClient`が順番を待った時間を`StreamingAudio`に書き、`VoiceService`が`FirstPacketSource`で最初の音のデータをDiscordへ渡した時刻を知らせる。ストリーミングでは記録より先に再生が始まるので、`StreamingAudio.attach_record()`・`mark_played()`のどちらが先でも記録に書き込まれる（`wait`も同じ）。入退室通知など、メッセージから作っていない音声と、再生しなかったものは空欄にする。記録には`wait`のうちの再生の順番待ち（`playback_wait_seconds`）も分けて残す。
 - スキップは`SpeechService`が記録する。理由は、読む文字がない（`empty`）、生成中にクリアされた（`cleared`）、生成中にメッセージが消された（`deleted`）の3つ。クリア・削除のスキップは、生成の成功とは別の記録として残る（生成の時間は使っているため）。生成を始める前にクリア中だったメッセージと、`!t`でクリアされてファイルだけを送ったものは記録しない。
-- `/synthesis-log`は、記録全体の集計をEmbedで表示し、直近`count`件の一覧（新しい順）を`synthesis-log-YYYYMMDD-HHMMSS.txt`（日本時間）として添付する。一覧は`datetime | result | chars | synthesis | first | wait | speaker | note`の列をそろえた表で、`note`には作り方（`stream`・`synthesis`・`fallback`）、試した回数（2回以上）、スキップの理由・失敗した例外の名前を書く。Embedの集計は日本語で、表の列に合わせて「件数」（スキップの理由ごとの内訳と、作り方ごとの件数）、「生成時間（成功のみ）」（作り方ごとに、平均と1文字あたり・中央値・95パーセンタイル・最大）、「最初の音まで」（作り方ごとに、`first`の平均・中央値・最大と件数、文字数の区切り〈30字まで・100字まで・それより多い〉ごとの中央値。前の読み上げを待ったもの〈再生の順番待ちが`FIRST_PLAYBACK_WAIT_LIMIT`＝0.5秒以上〉は除く。待っているあいだに音声がたまると、FFmpegの待ちが再生の順番待ちに隠れて`first`が短く出るため。txtの一覧にはそのまま出す）、「待ち時間（生成と再生の順番待ち）」（平均・最大）の4つにする。作り方の表示は「ストリーミング」「通常」「非対応→通常」。記録がないときは「記録はまだありません」とだけ書き、ファイルは添付しない。サーバーの情報は表示しない。
+- `/synthesis log`は、記録全体の集計をEmbedで表示し、直近`count`件の一覧（新しい順）を`synthesis-log-YYYYMMDD-HHMMSS.txt`（日本時間）として添付する。一覧は`datetime | result | chars | synthesis | first | wait | speaker | note`の列をそろえた表で、`note`には作り方（`stream`・`synthesis`・`fallback`）、試した回数（2回以上）、スキップの理由・失敗した例外の名前を書く。Embedの集計は日本語で、表の列に合わせて「件数」（スキップの理由ごとの内訳と、作り方ごとの件数）、「生成時間（成功のみ）」（作り方ごとに、平均と1文字あたり・中央値・95パーセンタイル・最大）、「最初の音まで」（作り方ごとに、`first`の平均・中央値・最大と件数、文字数の区切り〈30字まで・100字まで・それより多い〉ごとの中央値。前の読み上げを待ったもの〈再生の順番待ちが`FIRST_PLAYBACK_WAIT_LIMIT`＝0.5秒以上〉は除く。待っているあいだに音声がたまると、FFmpegの待ちが再生の順番待ちに隠れて`first`が短く出るため。txtの一覧にはそのまま出す）、「待ち時間（生成と再生の順番待ち）」（平均・最大）の4つにする。作り方の表示は「ストリーミング」「通常」「非対応→通常」。記録がないときは「記録はまだありません」とだけ書き、ファイルは添付しない。サーバーの情報は表示しない。
 - 両Clientは`aiohttp.ClientSession`を初回通信時に生成して再利用する。通常実行経路で同期`requests`は使用しない。
 - `VoiceService`と`UpdateSoundBoards`はHTTPのURL・認証方法を知らず、Clientのメソッドだけを呼ぶ。
-- Bot終了時は`ManagedDiscordClient.close()`がHTTPセッションと5つのSQLite接続（`config.db`は設定とお知らせの2つ）を閉じる。
+- Bot終了時は`ManagedDiscordClient.close()`がHTTPセッションと6つのSQLite接続（`config.db`は設定・お知らせ・Bot全体の設定の3つ）を閉じる。
 
 ---
 
 ## Components v2への移行（`presentation/layouts.py`）
 
-Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。`ConnectionService`が送るメッセージ（接続・切断・自動退出・権限エラー・接続失敗）、`cogs/announcement_cog.py`が送るメッセージ（`/announce`の応答・確認・エラー・入力し直すボタン・一覧・削除）、`UpdateWatchService`が送るメッセージ（更新の結果・自動更新の注意・新しいバージョンのお知らせと更新ボタン・ボタンを押したあとの書き換え）と`/update`の応答はすべてv2にした。ほか（`/synthesis-log`、`ReconnectService`の再起動の知らせ・再接続、`presentation/error_handler.py`のエラー応答など）は当面Embedのまま残す。どの形式で送っているかの一覧は[`docs/COMPONENTS_V2.md`](docs/COMPONENTS_V2.md)にまとめ、メッセージを足したり移したりしたら直す。
+Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。`ConnectionService`が送るメッセージ（接続・切断・自動退出・権限エラー・接続失敗）、`cogs/announcement_cog.py`が送るメッセージ（`/announce`の応答・確認・エラー・入力し直すボタン・一覧・削除）、`UpdateWatchService`が送るメッセージ（更新の結果・自動更新の注意・新しいバージョンのお知らせと更新ボタン・ボタンを押したあとの書き換え）と`/update`・`/synthesis view`・`set`・`reset`の応答はすべてv2にした。ほか（`/synthesis log`、`ReconnectService`の再起動の知らせ・再接続、`presentation/error_handler.py`のエラー応答など）は当面Embedのまま残す。どの形式で送っているかの一覧は[`docs/COMPONENTS_V2.md`](docs/COMPONENTS_V2.md)にまとめ、メッセージを足したり移したりしたら直す。
 
 - **新しいコマンドとメッセージは、基本的にComponents v2（`make_layout()`）で作る。** Embed（`make_embed()`）で作るのは、v2では表せないなど理由があるときだけにする。既存のコマンドに新しいメッセージを足すときも、そのコマンドがEmbedのままならv2へ移すことを考える。
 - Embedで送った前の版のメッセージを、あとからv2へ書き換えるときは、`edit(embed=None, view=layout.view)`のように`embed=None`を渡す（`content`・`embed`が残っているとv2にできない）。
@@ -538,15 +556,14 @@ Botが接続し直したときは、`VoiceService.reset_speaking_soon()`が1秒�
 
 インストーラーで入れた場合、`SERVER_CONFIG_DB`・`DICT_DB`・`SOUND_BOARDS_DB`・`USER_CONFIG_DB`・`TMP_DIR`・`BACKUP_DIR`・`VOICEVOX_URL`・`UPDATE_STATE_DIR`・`TSUMUGIUM_ENV_FILE`はsystemd unitの`Environment=`で渡すので、`.env`に書いても使われない。`.env.template`では、これらを手で動かすとき用の`#`付きの例として載せ、インストーラーが更新のときに`.env`へ書き足さないようにする。行がない項目は既定値を使うが、行があって空欄の項目は空文字として扱う。
 
+前の版の`VOICEVOX_STREAMING`・`VOICEVOX_STREAM_THRESHOLD`・`VOICEVOX_STREAM_SEGMENT`は`/synthesis set`へ移した（`config.db`に保存）。`.env`に残っていても、最初の起動で一度だけ取り込み、以後は使わない（「ストリーミングでの音声合成」を参照）。
+
 | 変数 | デフォルト | 説明 |
 |---|---|---|
 | `DISCORD_BOT_TOKEN` | 必須 | Discordボットトークン |
 | `OPERATOR_USER_ID` | `""` | エラー・更新のDMを受け取り、運営者用のコマンドとボタンを使える人のDiscordユーザーID。カンマ区切りで複数人を書ける（全員へ送り、誰でも使える）。読めない項目は表示して飛ばす。未設定・空欄で無効。`config.py`は`OPERATOR_USER_IDS`（タプル）として公開する |
 | `VOICEVOX_URL` | `http://127.0.0.1:50021` | VOICEVOX エンドポイント |
 | `DEFAULT_SPEAKER` | `8` | デフォルト話者ID（Speaker=NULL時に使用） |
-| `VOICEVOX_STREAMING` | `auto` | 実験的な機能。`auto`はそのバージョンの既定（今は`off`）に従う。`on`なら`/streaming_synthesis`で、音声を作り終える前に読み上げを始める。`hybrid`なら`VOICEVOX_STREAM_THRESHOLD`の文字数で決める（自動調整のあいだは五分五分。`/synthesis-log`で比べる）。`on`・`off`は`true`・`false`・`1`・`0`・`yes`・`no`でも書け、読めない値は表示してオフにする |
-| `VOICEVOX_STREAM_THRESHOLD` | `0` | 実験的な機能。`hybrid`のとき、この文字数以上の文章をストリーミングする。`0`（`auto`も同じ）は自動調整（今は五分五分で振り分ける）。読めない値・負の値は表示して`0`にする |
-| `VOICEVOX_STREAM_SEGMENT` | `0` | 実験的な機能。ストリーミングで一度に作る音声の長さ（秒）。`0`（`auto`も同じ）は自動調整（今は1.0秒）。読めない値・負の値は表示して`0`にする |
 | `SERVER_CONFIG_DB` | `db/config.db` | サーバー設定DB |
 | `DICT_DB` | `db/dict.db` | 辞書DB |
 | `SOUND_BOARDS_DB` | `db/soundboards.db` | サウンドボードキャッシュDB |

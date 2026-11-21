@@ -70,7 +70,7 @@ class VoiceService:
     session = self.get_session(guild.id)
     audio = getattr(item, "audio", None)
     if audio is not None:
-      # 再生の順番待ち（/synthesis-log の wait）を、ここから数える
+      # 再生の順番待ち（/synthesis log の wait）を、ここから数える
       audio.mark_enqueued(asyncio.get_running_loop().time())
     await session.queue.put(item)
     if session.player_task is None or session.player_task.done():

@@ -54,37 +54,49 @@ class StreamingModeTest(unittest.TestCase):
   def test_on_values(self):
     for value in ("on", "ON", " true ", "1", "yes"):
       with self.subTest(value=value):
-        self.assertEqual(config._streaming_mode(value), "on")
+        self.assertEqual(config.parse_streaming_mode(value), "on")
 
   def test_off_values(self):
     for value in ("off", "false", "0", "no"):
       with self.subTest(value=value):
-        self.assertEqual(config._streaming_mode(value), "off")
+        self.assertEqual(config.parse_streaming_mode(value), "off")
 
-  def test_auto_and_missing_follow_version_default(self):
+  def test_legacy_auto_and_missing_are_initial_value(self):
     for value in ("auto", " AUTO ", "", None):
       for default in ("off", "hybrid"):
         with self.subTest(value=value, default=default):
           with unittest.mock.patch.object(config, "DEFAULT_VOICEVOX_STREAMING", default):
-            self.assertEqual(config._streaming_mode(value), default)
+            self.assertEqual(config.parse_streaming_mode(value), default)
 
   def test_hybrid(self):
     for value in ("hybrid", " Hybrid "):
       with self.subTest(value=value):
-        self.assertEqual(config._streaming_mode(value), "hybrid")
+        self.assertEqual(config.parse_streaming_mode(value), "hybrid")
 
   def test_unknown_value_is_off_with_message(self):
     with unittest.mock.patch("builtins.print") as printed:
-      self.assertEqual(config._streaming_mode("enable"), "off")
+      self.assertEqual(config.parse_streaming_mode("enable"), "off")
     printed.assert_called_once()
 
-  def test_streaming_is_off_and_segment_is_automatic_by_default(self):
+  def test_unknown_value_message_names_the_setting(self):
+    with unittest.mock.patch("builtins.print") as printed:
+      config.parse_streaming_mode("enable", name="saved streaming mode")
+    self.assertIn("saved streaming mode", printed.call_args.args[0])
+
+  def test_legacy_env_values_are_read_as_they_are(self):
     env_file = os.path.join(os.path.dirname(__file__), "no-such.env")
-    with unittest.mock.patch.dict(os.environ, {"TSUMUGIUM_ENV_FILE": env_file}, clear=True):
+    environ = {"TSUMUGIUM_ENV_FILE": env_file, "VOICEVOX_STREAMING": "on"}
+    with unittest.mock.patch.dict(os.environ, environ, clear=True):
       loaded = importlib.reload(config)
-      self.assertEqual(loaded.VOICEVOX_STREAMING, "hybrid")
-      self.assertEqual(loaded.VOICEVOX_STREAM_SEGMENT, 0.0)
-      self.assertEqual(loaded.VOICEVOX_STREAM_THRESHOLD, 0)
+      self.assertEqual(
+        loaded.LEGACY_VOICEVOX_STREAMING_ENV,
+        {
+          "VOICEVOX_STREAMING": "on",
+          "VOICEVOX_STREAM_THRESHOLD": None,
+          "VOICEVOX_STREAM_SEGMENT": None,
+        },
+      )
+      self.assertFalse(hasattr(loaded, "VOICEVOX_STREAMING"))
     importlib.reload(config)
 
 
@@ -94,13 +106,13 @@ class StreamSegmentTest(unittest.TestCase):
         ("0", 0.0), ("", 0.0), (None, 0.0), ("Auto", 0.0), ("0.5", 0.5), (" 2 ", 2.0),
     ):
       with self.subTest(value=value):
-        self.assertEqual(config._stream_segment_seconds(value), expected)
+        self.assertEqual(config.parse_stream_segment_seconds(value), expected)
 
   def test_invalid_or_negative_is_automatic_with_message(self):
     for value in ("fast", "-1", "nan", "inf"):
       with self.subTest(value=value):
         with unittest.mock.patch("builtins.print") as printed:
-          self.assertEqual(config._stream_segment_seconds(value), 0.0)
+          self.assertEqual(config.parse_stream_segment_seconds(value), 0.0)
         printed.assert_called_once()
 
 
@@ -110,11 +122,11 @@ class StreamThresholdTest(unittest.TestCase):
         ("0", 0), ("", 0), (None, 0), ("auto", 0), ("50", 50), (" 120 ", 120),
     ):
       with self.subTest(value=value):
-        self.assertEqual(config._stream_threshold_chars(value), expected)
+        self.assertEqual(config.parse_stream_threshold_chars(value), expected)
 
   def test_invalid_or_negative_is_automatic_with_message(self):
     for value in ("many", "-1", "1.5"):
       with self.subTest(value=value):
         with unittest.mock.patch("builtins.print") as printed:
-          self.assertEqual(config._stream_threshold_chars(value), 0)
+          self.assertEqual(config.parse_stream_threshold_chars(value), 0)
         printed.assert_called_once()

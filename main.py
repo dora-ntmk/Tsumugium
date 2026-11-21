@@ -20,6 +20,7 @@ from config import (
   DICT_DB,
   DISCORD_BOT_TOKEN,
   LAST_UPDATED,
+  LEGACY_VOICEVOX_STREAMING_ENV,
   OPERATOR_USER_IDS,
   SERVER_CONFIG_DB,
   SOUND_BOARDS_DB,
@@ -29,12 +30,10 @@ from config import (
   UPDATE_STATE_DIR,
   USER_CONFIG_DB,
   VERSION,
-  VOICEVOX_STREAM_SEGMENT,
-  VOICEVOX_STREAM_THRESHOLD,
-  VOICEVOX_STREAMING,
   VOICEVOX_URL,
 )
 from repositories.announcement_repository import AnnouncementRepository
+from repositories.bot_setting_repository import BotSettingRepository
 from repositories.guild_config_repository import GuildConfigRepository
 from repositories.user_config_repository import UserConfigRepository
 from services.announcement_service import AnnouncementService
@@ -43,6 +42,7 @@ from services.error_notification_service import ErrorNotificationService
 from services.generation_log_service import GenerationLogService
 from services.message_service import MessageService
 from services.ready_state_service import ReadyStateService
+from services.streaming_setting_service import StreamingSettingService
 from services.speaker_service import SpeakerService
 from services.speech_service import SpeechService
 from services.status_service import StatusService
@@ -62,16 +62,13 @@ tree = discord.app_commands.CommandTree(client)
 error_notifier = ErrorNotificationService(client, OPERATOR_USER_IDS)
 client.set_error_notifier(error_notifier)
 
-# VOICEVOXの生成の記録。運営者が /synthesis-log で見る。メモリだけに持つ
+# VOICEVOXの生成の記録。運営者が /synthesis log で見る。メモリだけに持つ
 generation_log = GenerationLogService()
 voicevox_client = VoicevoxClient(
   VOICEVOX_URL,
   tmp_dir=TMP_DIR,
   error_notifier=error_notifier,
   generation_log=generation_log,
-  streaming=VOICEVOX_STREAMING,
-  stream_segment_seconds=VOICEVOX_STREAM_SEGMENT,
-  stream_threshold_chars=VOICEVOX_STREAM_THRESHOLD,
 )
 speaker_service = SpeakerService(SPEAKERS_JSON, error_notifier)
 
@@ -122,6 +119,15 @@ server_config = GuildConfigRepository(
 # 運営者からのお知らせ。サーバー設定と同じ config.db に置く
 announcement_repository = AnnouncementRepository(SERVER_CONFIG_DB)
 announcement_service = AnnouncementService(announcement_repository)
+# ストリーミングの設定は運営者が /synthesis set で決め、config.db に保存する。
+# 前の版で .env に書いていた値は、ここで一度だけ取り込む
+bot_setting_repository = BotSettingRepository(SERVER_CONFIG_DB)
+streaming_setting = StreamingSettingService(
+  bot_setting_repository,
+  voicevox_client,
+  LEGACY_VOICEVOX_STREAMING_ENV,
+)
+streaming_setting.load()
 dict_manager = DictManager(DICT_DB, error_notifier)
 user_config = UserConfigRepository(USER_CONFIG_DB)
 user_reading_service = UserReadingService(user_config)
@@ -134,6 +140,7 @@ sound_boards = UpdateSoundBoards(
 )
 client.register_closeable(server_config)
 client.register_closeable(announcement_repository)
+client.register_closeable(bot_setting_repository)
 client.register_closeable(dict_manager)
 client.register_closeable(user_config)
 client.register_closeable(sound_boards)
@@ -217,6 +224,7 @@ operator_cog = OperatorCog(
   OPERATOR_USER_IDS,
   error_notifier,
   update_watch=update_watch,
+  streaming_setting=streaming_setting,
 )
 announcement_cog = AnnouncementCog(
   tree,

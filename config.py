@@ -34,15 +34,16 @@ def _user_ids(value: str | None) -> tuple[int, ...]:
       user_ids.append(user_id)
   return tuple(user_ids)
 
-# VOICEVOX_STREAMING を auto（または空欄）にしたときに使う、このバージョンの既定。
-# あとのリリースでここを変えると、auto の環境にはそのまま効く（off と書いた環境は変わらない）
+# ストリーミングのモードの初期値。/synthesis set で決めていないとき（reset したときも）はこれを使う
 DEFAULT_VOICEVOX_STREAMING = "hybrid"
 
 
-def _streaming_mode(value: str | None) -> str:
-  """VOICEVOX_STREAMINGを読み、"off"・"on"・"hybrid"のどれかを返す。
+def parse_streaming_mode(value: str | None, name: str = "VOICEVOX_STREAMING") -> str:
+  """ストリーミングのモードを読み、"off"・"on"・"hybrid"のどれかを返す。
 
-  autoと空欄は、このバージョンの既定（DEFAULT_VOICEVOX_STREAMING）に従う。
+  運営者が /synthesis set で保存した値（config.db）と、前の版の .env から取り込む値に使う。
+
+  空欄と、前の版の .env の auto は、初期値（DEFAULT_VOICEVOX_STREAMING）にする。
   onとoffは、true・false、1・0、yes・noでも書ける。読めない値はoffにする。
   """
   text = (value or "").strip().lower()
@@ -53,12 +54,12 @@ def _streaming_mode(value: str | None) -> str:
   if text in ("on", "true", "1", "yes"):
     return "on"
   if text not in ("off", "false", "0", "no"):
-    print("VOICEVOX_STREAMING must be auto, on, off or hybrid; it is treated as off")
+    print(f"{name} must be on, off or hybrid; it is treated as off")
   return "off"
 
 
-def _stream_threshold_chars(value: str | None) -> int:
-  """VOICEVOX_STREAM_THRESHOLDを読む（文字数）。0・auto・空欄は自動調整。読めない値・負の値は0にする。"""
+def parse_stream_threshold_chars(value: str | None, name: str = "VOICEVOX_STREAM_THRESHOLD") -> int:
+  """hybridの基準の文字数を読む。0・auto・空欄は自動調整。読めない値・負の値は0にする。"""
   text = (value or "").strip()
   if not text or text.lower() == "auto":
     return 0
@@ -68,15 +69,15 @@ def _stream_threshold_chars(value: str | None) -> int:
     chars = -1
   if chars < 0:
     print(
-      "VOICEVOX_STREAM_THRESHOLD must be 0 (automatic) or a number of characters; "
+      f"{name} must be 0 (automatic) or a number of characters; "
       "it is treated as 0 (automatic)"
     )
     return 0
   return chars
 
 
-def _stream_segment_seconds(value: str | None) -> float:
-  """VOICEVOX_STREAM_SEGMENTを読む（秒）。0・auto・空欄は自動調整。読めない値・負の値は0にする。"""
+def parse_stream_segment_seconds(value: str | None, name: str = "VOICEVOX_STREAM_SEGMENT") -> float:
+  """ストリーミングで一度に作る音声の長さ（秒）を読む。0・auto・空欄は自動調整。読めない値・負の値は0にする。"""
   text = (value or "").strip()
   if not text or text.lower() == "auto":
     return 0.0
@@ -86,7 +87,7 @@ def _stream_segment_seconds(value: str | None) -> float:
     seconds = -1.0
   if not math.isfinite(seconds) or seconds < 0:
     print(
-      "VOICEVOX_STREAM_SEGMENT must be 0 (automatic) or seconds; "
+      f"{name} must be 0 (automatic) or seconds; "
       "it is treated as 0 (automatic)"
     )
     return 0.0
@@ -105,18 +106,13 @@ SPEAKERS_JSON     = os.getenv("SPEAKERS_JSON", "db/speakers.json")
 DEFAULT_SPEAKER      = int(os.getenv("DEFAULT_SPEAKER", "8"))
 TMP_DIR           = os.getenv("TMP_DIR", "tmp")
 VOICEVOX_URL      = os.getenv("VOICEVOX_URL", "http://127.0.0.1:50021")
-# 実験的な機能: VOICEVOXの/streaming_synthesisで、音声を作り終える前に読み上げを始める。
-# "off"・"on"・"hybrid"（VOICEVOX_STREAM_THRESHOLDで振り分け、/synthesis-log で比べる）。
-# auto は、このバージョンの既定（DEFAULT_VOICEVOX_STREAMING）に従う
-VOICEVOX_STREAMING = _streaming_mode(os.getenv("VOICEVOX_STREAMING", "auto"))
-# hybridで、この文字数以上ならストリーミングする。0は自動調整（今は五分五分で振り分ける）
-VOICEVOX_STREAM_THRESHOLD = _stream_threshold_chars(
-  os.getenv("VOICEVOX_STREAM_THRESHOLD", "0")
-)
-# /streaming_synthesisで一度に作る音声の長さ（秒）。0は自動調整（今は1.0秒に固定）
-VOICEVOX_STREAM_SEGMENT = _stream_segment_seconds(
-  os.getenv("VOICEVOX_STREAM_SEGMENT", "0")
-)
+# 実験的な機能: VOICEVOXの/streaming_synthesisの設定は、運営者が /synthesis set で決めて config.db に保存する。
+# 前の版で .env に書いていた値は、起動時に一度だけ config.db へ取り込む（以後 .env の値は使わない）。
+# 行がない項目は None
+LEGACY_VOICEVOX_STREAMING_ENV = {
+  key: os.environ.get(key)
+  for key in ("VOICEVOX_STREAMING", "VOICEVOX_STREAM_THRESHOLD", "VOICEVOX_STREAM_SEGMENT")
+}
 BACKUP_DIR           = os.getenv("BACKUP_DIR", "backup")
 # インストーラーへ起動の準備完了を知らせる ready.json の置き場所（空欄なら書かない）
 UPDATE_STATE_DIR     = os.getenv("UPDATE_STATE_DIR", "")

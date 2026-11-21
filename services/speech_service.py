@@ -138,7 +138,7 @@ class SpeechService:
       sounddict_only: bool = False,
       received_at: float | None = None,
   ) -> None:
-    # /synthesis-log の first を数え始める時刻（loop.time()）。ふつうは on_message に
+    # /synthesis log の first を数え始める時刻（loop.time()）。ふつうは on_message に
     # 入った時刻を受け取る。渡されなかったときはここから数える
     if received_at is None:
       received_at = asyncio.get_running_loop().time()

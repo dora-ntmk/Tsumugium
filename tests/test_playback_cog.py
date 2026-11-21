@@ -13,7 +13,7 @@ from tests.support import DUMMY_GUILD_ID, DUMMY_USER_ID, RecordingNotifier
 
 
 class ReceivedTimeTest(unittest.IsolatedAsyncioTestCase):
-  """/synthesis-log の first を、このプログラムに届いた時刻から数える。"""
+  """/synthesis log の first を、このプログラムに届いた時刻から数える。"""
 
   async def asyncSetUp(self):
     self.client = discord.Client(intents=discord.Intents.none())

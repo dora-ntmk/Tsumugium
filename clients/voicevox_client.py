@@ -87,14 +87,7 @@ class VoicevoxClient:
     self.error_notifier = ensure_error_notifier(error_notifier)
     # 生成の記録（GenerationLogService）。Noneなら記録しない
     self.generation_log = generation_log
-    # /streaming_synthesisを使うか（off・on・hybrid）。hybridは生成1件ごとに五分五分で決める
-    if streaming not in (self.STREAMING_OFF, self.STREAMING_ON, self.STREAMING_HYBRID):
-      raise ValueError(f"unknown streaming mode: {streaming!r}")
-    self.streaming = streaming
-    # 一度に作る音声の長さ（秒）。0なら自動調整
-    self.stream_segment_seconds = stream_segment_seconds
-    # hybridで、この文字数以上ならストリーミングする。0なら自動調整
-    self.stream_threshold_chars = stream_threshold_chars
+    self.configure_streaming(streaming, stream_threshold_chars, stream_segment_seconds)
     # hybridの振り分けに使う乱数（0以上1未満）。テストでは差し替える
     self._choose = choose
     # エンジンが/streaming_synthesisを持たないと分かったらFalseにする
@@ -103,6 +96,39 @@ class VoicevoxClient:
     self._non_streaming_speakers: set[int] = set()
     # 裏で受け取っているストリーミングの残り
     self._stream_tasks: set[asyncio.Task] = set()
+
+  def configure_streaming(
+      self,
+      streaming: str,
+      stream_threshold_chars: int = 0,
+      stream_segment_seconds: float = 0.0,
+  ) -> None:
+    """ストリーミングの設定を変える。運営者の /synthesis set から、動いているあいだにも呼ばれる。
+
+    使うかは生成の順番が来たときに決めるので、次の生成から効く（生成中のものは変えない）。
+    """
+    if streaming not in (self.STREAMING_OFF, self.STREAMING_ON, self.STREAMING_HYBRID):
+      raise ValueError(f"unknown streaming mode: {streaming!r}")
+    if stream_threshold_chars < 0:
+      raise ValueError(f"stream threshold must not be negative: {stream_threshold_chars!r}")
+    if not stream_segment_seconds >= 0:
+      raise ValueError(f"stream segment must not be negative: {stream_segment_seconds!r}")
+    # /streaming_synthesisを使うか（off・on・hybrid）。hybridは生成1件ごとに決める
+    self.streaming = streaming
+    # hybridで、この文字数以上ならストリーミングする。0なら自動調整
+    self.stream_threshold_chars = stream_threshold_chars
+    # 一度に作る音声の長さ（秒）。0なら自動調整
+    self.stream_segment_seconds = stream_segment_seconds
+
+  @property
+  def streaming_supported(self) -> bool:
+    """エンジンが/streaming_synthesisを持たないと分かっていればFalse。"""
+    return self._streaming_supported
+
+  @property
+  def non_streaming_speakers(self) -> frozenset[int]:
+    """ストリーミングに対応していないと分かった話者。"""
+    return frozenset(self._non_streaming_speakers)
 
   def cleanup_tmp_wav_files(self) -> int:
     """起動前に前回実行で残ったTMP_DIR直下のWAVを削除する。"""

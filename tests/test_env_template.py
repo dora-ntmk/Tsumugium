@@ -30,7 +30,10 @@ OLD_TEMPLATE_KEYS = [
   "BACKUP_DIR", "BACKUP_TIMES", "BACKUP_INTERVAL_DAYS", "BACKUP_KEEP",
 ]
 # テンプレートを改良したあとに足した項目。今までの .env を更新すると、これだけが書き足される
-ADDED_KEYS = ["VOICEVOX_STREAMING", "VOICEVOX_STREAM_THRESHOLD", "VOICEVOX_STREAM_SEGMENT"]
+# （VOICEVOX_STREAMING などは /synthesis set へ移したので、テンプレートから消した）
+ADDED_KEYS = []
+# 前の版のテンプレートにあり、今は .env から読まない項目（起動時に一度だけ config.db へ取り込む）
+REMOVED_KEYS = ["VOICEVOX_STREAMING", "VOICEVOX_STREAM_THRESHOLD", "VOICEVOX_STREAM_SEGMENT"]
 
 
 def _config_default(name):
@@ -84,12 +87,13 @@ class EnvTemplateTest(unittest.TestCase):
     missing = [entry.key for entry in self.entries if entry.key not in present]
     self.assertEqual(missing, ADDED_KEYS)
 
-  def test_streaming_follows_version_default_in_template(self):
-    self.assertEqual(self.active["VOICEVOX_STREAMING"], "auto")
-    self.assertEqual(config.DEFAULT_VOICEVOX_STREAMING, "hybrid")
-    # 0は自動調整。今までと同じ長さで動く
-    self.assertEqual(self.active["VOICEVOX_STREAM_SEGMENT"], "0")
-    self.assertEqual(self.active["VOICEVOX_STREAM_THRESHOLD"], "0")
+  def test_streaming_settings_are_not_in_template(self):
+    for key in REMOVED_KEYS:
+      with self.subTest(key=key):
+        self.assertNotIn(key, self.active)
+        self.assertNotIn(key, self.commented)
+        self.assertNotIn(key, self.config)
+        self.assertIn(key, config.LEGACY_VOICEVOX_STREAMING_ENV)
 
   def test_copied_template_passes_after_writing_token(self):
     env = EnvFile.parse(TEMPLATE_TEXT.replace(
