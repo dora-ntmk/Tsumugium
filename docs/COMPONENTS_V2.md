@@ -255,7 +255,7 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | ストリーミング合成の設定（変える項目を指定してください） | 赤 | `/synthesis set`で何も指定しなかった | [operator_cog.py:351](../cogs/operator_cog.py#L351) |
 | ストリーミング合成の設定（今は設定を変えることができません） | 赤 | 設定のサービスがない | [operator_cog.py:291](../cogs/operator_cog.py#L291) |
 | ストリーミング合成の設定を変えました | 緑 | `/synthesis set` | [operator_cog.py:363](../cogs/operator_cog.py#L363) |
-| ストリーミング合成の設定を既定に戻しました | 緑 | `/synthesis reset` | [operator_cog.py:387](../cogs/operator_cog.py#L387) |
+| ストリーミング合成の設定を初期値に戻しました | 緑 | `/synthesis reset` | [operator_cog.py:387](../cogs/operator_cog.py#L387) |
 
 ### 運営者: お知らせ（16）
 

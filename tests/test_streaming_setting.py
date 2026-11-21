@@ -73,19 +73,18 @@ class StreamingSettingServiceTest(TempDirTestCase):
     with mock.patch("builtins.print") as printed:
       self.assertEqual(service.load(), [])
     printed.assert_not_called()
-    self.assertEqual(service.mode_setting, "auto")
-    self.assertEqual(self.client.streaming, config.DEFAULT_VOICEVOX_STREAMING)
+    self.assertEqual(service.mode, "hybrid")
+    self.assertEqual(self.client.streaming, "hybrid")
     self.assertEqual(self.client.stream_threshold_chars, 0)
     self.assertEqual(self.client.stream_segment_seconds, 0.0)
     # 取り込みは済んだものとして印を付ける
     self.assertEqual(self.repository.get(KEY_ENV_IMPORTED), "1")
 
-  def test_auto_follows_version_default(self):
-    with mock.patch("services.streaming_setting_service.DEFAULT_VOICEVOX_STREAMING", "off"):
-      service = self.make_service()
-      service.load()
-      self.assertEqual(self.client.streaming, "off")
-      self.assertEqual(service.current().mode, "off")
+  def test_initial_mode_is_hybrid(self):
+    self.assertEqual(config.DEFAULT_VOICEVOX_STREAMING, "hybrid")
+    service = self.make_service()
+    service.load()
+    self.assertEqual(service.current().mode, "hybrid")
 
   def test_legacy_env_is_imported_once(self):
     env = {
@@ -150,7 +149,7 @@ class StreamingSettingServiceTest(TempDirTestCase):
     service.update(mode="hybrid", threshold_chars=30)
     setting = service.update(segment_seconds=0.5)
     self.assertEqual(
-      (setting.mode_setting, setting.threshold_chars, setting.segment_seconds),
+      (setting.mode, setting.threshold_chars, setting.segment_seconds),
       ("hybrid", 30, 0.5),
     )
     self.assertEqual(setting.effective_segment_seconds, 0.5)
@@ -166,18 +165,23 @@ class StreamingSettingServiceTest(TempDirTestCase):
       ("hybrid", 30, 0.5),
     )
 
-  def test_auto_and_zero_remove_saved_values(self):
+  def test_zero_removes_saved_values(self):
     service = self.make_service()
     service.load()
     service.update(mode="on", threshold_chars=30, segment_seconds=0.5)
-    service.update(mode="auto", threshold_chars=0, segment_seconds=0)
-    self.assertEqual(self.repository.get_many([KEY_MODE, KEY_THRESHOLD, KEY_SEGMENT]), {})
-    self.assertEqual(service.mode_setting, "auto")
+    service.update(threshold_chars=0, segment_seconds=0)
+    self.assertEqual(self.repository.get_many([KEY_MODE, KEY_THRESHOLD, KEY_SEGMENT]), {KEY_MODE: "on"})
+
+  def test_hybrid_is_saved_explicitly(self):
+    service = self.make_service()
+    service.load()
+    service.update(mode="hybrid")
+    self.assertEqual(self.repository.get(KEY_MODE), "hybrid")
 
   def test_update_rejects_invalid_values(self):
     service = self.make_service()
     service.load()
-    for kwargs in ({"mode": "fast"}, {"threshold_chars": -1}, {"segment_seconds": -0.5}):
+    for kwargs in ({"mode": "fast"}, {"mode": "auto"}, {"threshold_chars": -1}, {"segment_seconds": -0.5}):
       with self.subTest(kwargs=kwargs):
         with self.assertRaises(ValueError):
           service.update(**kwargs)
@@ -188,13 +192,13 @@ class StreamingSettingServiceTest(TempDirTestCase):
     with mock.patch("builtins.print"):
       service.load()
     setting = service.reset()
-    self.assertEqual(setting.mode_setting, "auto")
+    self.assertEqual(setting.mode, "hybrid")
     self.assertEqual(self.repository.get_many([KEY_MODE, KEY_THRESHOLD, KEY_SEGMENT]), {})
     self.assertEqual(self.repository.get(KEY_ENV_IMPORTED), "1")
     # .env を取り込み直さない
     client = make_client()
     StreamingSettingService(self.repository, client, {"VOICEVOX_STREAMING": "on"}).load()
-    self.assertEqual(client.streaming, config.DEFAULT_VOICEVOX_STREAMING)
+    self.assertEqual(client.streaming, "hybrid")
 
   def test_current_reports_unsupported_engine_and_speakers(self):
     service = self.make_service()
@@ -275,6 +279,11 @@ class SynthesisSettingCommandTest(TempDirTestCase):
     choice = None if mode is None else app_commands.Choice(name=mode, value=mode)
     return self.call("set", user_id, mode=choice, threshold=threshold, segment=segment)
 
+  def test_mode_choices_have_no_auto(self):
+    options = self.group.get_command("set").to_dict(self.tree)["options"]
+    [mode] = [option for option in options if option["name"] == "mode"]
+    self.assertEqual([choice["value"] for choice in mode["choices"]], ["off", "on", "hybrid"])
+
   def test_group_has_subcommands_and_is_dm_only(self):
     self.assertEqual(
       sorted(command.name for command in self.group.commands),
@@ -288,7 +297,7 @@ class SynthesisSettingCommandTest(TempDirTestCase):
     self.assertNotIn("embed", sent)
     [text] = layout_texts(sent["view"])
     self.assertTrue(text.startswith("## ストリーミング合成の設定\n"))
-    self.assertIn("**モード**: auto（今の既定:", text)
+    self.assertIn("**モード**: 文字数で振り分ける（hybrid）", text)
     self.assertIn("自動調整（今は1秒）", text)
 
   def test_set_saves_and_applies(self):
@@ -311,8 +320,9 @@ class SynthesisSettingCommandTest(TempDirTestCase):
     self.service.update(mode="on")
     sent = self.call("reset")
     [text] = layout_texts(sent["view"])
-    self.assertIn("既定に戻しました", text)
-    self.assertEqual(self.service.mode_setting, "auto")
+    self.assertIn("初期値に戻しました", text)
+    self.assertEqual(self.service.mode, "hybrid")
+    self.assertEqual(self.client.streaming, "hybrid")
 
   def test_others_are_refused(self):
     for name, kwargs in (("view", {}), ("reset", {})):
@@ -339,7 +349,6 @@ class FormatStreamingSettingTest(unittest.TestCase):
     from services.streaming_setting_service import StreamingSetting
 
     text = format_streaming_setting(StreamingSetting(
-      mode_setting="hybrid",
       mode="hybrid",
       threshold_chars=0,
       segment_seconds=0.0,

@@ -61,7 +61,7 @@ class StreamingModeTest(unittest.TestCase):
       with self.subTest(value=value):
         self.assertEqual(config.parse_streaming_mode(value), "off")
 
-  def test_auto_and_missing_follow_version_default(self):
+  def test_legacy_auto_and_missing_are_initial_value(self):
     for value in ("auto", " AUTO ", "", None):
       for default in ("off", "hybrid"):
         with self.subTest(value=value, default=default):

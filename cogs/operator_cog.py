@@ -1,6 +1,6 @@
 """Botの運営者（OPERATOR_USER_ID）だけが使うコマンドを登録する。
 
-- /synthesis view・set・reset: VOICEVOXのストリーミング合成の設定を見る・変える・既定に戻す
+- /synthesis view・set・reset: VOICEVOXのストリーミング合成の設定を見る・変える・初期値に戻す
 - /synthesis log: 音声生成の記録を表示する
 - /update: 新しいバージョンを確かめ、あればボタン付きのDMで更新を頼めるようにする
 
@@ -27,7 +27,6 @@ from presentation.embeds import EmbedType, make_embed
 from presentation.error_handler import handle_internal_error
 from presentation.layouts import make_layout
 from services.error_notification_service import ensure_error_notifier, operator_ids
-from services.streaming_setting_service import MODE_AUTO
 
 
 JST = timezone(timedelta(hours=9), "JST")
@@ -204,7 +203,6 @@ _STREAMING_MODE_LABELS = {
   "hybrid": "文字数で振り分ける（hybrid）",
 }
 STREAMING_MODE_CHOICES = [
-  discord.app_commands.Choice(name="auto（このバージョンの既定に従う）", value=MODE_AUTO),
   discord.app_commands.Choice(name="off（使わない）", value="off"),
   discord.app_commands.Choice(name="on（常に使う）", value="on"),
   discord.app_commands.Choice(name="hybrid（文字数で振り分ける）", value="hybrid"),
@@ -217,10 +215,7 @@ def _format_number(value: float) -> str:
 
 def format_streaming_setting(setting) -> str:
   """ストリーミングの設定を、/synthesis view などの本文にする。"""
-  if setting.mode_setting == MODE_AUTO:
-    mode = f"auto（今の既定: {_STREAMING_MODE_LABELS[setting.mode]}）"
-  else:
-    mode = _STREAMING_MODE_LABELS[setting.mode]
+  mode = _STREAMING_MODE_LABELS[setting.mode]
   if setting.threshold_chars > 0:
     threshold = f"{setting.threshold_chars}文字以上をストリーミング"
   else:
@@ -374,7 +369,7 @@ class OperatorCog:
       except Exception as error:
         await handle_internal_error(ctx, error, "synthesis set", self.error_notifier)
 
-    @group.command(name="reset", description="（運営者用）ストリーミング合成の設定を既定に戻します")
+    @group.command(name="reset", description="（運営者用）ストリーミング合成の設定を初期値に戻します")
     async def synthesis_reset(ctx):
       try:
         if not self.is_operator(ctx.user):
@@ -385,7 +380,7 @@ class OperatorCog:
           return
         setting = self.streaming_setting.reset()
         layout = make_layout(
-          "ストリーミング合成の設定を既定に戻しました",
+          "ストリーミング合成の設定を初期値に戻しました",
           format_streaming_setting(setting)
           + "\n-# 次の生成から使います",
           layout_type=EmbedType.SUCCESS,

@@ -2,7 +2,7 @@
 
 設定は運営者が /synthesis set で決め、config.db の bot_settings 表に保存する（再起動しても残る）。
 前の版で .env に書いていた値（VOICEVOX_STREAMING など）は、起動時に一度だけ取り込み、
-以後 .env の値は使わない。保存していない項目は、このバージョンの既定（auto・自動調整）に従う。
+以後 .env の値は使わない。保存していない項目は初期値（モードは hybrid、基準と長さは自動調整）を使う。
 """
 
 from dataclasses import dataclass
@@ -15,8 +15,7 @@ from config import (
 )
 
 
-MODE_AUTO = "auto"
-MODE_CHOICES = (MODE_AUTO, "off", "on", "hybrid")
+MODE_CHOICES = ("off", "on", "hybrid")
 
 KEY_MODE = "voicevox_streaming"
 KEY_THRESHOLD = "voicevox_stream_threshold"
@@ -32,9 +31,8 @@ ENV_SEGMENT = "VOICEVOX_STREAM_SEGMENT"
 
 @dataclass(frozen=True)
 class StreamingSetting:
-  """今の設定。mode_settingは決めた値（autoを含む）、modeは実際に使うモード。"""
+  """今の設定。"""
 
-  mode_setting: str
   mode: str
   threshold_chars: int
   segment_seconds: float
@@ -48,7 +46,7 @@ class StreamingSettingService:
     self.repository = repository
     self.voicevox_client = voicevox_client
     self.legacy_env = dict(legacy_env or {})
-    self.mode_setting = MODE_AUTO
+    self.mode = parse_streaming_mode(DEFAULT_VOICEVOX_STREAMING)
     self.threshold_chars = 0
     self.segment_seconds = 0.0
 
@@ -58,7 +56,7 @@ class StreamingSettingService:
     """保存した設定を読み、VoicevoxClientへ適用する。取り込んだ .env の項目名を返す。"""
     imported = self._import_legacy_env()
     stored = self.repository.get_many(SETTING_KEYS)
-    self.mode_setting = self._read_mode(stored.get(KEY_MODE))
+    self.mode = parse_streaming_mode(stored.get(KEY_MODE), name="saved streaming mode")
     self.threshold_chars = parse_stream_threshold_chars(
       stored.get(KEY_THRESHOLD), name="saved stream threshold"
     )
@@ -69,13 +67,16 @@ class StreamingSettingService:
     return imported
 
   def _import_legacy_env(self) -> list[str]:
-    """前の版の .env の値を、まだなら一度だけ保存する。既定と同じ値は保存しない。"""
+    """前の版の .env の値を、まだなら一度だけ保存する。
+
+    モードの auto・空欄と、基準・長さの 0（自動調整）は保存せず、初期値を使う。
+    """
     if self.repository.get(KEY_ENV_IMPORTED) is not None:
       return []
     values: dict[str, str] = {}
     imported: list[str] = []
     mode_text = (self.legacy_env.get(ENV_MODE) or "").strip()
-    if mode_text and mode_text.lower() != MODE_AUTO:
+    if mode_text and mode_text.lower() != "auto":
       values[KEY_MODE] = parse_streaming_mode(mode_text)
       imported.append(ENV_MODE)
     threshold = parse_stream_threshold_chars(self.legacy_env.get(ENV_THRESHOLD))
@@ -95,26 +96,11 @@ class StreamingSettingService:
       )
     return imported
 
-  @staticmethod
-  def _read_mode(value: str | None) -> str:
-    text = (value or "").strip().lower()
-    if not text or text == MODE_AUTO:
-      return MODE_AUTO
-    return parse_streaming_mode(text, name="saved streaming mode")
-
   # ---- 参照・変更 ----
-
-  @property
-  def mode(self) -> str:
-    """実際に使うモード（autoはこのバージョンの既定）。"""
-    if self.mode_setting == MODE_AUTO:
-      return parse_streaming_mode(DEFAULT_VOICEVOX_STREAMING)
-    return self.mode_setting
 
   def current(self) -> StreamingSetting:
     client = self.voicevox_client
     return StreamingSetting(
-      mode_setting=self.mode_setting,
       mode=self.mode,
       threshold_chars=self.threshold_chars,
       segment_seconds=self.segment_seconds,
@@ -130,7 +116,7 @@ class StreamingSettingService:
       threshold_chars: int | None = None,
       segment_seconds: float | None = None,
   ) -> StreamingSetting:
-    """指定した項目だけを変え、保存して適用する。autoと0は保存を消して既定に戻す。"""
+    """指定した項目だけを変え、保存して適用する。基準・長さの0は保存を消して自動調整に戻す。"""
     if mode is not None and mode not in MODE_CHOICES:
       raise ValueError(f"unknown streaming mode: {mode!r}")
     if threshold_chars is not None and threshold_chars < 0:
@@ -141,10 +127,7 @@ class StreamingSettingService:
     store: dict[str, str] = {}
     remove: list[str] = []
     if mode is not None:
-      if mode == MODE_AUTO:
-        remove.append(KEY_MODE)
-      else:
-        store[KEY_MODE] = mode
+      store[KEY_MODE] = mode
     if threshold_chars is not None:
       if threshold_chars == 0:
         remove.append(KEY_THRESHOLD)
@@ -161,7 +144,7 @@ class StreamingSettingService:
       self.repository.delete(remove)
 
     if mode is not None:
-      self.mode_setting = mode
+      self.mode = mode
     if threshold_chars is not None:
       self.threshold_chars = threshold_chars
     if segment_seconds is not None:
@@ -170,9 +153,9 @@ class StreamingSettingService:
     return self.current()
 
   def reset(self) -> StreamingSetting:
-    """保存した設定を消し、このバージョンの既定（auto・自動調整）に戻す。"""
+    """保存した設定を消し、初期値（hybrid・自動調整）に戻す。"""
     self.repository.delete(SETTING_KEYS)
-    self.mode_setting = MODE_AUTO
+    self.mode = parse_streaming_mode(DEFAULT_VOICEVOX_STREAMING)
     self.threshold_chars = 0
     self.segment_seconds = 0.0
     self._apply()

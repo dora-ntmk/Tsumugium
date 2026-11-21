@@ -34,8 +34,7 @@ def _user_ids(value: str | None) -> tuple[int, ...]:
       user_ids.append(user_id)
   return tuple(user_ids)
 
-# ストリーミングのモードを auto（/synthesis set で決めていないときも同じ）にしたときに使う、このバージョンの既定。
-# あとのリリースでここを変えると、auto の環境にはそのまま効く（off と決めた環境は変わらない）
+# ストリーミングのモードの初期値。/synthesis set で決めていないとき（reset したときも）はこれを使う
 DEFAULT_VOICEVOX_STREAMING = "hybrid"
 
 
@@ -44,7 +43,7 @@ def parse_streaming_mode(value: str | None, name: str = "VOICEVOX_STREAMING") ->
 
   運営者が /synthesis set で保存した値（config.db）と、前の版の .env から取り込む値に使う。
 
-  autoと空欄は、このバージョンの既定（DEFAULT_VOICEVOX_STREAMING）に従う。
+  空欄と、前の版の .env の auto は、初期値（DEFAULT_VOICEVOX_STREAMING）にする。
   onとoffは、true・false、1・0、yes・noでも書ける。読めない値はoffにする。
   """
   text = (value or "").strip().lower()
@@ -55,7 +54,7 @@ def parse_streaming_mode(value: str | None, name: str = "VOICEVOX_STREAMING") ->
   if text in ("on", "true", "1", "yes"):
     return "on"
   if text not in ("off", "false", "0", "no"):
-    print(f"{name} must be auto, on, off or hybrid; it is treated as off")
+    print(f"{name} must be on, off or hybrid; it is treated as off")
   return "off"
 
 

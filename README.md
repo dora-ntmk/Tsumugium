@@ -58,7 +58,7 @@ STATUS_MESSAGE="{voice_connections}/{guilds}個のVCに接続中"
 
 DBのバックアップは既定で毎日12:00に`BACKUP_DIR`へ取ります。時刻は`BACKUP_TIMES`で変えられ、空欄にするとバックアップを取りません。
 
-VOICEVOX Engine 0.26.0以降の`/streaming_synthesis`を使い、音声を作り終える前に読み上げを始める実験的な機能があります。設定は`.env`ではなく、運営者（`OPERATOR_USER_ID`）がBotとのDMで`/synthesis set`を使って決めます（`/synthesis view`で確認、`/synthesis reset`で既定に戻す）。`mode`は`auto`（Botのバージョンごとの既定に従う）・`on`・`off`・`hybrid`（`threshold`の文字数以上の文章だけをストリーミング。`0`は自動で決め、今は文字数によらず五分五分で振り分けます）、`segment`はストリーミングで一度に作る音声の長さ（秒。`0`は自動）です。対応していないEngine・話者では、`on`にしても今までどおり全体を作ってから読み上げます。`/synthesis log`で、ストリーミングあり・なしの速さを比べられます。前の版で`.env`に`VOICEVOX_STREAMING`などを書いていた場合は、最初の起動で一度だけ設定へ取り込み、以後`.env`の値は使いません。
+VOICEVOX Engine 0.26.0以降の`/streaming_synthesis`を使い、音声を作り終える前に読み上げを始める実験的な機能があります。設定は`.env`ではなく、運営者（`OPERATOR_USER_ID`）がBotとのDMで`/synthesis set`を使って決めます（`/synthesis view`で確認、`/synthesis reset`で初期値に戻す）。`mode`は`on`・`off`・`hybrid`（`threshold`の文字数以上の文章だけをストリーミング。`0`は自動で決め、今は文字数によらず五分五分で振り分けます）で、初期値は`hybrid`です、`segment`はストリーミングで一度に作る音声の長さ（秒。`0`は自動）です。対応していないEngine・話者では、`on`にしても今までどおり全体を作ってから読み上げます。`/synthesis log`で、ストリーミングあり・なしの速さを比べられます。前の版で`.env`に`VOICEVOX_STREAMING`などを書いていた場合は、最初の起動で一度だけ設定へ取り込み、以後`.env`の値は使いません。
 
 VOICEVOX ENGINEを起動してからBotを起動します。
 
