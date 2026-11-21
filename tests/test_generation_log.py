@@ -462,7 +462,7 @@ class FakeUpdateWatch:
 
   async def request_check(self, user_id):
     self.requests.append(user_id)
-    return discord.Embed(title="新しい版の確認", description="更新はありません")
+    return discord.Embed(title="新しいバージョンの確認", description="更新はありません")
 
 
 class UpdateCommandTest(unittest.TestCase):

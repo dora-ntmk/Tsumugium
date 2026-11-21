@@ -2,8 +2,8 @@
 
 更新は2つの部分に分かれる。
 - 今の版のインストーラー（run_upgrade）: ロック、版の選択、取得・照合・展開までを行い、
-  新しい版のインストーラーを呼ぶ。ロックは新しい版が終わるまで持ち続ける。
-- 新しい版のインストーラー（continue_upgrade）: venv の作成、.env への書き足し、
+  新しいバージョンのインストーラーを呼ぶ。ロックは新しいバージョンが終わるまで持ち続ける。
+- 新しいバージョンのインストーラー（continue_upgrade）: venv の作成、.env への書き足し、
   切り替え、起動の確認、失敗したときのロールバックを行う。
 
 2つの間は data/state/handoff.json で引き継ぐ。形式には番号（HANDOFF_VERSION）を付け、
@@ -117,7 +117,7 @@ def write_handoff(system: System, layout: Layout, data: dict) -> Path:
 
 
 def launch_new_installer(system: System, ui: UI, app_new: Path, handoff: Path) -> int:
-  """新しい版のインストーラーを、画面の入出力をそのまま渡して動かす。"""
+  """新しいバージョンのインストーラーを、画面の入出力をそのまま渡して動かす。"""
   completed = subprocess.run(
     python_command(sys.executable, app_new, "installer.handoff", [str(handoff)]),
     cwd=str(app_new),
@@ -194,7 +194,7 @@ def run_auto(
   """自動更新の timer と、更新の依頼の path unit から呼ばれる。
 
   1. Botの「更新する」ボタンと /update コマンドからの依頼（update-request.json）があれば、それを先に扱う。
-  2. 自動更新がオンなら、新しい版を入れる。オフなら、新しい版を見つけたら
+  2. 自動更新がオンなら、新しいバージョンを入れる。オフなら、新しいバージョンを見つけたら
      available-update.json に書くだけにする（Botがボタン付きのDMで知らせる）。
   更新しない条件に当たれば、理由を残して終わる。
   """
@@ -246,7 +246,7 @@ def run_auto(
       latest=latest,
     )
 
-  ui.info(f"新しい版 {latest} があるので、更新します")
+  ui.info(f"新しいバージョン {latest} があるので、更新します")
   return _upgrade_to(system, ui, record, latest, client, launch, done, auto=True)
 
 
@@ -277,9 +277,9 @@ def _upgrade_to(system, ui, record, version, client, launch, done, *, auto: bool
 
 
 def _run_check_request(system, record, request, client, done) -> int:
-  """Botの /update コマンドで頼まれた確認。新しい版を確かめるだけで、入れない。
+  """Botの /update コマンドで頼まれた確認。新しいバージョンを確かめるだけで、入れない。
 
-  自動更新のオン・オフによらず、新しい版を見つけたら available-update.json に書き、
+  自動更新のオン・オフによらず、新しいバージョンを見つけたら available-update.json に書き、
   Botにボタン付きのDMで知らせてもらう。入れるかは、運営者がボタンで決める。
   結果には依頼の request_id を付け、Botがどの依頼の結果かを見分けられるようにする。
   """
@@ -415,7 +415,7 @@ def _fetch_and_hand_off(args, system, ui, instance, mode, client, launch) -> int
       clear_updating(system, layout)
 
 
-# 新しい版のインストーラー
+# 新しいバージョンのインストーラー
 
 def read_handoff(path: Path) -> dict:
   try:
@@ -670,7 +670,7 @@ class Continuation:
     if self.repair:
       ui.info(f"{self.to_version} の入れ直しを続けます（取得した版のインストーラー）")
     else:
-      ui.info(f"{self.from_version} → {self.to_version} の更新を続けます（新しい版のインストーラー）")
+      ui.info(f"{self.from_version} → {self.to_version} の更新を続けます（新しいバージョンのインストーラー）")
     try:
       start_after = self.prepare()
     except BaseException:
@@ -706,7 +706,7 @@ class Continuation:
       shutil.rmtree(self.path(self.app_aside), ignore_errors=True)
     if state.prev_aside:
       shutil.rmtree(self.path(self.prev_aside), ignore_errors=True)
-    # 入口のスクリプトと自動更新の timer も、新しい版のものに置き直す
+    # 入口のスクリプトと自動更新の timer も、新しいバージョンのものに置き直す
     install_entry(self.system)
     self._apply_auto_update(new_record)
     self._write_result("repaired" if self.repair else "updated", started=bool(start_after))

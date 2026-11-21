@@ -72,7 +72,7 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 |---|---|---|---|
 | 「今は更新を受け付けられません」 | 更新の見張りが動いていないときにボタンが押された | 本人だけ | [update_watch_service.py:144](../services/update_watch_service.py#L144) |
 | 「この操作は、Botを運営している人だけができます」 | 運営者以外がボタンを押した | 本人だけ | [update_watch_service.py:412](../services/update_watch_service.py#L412) |
-| 「新しい版 … があります」／「… への更新は、もう受け付けていません」 | 古いお知らせのボタンが押された | 本人だけ | [update_watch_service.py:426](../services/update_watch_service.py#L426) |
+| 「新しいバージョン … があります」／「… への更新は、もう受け付けていません」 | 古いお知らせのボタンが押された | 本人だけ | [update_watch_service.py:426](../services/update_watch_service.py#L426) |
 
 ---
 
@@ -202,7 +202,7 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 1つ前の版に戻しました | 更新の結果（`rollback`） | [update_watch_service.py:78](../services/update_watch_service.py#L78) |
 | 更新の結果 | 更新の結果（そのほか） | [update_watch_service.py:83](../services/update_watch_service.py#L83) |
 | 自動更新を止めています | 自動更新が人の手を要る（`unfinished`） | [update_watch_service.py:87](../services/update_watch_service.py#L87) |
-| 新しい版があります（更新ボタン付き） | 新しいバージョンを見つけた | [update_watch_service.py:99](../services/update_watch_service.py#L99)・[321](../services/update_watch_service.py#L321) |
+| 新しいバージョンがあります（更新ボタン付き） | 新しいバージョンを見つけた | [update_watch_service.py:99](../services/update_watch_service.py#L99)・[321](../services/update_watch_service.py#L321) |
 | 更新を開始しました | 更新が始まり、ボタンのDMを書き換える | [update_watch_service.py:103](../services/update_watch_service.py#L103)・[375](../services/update_watch_service.py#L375) |
 | 更新は済んでいます | 今と同じバージョンのボタンが押された | [update_watch_service.py:417](../services/update_watch_service.py#L417) |
 | 更新を受け付けました | 「今すぐ更新する」 | [update_watch_service.py:432](../services/update_watch_service.py#L432) |

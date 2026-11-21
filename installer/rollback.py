@@ -80,7 +80,7 @@ def run_rollback(args: argparse.Namespace, system: System, ui: UI, *, wait=None)
     else:
       ui.info(f"DBのバックアップ: {layout.backup / backup.name}")
       restore_db = ui.confirm(
-        "DBも更新の直前の状態に戻しますか？（戻さない場合、新しい版がDBの形を変えていると読めないことがあります）",
+        "DBも更新の直前の状態に戻しますか？（戻さない場合、新しいバージョンがDBの形を変えていると読めないことがあります）",
         default=True,
       )
 
@@ -90,7 +90,7 @@ def run_rollback(args: argparse.Namespace, system: System, ui: UI, *, wait=None)
     if was_active:
       mark_restart_reason(system, record, REASON_UPDATE)
     systemctl.stop(record.service, check=False)
-    # app/ と app.prev/ を入れ替える。新しい版も消さないので、upgrade でまた進められる
+    # app/ と app.prev/ を入れ替える。新しいバージョンも消さないので、upgrade でまた進められる
     swap = system.path(str(layout.prefix / "app.swap"))
     shutil.rmtree(swap, ignore_errors=True)
     if app.exists():
@@ -121,7 +121,7 @@ def run_rollback(args: argparse.Namespace, system: System, ui: UI, *, wait=None)
       })
     except Exception as error:  # 戻すこと自体は済んでいるので、止めずに知らせる
       ui.warn(f"自動更新の設定か結果を書き残せませんでした: {error}")
-    ui.info(".env はそのままです（新しい版で足した項目は、この版では使われません）")
+    ui.info(".env はそのままです（新しいバージョンで足した項目は、この版では使われません）")
 
     if not was_active:
       save_record(system, replace(restored, unverified=target))
@@ -136,7 +136,7 @@ def run_rollback(args: argparse.Namespace, system: System, ui: UI, *, wait=None)
       wait(system, layout, record.service, target)
     except ReadyError as error:
       ui.error(f"{target} の起動を確認できませんでした: {error}")
-      ui.info(f"記録は {target} にしてあります。repair で入れ直すか、upgrade で新しい版に進めてください")
+      ui.info(f"記録は {target} にしてあります。repair で入れ直すか、upgrade で新しいバージョンに進めてください")
       save_record(system, replace(restored, unverified=target))
       return EXIT_ERROR
     ui.info(f"{target} に戻しました")

@@ -2,16 +2,16 @@
 
 - updating.json があるあいだは、Botのステータスを「取り込み中」と「アップデート中」の表示にする。
 - last-update.json（更新・入れ直し・戻したときの結果）を読み、まだ知らせていなければ運営者へDMで知らせる。
-  インストーラーは新しい版のBotの起動を確かめてから結果を書くので、起動したときだけでなく見張りのたびに読む。
+  インストーラーは新しいバージョンのBotの起動を確かめてから結果を書くので、起動したときだけでなく見張りのたびに読む。
 - 自動更新が人の手を要る状態（前回の更新が途中で止まっているなど）になったら、運営者へDMで知らせる。
-- 自動更新がオフのときにインストーラーが見つけた新しい版（available-update.json）を、
+- 自動更新がオフのときにインストーラーが見つけた新しいバージョン（available-update.json）を、
   「今すぐ更新する」「VCが空いたら更新する」のボタン付きのDMで運営者へ知らせる。
   ボタンが押されたら update-request.json に依頼を書き、インストーラーの path unit が更新を動かす。
   「VCが空いたら」のときは pending-update.json に残し、BotがどのVCにもつないでいないときに依頼を書く。
   押されたDMは、更新が始まったら「更新を開始しました」に書き換える。
 - 運営者の /update コマンドで、update-request.json に確認の依頼（mode: check）を書く。
-  インストーラーが新しい版を確かめて auto-update.json に結果を書いたら、それを返す。
-  新しい版があれば、上と同じボタン付きのDMを送る（すでに知らせた版なら、依頼した人へもう一度送る）。
+  インストーラーが新しいバージョンを確かめて auto-update.json に結果を書いたら、それを返す。
+  新しいバージョンがあれば、上と同じボタン付きのDMを送る（すでに知らせた版なら、依頼した人へもう一度送る）。
 
 UPDATE_STATE_DIR が空欄（インストーラーを使わずに動かしている）なら何もしない。
 """
@@ -45,7 +45,7 @@ REQUEST_FILE = "update-request.json"
 PENDING_FILE = "pending-update.json"
 MODE_NOW = "now"
 MODE_IDLE = "idle"
-# /update コマンドの依頼。新しい版を確かめるだけで、入れるかはボタンで決める
+# /update コマンドの依頼。新しいバージョンを確かめるだけで、入れるかはボタンで決める
 MODE_CHECK = "check"
 # 確認の結果（インストーラーが auto-update.json に書く）
 RESULT_NOTIFIED = "notified"
@@ -107,10 +107,10 @@ def attention_embed(data: dict) -> discord.Embed:
 
 def available_embed(data: dict) -> discord.Embed:
   version = data.get("version")
-  text = f"新しい版 {version} があります。更新すると、Botが数分止まります。"
+  text = f"新しいバージョン {version} があります。更新すると、Botが数分止まります。"
   if data.get("skipped"):
     text += f"\n\n{version} は、前に起動を確かめられなかった（または戻した）版です。"
-  return make_embed("新しい版があります", text)
+  return make_embed("新しいバージョンがあります", text)
 
 
 def started_embed(version: str | None) -> discord.Embed:
@@ -335,7 +335,7 @@ class UpdateWatchService:
   # E 「更新する」ボタン
 
   async def offer_available_update(self, *, resend_to: int | None = None) -> bool:
-    """新しい版があり、まだ知らせていなければ、ボタン付きのDMを送る。
+    """新しいバージョンがあり、まだ知らせていなければ、ボタン付きのDMを送る。
 
     resend_to を渡すと、すでに知らせた版でも、その人へもう一度送る（/update で頼まれたとき）。
     ボタン付きのDMを1通でも送れたら True を返す。
@@ -374,11 +374,11 @@ class UpdateWatchService:
   # F /update コマンド
 
   async def request_check(self, user_id: int) -> discord.Embed:
-    """インストーラーに新しい版を確かめてもらい、結果を表すEmbedを返す。
+    """インストーラーに新しいバージョンを確かめてもらい、結果を表すEmbedを返す。
 
-    新しい版があれば、ボタン付きのDMも送る。入れるかは運営者がボタンで決める。
+    新しいバージョンがあれば、ボタン付きのDMも送る。入れるかは運営者がボタンで決める。
     """
-    title = "新しい版の確認"
+    title = "新しいバージョンの確認"
     if not self.enabled:
       return make_embed(
         title,
@@ -553,7 +553,7 @@ class UpdateWatchService:
     available = (self._read(AVAILABLE_FILE) or {}).get("version")
     if available != version:
       if isinstance(available, str):
-        text = f"新しい版 {available} があります。新しいほうのお知らせから更新してください"
+        text = f"新しいバージョン {available} があります。新しいほうのお知らせから更新してください"
       else:
         text = f"{version} への更新は、もう受け付けていません"
       await interaction.response.send_message(text, ephemeral=True)

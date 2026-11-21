@@ -78,7 +78,7 @@ def add_arguments(parser: argparse.ArgumentParser) -> None:
     "--auto-update",
     action=argparse.BooleanOptionalAction,
     default=None,
-    help="自動更新（24時間おきに新しい版を確かめて入れる）を使うか（既定は beta ならオン、stable ならオフ）",
+    help="自動更新（24時間おきに新しいバージョンを確かめて入れる）を使うか（既定は beta ならオン、stable ならオフ）",
   )
 
 
@@ -240,7 +240,7 @@ class Installer:
       self.ui.info(f"自動更新: {'オン' if auto_update else 'オフ'}（オプションで指定）")
     else:
       auto_update = self.ui.confirm(
-        "自動更新（24時間おきに新しい版を確かめて入れる）を使いますか？",
+        "自動更新（24時間おきに新しいバージョンを確かめて入れる）を使いますか？",
         default=default_auto_update(channel),
       ) if not self.ui.assume_yes else default_auto_update(channel)
 
@@ -383,9 +383,9 @@ class Installer:
     self.ui.info(f"  設定を変える: sudo nano {record.layout.env_file} のあと sudo tsumugium-setup restart")
     self.ui.info("  更新する:     sudo tsumugium-setup upgrade")
     if record.auto_update_enabled:
-      self.ui.info("  自動更新:     オン（24時間おきに新しい版を確かめます。止めるときは sudo tsumugium-setup auto-update off）")
+      self.ui.info("  自動更新:     オン（24時間おきに新しいバージョンを確かめます。止めるときは sudo tsumugium-setup auto-update off）")
     else:
-      self.ui.info("  自動更新:     オフ（新しい版はDMで知らせます。自動にするときは sudo tsumugium-setup auto-update on）")
+      self.ui.info("  自動更新:     オフ（新しいバージョンはDMで知らせます。自動にするときは sudo tsumugium-setup auto-update on）")
 
   def run(self) -> int:
     build = read_build_info(self.source)

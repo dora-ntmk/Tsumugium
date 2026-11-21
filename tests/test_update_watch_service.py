@@ -392,7 +392,7 @@ class OfferTest(UpdateButtonTestCase):
 
     buttons = asyncio.run(scenario())
     self.assertEqual(len(self.sent()), 1)
-    self.assertIn(f"新しい版 {NEW_VERSION} があります", self.sent()[0].description)
+    self.assertIn(f"新しいバージョン {NEW_VERSION} があります", self.sent()[0].description)
     self.assertEqual(buttons, [
       ("今すぐ更新する", f"tsumugium:update:now:{NEW_VERSION}"),
       ("VCが空いたら更新する", f"tsumugium:update:idle:{NEW_VERSION}"),
@@ -480,7 +480,7 @@ class ButtonTest(UpdateButtonTestCase):
   def test_old_notice_points_to_newer_version(self):
     self.write(AVAILABLE_FILE, {"version": "v4.3.0.71 (beta 9)"})
     response = self.press("now")
-    self.assertIn("新しい版 v4.3.0.71 (beta 9) があります", response.messages[0][0])
+    self.assertIn("新しいバージョン v4.3.0.71 (beta 9) があります", response.messages[0][0])
     self.assertFalse(self.exists(REQUEST_FILE))
 
   def test_pending_for_installed_version_is_dropped(self):
@@ -537,7 +537,7 @@ class CheckRequestTest(UpdateButtonTestCase):
 
   def test_new_version_is_offered_to_every_operator(self):
     embed = self.run_check(self.answer("notified", latest=NEW_VERSION))
-    self.assertEqual(embed.title, "新しい版の確認")
+    self.assertEqual(embed.title, "新しいバージョンの確認")
     self.assertEqual(embed.description, f"新しいバージョン {NEW_VERSION} があります")
     self.assertEqual([len(user.sent) for user in self.users.values()], [1, 1])
     self.assertEqual(self.notice()["offered_version"], NEW_VERSION)
