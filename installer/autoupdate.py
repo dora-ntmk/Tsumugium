@@ -40,11 +40,11 @@ UPDATING_FILE = "updating.json"
 # Botを止める前に置く、止める理由。Botは止まるときと次に起動したときにこれを見て、
 # VCにいた人への知らせ方と、起動したあとにつなぎ直すかを決める
 RESTART_REASON_FILE = "restart-reason.json"
-# 自動更新がオフのときに見つけた新しい版。Botはこれを見て、ボタン付きのDMで知らせる
+# 自動更新がオフのときに見つけた新しいバージョン。Botはこれを見て、ボタン付きのDMで知らせる
 AVAILABLE_FILE = "available-update.json"
 # Botの「更新する」ボタンと /update コマンドからの依頼。path unit がこれを見て、更新を動かす
 REQUEST_FILE = "update-request.json"
-# 依頼の mode。check は新しい版を確かめるだけで、入れない（見つけたら available-update.json に書く）
+# 依頼の mode。check は新しいバージョンを確かめるだけで、入れない（見つけたら available-update.json に書く）
 REQUEST_MODE_CHECK = "check"
 REASON_UPDATE = "update"
 REASON_MANUAL_STOP = "manual_stop"
@@ -63,14 +63,14 @@ RESULT_NOTIFIED = "notified"
 RESULT_REJECTED = "rejected"
 
 RESULT_LABELS = {
-  RESULT_NOTIFIED: "新しい版があることをDMで知らせた",
+  RESULT_NOTIFIED: "新しいバージョンがあることをDMで知らせた",
   RESULT_REJECTED: "頼まれた更新を断った",
   RESULT_OFF: "自動更新はオフ",
   RESULT_STOPPED: "Botが止まっているので更新しなかった",
   RESULT_UNFINISHED: "前回の更新が途中で止まっているので更新しなかった",
   RESULT_BUSY: "ほかの操作が実行中だったので更新しなかった",
-  RESULT_LATEST: "新しい版はなかった",
-  RESULT_SKIPPED: "新しい版は飛ばす版だったので更新しなかった",
+  RESULT_LATEST: "新しいバージョンはなかった",
+  RESULT_SKIPPED: "新しいバージョンは飛ばす版だったので更新しなかった",
   RESULT_UPDATED: "更新した",
   RESULT_FAILED: "更新できなかった",
   RESULT_ERROR: "確かめられなかった",
@@ -150,7 +150,7 @@ WantedBy=paths.target
 def apply_auto_update(system: System, record: InstanceRecord) -> None:
   """timer・path・service を書き、有効にする。
 
-  自動更新がオフでも timer は止めない。オフのときは、新しい版を見つけたら知らせるだけにする。
+  自動更新がオフでも timer は止めない。オフのときは、新しいバージョンを見つけたら知らせるだけにする。
   """
   changed = False
   for name, text in (
@@ -287,10 +287,10 @@ def run_mode(args: argparse.Namespace, system: System, ui: UI) -> int:
     save_record(system, record)
     apply_auto_update(system, record)
   if record.auto_update:
-    ui.info(f"インスタンス {instance} の自動更新を有効にしました（{record.channel} の新しい版を24時間おきに確かめます）")
+    ui.info(f"インスタンス {instance} の自動更新を有効にしました（{record.channel} の新しいバージョンを24時間おきに確かめます）")
   else:
     ui.info(
-      f"インスタンス {instance} の自動更新を無効にしました。新しい版を見つけたら、"
+      f"インスタンス {instance} の自動更新を無効にしました。新しいバージョンを見つけたら、"
       "OPERATOR_USER_ID の人へ「更新する」ボタン付きのDMで知らせます"
     )
   return EXIT_OK
@@ -299,7 +299,7 @@ def run_mode(args: argparse.Namespace, system: System, ui: UI) -> int:
 def describe(system: System, record: InstanceRecord) -> list[str]:
   """status に出す自動更新の行。"""
   enabled = record.auto_update_enabled
-  lines = [f"  自動更新    {'オン（24時間おき）' if enabled else 'オフ（新しい版を見つけたらDMで知らせます）'}"]
+  lines = [f"  自動更新    {'オン（24時間おき）' if enabled else 'オフ（新しいバージョンを見つけたらDMで知らせます）'}"]
   state = read_state(system, record.layout, STATE_FILE)
   if state and isinstance(state.get("checked_at"), str):
     label = RESULT_LABELS.get(state.get("result"), str(state.get("result")))

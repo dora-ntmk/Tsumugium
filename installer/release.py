@@ -329,7 +329,7 @@ def extract_release(zip_path: Path, destination: Path) -> dict:
 
 @dataclass(frozen=True)
 class Fetched:
-  """展開した新しい版。"""
+  """展開した新しいバージョン。"""
 
   path: Path
   version: Version

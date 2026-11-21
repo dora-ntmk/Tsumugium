@@ -326,7 +326,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ## Components v2への移行（`presentation/layouts.py`）
 
-Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。`ConnectionService`が送るメッセージ（接続・切断・自動退出・権限エラー・接続失敗）、`cogs/announcement_cog.py`が送るメッセージ（`/announce`の応答・確認・エラー・入力し直すボタン・一覧・削除）、`UpdateWatchService`が送るメッセージ（更新の結果・自動更新の注意・新しい版のお知らせと更新ボタン・ボタンを押したあとの書き換え）と`/update`の応答はすべてv2にした。ほか（`/synthesis-log`、`ReconnectService`の再起動の知らせ・再接続、`presentation/error_handler.py`のエラー応答など）は当面Embedのまま残す。どの形式で送っているかの一覧は[`docs/COMPONENTS_V2.md`](docs/COMPONENTS_V2.md)にまとめ、メッセージを足したり移したりしたら直す。
+Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。`ConnectionService`が送るメッセージ（接続・切断・自動退出・権限エラー・接続失敗）、`cogs/announcement_cog.py`が送るメッセージ（`/announce`の応答・確認・エラー・入力し直すボタン・一覧・削除）、`UpdateWatchService`が送るメッセージ（更新の結果・自動更新の注意・新しいバージョンのお知らせと更新ボタン・ボタンを押したあとの書き換え）と`/update`の応答はすべてv2にした。ほか（`/synthesis-log`、`ReconnectService`の再起動の知らせ・再接続、`presentation/error_handler.py`のエラー応答など）は当面Embedのまま残す。どの形式で送っているかの一覧は[`docs/COMPONENTS_V2.md`](docs/COMPONENTS_V2.md)にまとめ、メッセージを足したり移したりしたら直す。
 
 - **新しいコマンドとメッセージは、基本的にComponents v2（`make_layout()`）で作る。** Embed（`make_embed()`）で作るのは、v2では表せないなど理由があるときだけにする。既存のコマンドに新しいメッセージを足すときも、そのコマンドがEmbedのままならv2へ移すことを考える。
 - Embedで送った前の版のメッセージを、あとからv2へ書き換えるときは、`edit(embed=None, view=layout.view)`のように`embed=None`を渡す（`content`・`embed`が残っているとv2にできない）。

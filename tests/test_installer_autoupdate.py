@@ -93,7 +93,7 @@ class UnitTest(TempDirTestCase):
     ])
 
   def test_timer_stays_enabled_when_off_and_reload_is_skipped_when_unchanged(self):
-    # オフでも timer は止めない（新しい版を見つけたら知らせるため）
+    # オフでも timer は止めない（新しいバージョンを見つけたら知らせるため）
     autoupdate.apply_auto_update(self.system, make_record(auto_update=True))
     self.runner.calls.clear()
     autoupdate.apply_auto_update(self.system, make_record(auto_update=False))
@@ -303,7 +303,7 @@ class StatusTest(AutoUpgradeTestCase):
     self.assertEqual(cli.main(["status"], system=self.system, ui=self.ui), cli.EXIT_OK)
     output = self.ui.stdout.getvalue()
     self.assertIn("自動更新    オン（24時間おき）", output)
-    self.assertIn("新しい版は飛ばす版だったので更新しなかった", output)
+    self.assertIn("新しいバージョンは飛ばす版だったので更新しなかった", output)
     self.assertIn(f"飛ばす版    {NEW}", output)
 
 

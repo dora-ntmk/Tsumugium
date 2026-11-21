@@ -1,6 +1,6 @@
 """upgrade モード（installer/upgrade.py、installer/handoff.py）のテスト。
 
-偽のGitHub（127.0.0.1）から新しい版を取り、引き継ぎ先も同じプロセスの中で動かす。
+偽のGitHub（127.0.0.1）から新しいバージョンを取り、引き継ぎ先も同じプロセスの中で動かす。
 """
 
 import functools

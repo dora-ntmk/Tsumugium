@@ -74,7 +74,7 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 |---|---|---|---|
 | 「今は更新を受け付けられません」 | 更新の見張りが動いていないときにボタンが押された | 本人だけ | [update_watch_service.py:163](../services/update_watch_service.py#L163) |
 | 「この操作は、Botを運営している人だけができます」 | 運営者以外がボタンを押した | 本人だけ | [update_watch_service.py:548](../services/update_watch_service.py#L548) |
-| 「新しい版 … があります」／「… への更新は、もう受け付けていません」 | 古いお知らせのボタンが押された | 本人だけ | [update_watch_service.py:562](../services/update_watch_service.py#L562) |
+| 「新しいバージョン … があります」／「… への更新は、もう受け付けていません」 | 古いお知らせのボタンが押された | 本人だけ | [update_watch_service.py:562](../services/update_watch_service.py#L562) |
 
 ---
 
@@ -227,22 +227,22 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 1つ前の版に戻しました | 黄 | 更新の結果（`rollback`） | [update_watch_service.py:93](../services/update_watch_service.py#L93) |
 | 更新の結果 | 青 | 更新の結果（そのほか） | [update_watch_service.py:98](../services/update_watch_service.py#L98) |
 | 自動更新を止めています | 黄 | 自動更新が人の手を要る（`unfinished`） | [update_watch_service.py:102](../services/update_watch_service.py#L102) |
-| 新しい版があります（更新ボタン付き） | 青 | 新しいバージョンを見つけた・`/update`で見つけた | [update_watch_service.py:115](../services/update_watch_service.py#L115)・[360](../services/update_watch_service.py#L360)・[363](../services/update_watch_service.py#L363) |
+| 新しいバージョンがあります（更新ボタン付き） | 青 | 新しいバージョンを見つけた・`/update`で見つけた | [update_watch_service.py:115](../services/update_watch_service.py#L115)・[360](../services/update_watch_service.py#L360)・[363](../services/update_watch_service.py#L363) |
 | 更新を開始しました | 緑 | 更新が始まり、ボタンのDMを書き換える | [update_watch_service.py:121](../services/update_watch_service.py#L121)・[512](../services/update_watch_service.py#L512) |
 | 更新は済んでいます | 青 | 今と同じバージョンのボタンが押された | [update_watch_service.py:553](../services/update_watch_service.py#L553) |
 | 更新を受け付けました | 緑 | 「今すぐ更新する」 | [update_watch_service.py:568](../services/update_watch_service.py#L568) |
 | VCが空いたら更新します（更新ボタン付き） | 青 | 「VCが空いたら更新する」 | [update_watch_service.py:577](../services/update_watch_service.py#L577) |
 | Bot運営者専用コマンドです | 赤 | 運営者以外が`/update`を実行（本人だけ） | [operator_cog.py:272](../cogs/operator_cog.py#L272) |
 | 更新できません | 赤 | 更新の見張りがない（`/update`） | [operator_cog.py:280](../cogs/operator_cog.py#L280) |
-| 新しい版の確認（手動で導入されている） | 赤 | `UPDATE_STATE_DIR`が空欄 | [update_watch_service.py:385](../services/update_watch_service.py#L385) |
-| 新しい版の確認（更新中です） | 黄 | 更新中 | [update_watch_service.py:391](../services/update_watch_service.py#L391) |
-| 新しい版の確認（ほかで更新を問い合わせています） | 黄 | 扱われていない依頼がある | [update_watch_service.py:393](../services/update_watch_service.py#L393) |
-| 新しい版の確認（連続してのリクエストはできません） | 黄 | 前の確認から60秒たっていない | [update_watch_service.py:401](../services/update_watch_service.py#L401) |
-| 新しい版の確認（時間内に応答がありませんでした） | 黄 | 60秒待っても結果が届かない | [update_watch_service.py:417](../services/update_watch_service.py#L417) |
-| 新しい版の確認（更新はありません） | 青 | 新しいバージョンがない | [update_watch_service.py:425](../services/update_watch_service.py#L425) |
-| 新しい版の確認（新しいバージョン … があります） | 緑 | 新しいバージョンがあり、ボタン付きのDMを送った | [update_watch_service.py:429](../services/update_watch_service.py#L429) |
-| 新しい版の確認（… が見つかりましたが、Discordからは更新できません） | 黄 | 新しいバージョンがあるが、DMを送れなかった | [update_watch_service.py:434](../services/update_watch_service.py#L434) |
-| 新しい版の確認（インストーラーの文） | 赤 | 確かめられなかった・前回の更新が途中で止まっている | [update_watch_service.py:440](../services/update_watch_service.py#L440) |
+| 新しいバージョンの確認（手動で導入されている） | 赤 | `UPDATE_STATE_DIR`が空欄 | [update_watch_service.py:385](../services/update_watch_service.py#L385) |
+| 新しいバージョンの確認（更新中です） | 黄 | 更新中 | [update_watch_service.py:391](../services/update_watch_service.py#L391) |
+| 新しいバージョンの確認（ほかで更新を問い合わせています） | 黄 | 扱われていない依頼がある | [update_watch_service.py:393](../services/update_watch_service.py#L393) |
+| 新しいバージョンの確認（連続してのリクエストはできません） | 黄 | 前の確認から60秒たっていない | [update_watch_service.py:401](../services/update_watch_service.py#L401) |
+| 新しいバージョンの確認（時間内に応答がありませんでした） | 黄 | 60秒待っても結果が届かない | [update_watch_service.py:417](../services/update_watch_service.py#L417) |
+| 新しいバージョンの確認（更新はありません） | 青 | 新しいバージョンがない | [update_watch_service.py:425](../services/update_watch_service.py#L425) |
+| 新しいバージョンの確認（新しいバージョン … があります） | 緑 | 新しいバージョンがあり、ボタン付きのDMを送った | [update_watch_service.py:429](../services/update_watch_service.py#L429) |
+| 新しいバージョンの確認（… が見つかりましたが、Discordからは更新できません） | 黄 | 新しいバージョンがあるが、DMを送れなかった | [update_watch_service.py:434](../services/update_watch_service.py#L434) |
+| 新しいバージョンの確認（インストーラーの文） | 赤 | 確かめられなかった・前回の更新が途中で止まっている | [update_watch_service.py:440](../services/update_watch_service.py#L440) |
 
 ### 運営者: お知らせ（16）
 

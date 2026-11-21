@@ -41,7 +41,7 @@ class VersionCommandTest(unittest.TestCase):
     self.assertEqual(fields["Tsumugium最終更新日"], "2099/01/01")
 
   def test_changelog_link_points_to_page_without_fragment(self):
-    # バージョンごとの見出し（#以降）を付けると、新しい版を出しても古い見出しを指したままになる。
+    # バージョンごとの見出し（#以降）を付けると、新しいバージョンを出しても古い見出しを指したままになる。
     self.assertEqual(urlparse(CHANGELOG_URL).fragment, "")
     self.assertNotIn("#", CHANGELOG_URL)
     self.assertEqual(self.run_version()["更新内容"], f"[こちらをご覧ください]({CHANGELOG_URL})")

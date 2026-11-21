@@ -463,7 +463,7 @@ class FakeUpdateWatch:
 
   async def request_check(self, user_id):
     self.requests.append(user_id)
-    return make_layout("新しい版の確認", "更新はありません")
+    return make_layout("新しいバージョンの確認", "更新はありません")
 
 
 def layout_texts(view):
@@ -493,7 +493,7 @@ class UpdateCommandTest(unittest.TestCase):
     self.assertEqual(self.watch.requests, [DUMMY_USER_ID])
     [edit] = interaction.edits
     self.assertNotIn("embed", edit)
-    self.assertEqual(layout_texts(edit["view"]), ["## 新しい版の確認\n更新はありません"])
+    self.assertEqual(layout_texts(edit["view"]), ["## 新しいバージョンの確認\n更新はありません"])
     self.assertEqual(edit["attachments"], [])
 
   def test_others_are_refused(self):
