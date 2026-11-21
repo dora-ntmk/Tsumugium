@@ -353,7 +353,7 @@ class UpdateWatchService:
         return False
       if offered:
         sent = await send_to_users(
-          self.client, (resend_to,), "更新の知らせ",
+          self.client, (resend_to,), "更新のお知らせ",
           embed=available_embed(data), view=update_view(version),
         )
         previous = [record for record in notice.get("offered_messages") or [] if isinstance(record, dict)]
@@ -382,15 +382,15 @@ class UpdateWatchService:
     if not self.enabled:
       return make_embed(
         title,
-        "このBotは tsumugium-setup で入れていないため、Discordからは更新できません",
+        "このBotは手動で導入されているため、Discordからは更新できません",
         embed_type=EmbedType.ERROR,
       )
     if self.is_updating():
-      return make_embed(title, "いま更新しています。終わったら、結果をお知らせします", embed_type=EmbedType.WARNING)
+      return make_embed(title, "更新中です。しばらくお待ちください", embed_type=EmbedType.WARNING)
     if self._has_open_request():
       return make_embed(
         title,
-        "ほかの更新の依頼を処理しています。しばらくしてから、もう一度試してください",
+        "ただいま、ほかで更新を問い合わせています。しばらくしてから、もう一度試してください",
         embed_type=EmbedType.WARNING,
       )
     now = self.clock()
@@ -398,7 +398,7 @@ class UpdateWatchService:
       wait = int(self.check_cooldown - (now - self._last_check_request)) + 1
       return make_embed(
         title,
-        f"続けて確かめすぎないよう、{wait}秒ほど空けてから試してください",
+        f"連続してのリクエストはできません。{wait}秒ほど空けてから試してください",
         embed_type=EmbedType.WARNING,
       )
     self._last_check_request = now
@@ -414,24 +414,24 @@ class UpdateWatchService:
     if result is None:
       return make_embed(
         title,
-        "確認を頼みましたが、時間内に結果が届きませんでした。"
-        "新しい版が見つかれば、ボタン付きのDMでお知らせします",
+        "更新を確認しましたが、時間内に応答がありませんでした。"
+        "しばらくしてから、もう一度試してください",
         embed_type=EmbedType.WARNING,
       )
     code = result.get("result")
     if code == RESULT_LATEST:
-      return make_embed(title, f"新しい版はありません（今の版 {self.current_version}）")
+      return make_embed(title, f"更新はありません（今のバージョン {self.current_version}）")
     if code == RESULT_NOTIFIED:
       version = result.get("latest")
       if await self.offer_available_update(resend_to=user_id):
         return make_embed(
           title,
-          f"新しい版 {version} があります。ボタン付きのお知らせを送りました。ボタンから更新できます",
+          f"新しいバージョン {version} があります",
           embed_type=EmbedType.SUCCESS,
         )
       return make_embed(
         title,
-        f"新しい版 {version} がありますが、ボタン付きのお知らせを送れませんでした。"
+        f"新しいバージョン {version} が見つかりましたが、Discordからは更新できません。"
         "`sudo tsumugium-setup upgrade` で更新してください",
         embed_type=EmbedType.WARNING,
       )

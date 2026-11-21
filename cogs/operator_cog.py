@@ -257,7 +257,7 @@ class OperatorCog:
 
     @self.tree.command(
       name="update",
-      description="（運営者用）新しい版を確かめて、あれば更新のボタンを送ります",
+      description="（運営者用）Tsumugiumの更新を確認します",
     )
     @discord.app_commands.allowed_contexts(
       guilds=False,
@@ -268,11 +268,11 @@ class OperatorCog:
     async def update(ctx):
       try:
         if not self.is_operator(ctx.user):
-          embed = make_embed("新しい版の確認", "このコマンドはBotの運営者だけが使えます", embed_type=EmbedType.ERROR)
+          embed = make_embed("Bot運営者専用コマンドです", "このコマンドはBotの運営者以外は使用できません", embed_type=EmbedType.ERROR)
           await ctx.response.send_message(embed=embed, ephemeral=True)
           return
         if self.update_watch is None:
-          embed = make_embed("新しい版の確認", "今は更新を受け付けられません", embed_type=EmbedType.ERROR)
+          embed = make_embed("更新できません", "今は更新を受け付けることができません", embed_type=EmbedType.ERROR)
           await ctx.response.send_message(embed=embed)
           return
         # インストーラーが GitHub へ問い合わせるのを待つので、先に応答しておく
