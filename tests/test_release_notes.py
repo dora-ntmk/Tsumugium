@@ -198,7 +198,7 @@ class ShouldReleaseTest(GitRepoTestCase):
     super().setUp()
     self.root = Path(self.tmp_dir)
     self.git("init", "-q", "-b", "main")
-    self.write_config("v4.4.0.72", "開発版", "feat: はじめ")
+    self.write_config("v4.4.0.72", "最終更新日（自動挿入）", "feat: はじめ")
     self.git("tag", "v4.4.0.72-beta.020")
 
   def write_config(self, version, date, subject):
@@ -220,7 +220,7 @@ class ShouldReleaseTest(GitRepoTestCase):
     self.write_config("v4.5.0.73 (beta)", "2026/11/20", "release: 次の版")
     self.assertFalse(release_notes.should_release(self.root, "v4.5.0.73-beta.001"))
     (self.root / "config.py").write_text(
-      'VERSION      = "v4.5.0.73 (beta)"\nLAST_UPDATED = "開発版"\nX = 2\n', encoding="utf-8",
+      'VERSION      = "v4.5.0.73 (beta)"\nLAST_UPDATED = "最終更新日（自動挿入）"\nX = 2\n', encoding="utf-8",
     )
     self.git("commit", "-q", "-am", "feat: 設定を変えた")
     self.assertTrue(release_notes.should_release(self.root, "v4.5.0.73-beta.001"))

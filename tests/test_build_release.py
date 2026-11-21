@@ -78,7 +78,7 @@ class ResolveVersionTest(TempDirTestCase):
       build_release.resolve_version("v4.4.0", self.TAGS)
 
   def test_stamp_config(self):
-    text = 'A = 1\nVERSION      = "v4.4.0.72"\nLAST_UPDATED = "開発版"\n'
+    text = 'A = 1\nVERSION      = "v4.4.0.72"\nLAST_UPDATED = "最終更新日（自動挿入）"\n'
     self.assertEqual(
       build_release.stamp_config(text, "v4.4.1.73 (beta 1)", "2026/11/20"),
       'A = 1\nVERSION      = "v4.4.1.73 (beta 1)"\nLAST_UPDATED = "2026/11/20"\n',
@@ -216,7 +216,7 @@ class BuildTest(TempDirTestCase):
 
   def test_resolved_version_is_written_into_config(self):
     (self.root / "config.py").write_text(
-      'VERSION      = "v4.4.0.72"\nLAST_UPDATED = "開発版"\n', encoding="utf-8",
+      'VERSION      = "v4.4.0.72"\nLAST_UPDATED = "最終更新日（自動挿入）"\n', encoding="utf-8",
     )
     zip_path, _, info = build_release.build(
       self.root, self.out, self.lock, files=self.files, commit="0" * 40,
@@ -228,7 +228,7 @@ class BuildTest(TempDirTestCase):
       config = archive.read("tsumugium-v4.4.1.73-beta.001/config.py").decode("utf-8")
     self.assertEqual(config, 'VERSION      = "v4.4.1.73 (beta 1)"\nLAST_UPDATED = "2026/11/20"\n')
     # リポジトリのファイルは書き換えない
-    self.assertIn("開発版", (self.root / "config.py").read_text(encoding="utf-8"))
+    self.assertIn("最終更新日（自動挿入）", (self.root / "config.py").read_text(encoding="utf-8"))
 
   def test_missing_lock_file_is_an_error(self):
     os.remove(self.lock)

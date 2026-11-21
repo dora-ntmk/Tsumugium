@@ -499,7 +499,7 @@ Botが接続し直したときは、`VoiceService.reset_speaking_soon()`が1秒�
 - 正式リリースのバージョンは`vX.X.X.XX`で表記する（例: `v4.1.0.69`）。先頭3つの`X.X.X`は[セマンティックバージョニング](https://semver.org/lang/ja/)に従う。末尾の`XX`は累積リリース回数であり、リリースのたびに1ずつ増やし、`X.X.X`が上がってもリセットしない。
 - ベータ版は`vX.X.X.XX (beta X)`で表記する。前半は次回リリースで使う予定のバージョン、後半はその版のベータ版の通し番号（1から）。
 - ベータ番号と`LAST_UPDATED`はCIが決める。PRで`config.py`の`VERSION`・`LAST_UPDATED`を上げない。
-  - リポジトリの`config.py`の`VERSION`には、人が決めたことだけを書く。`vX.X.X.XX`（正式版の形）か`vX.X.X.XX (beta)`（番号なし）。`LAST_UPDATED`は`開発版`のままにする。
+  - リポジトリの`config.py`の`VERSION`には、人が決めたことだけを書く。`vX.X.X.XX`（正式版の形）か`vX.X.X.XX (beta)`（番号なし）。`LAST_UPDATED`は`最終更新日（自動挿入）`のままにする。
   - `scripts/build_release.py`の`resolve_version()`が、配布物の版を次のように決め、zipの中の`config.py`と`build-info.json`に書き込む。`LAST_UPDATED`はそのコミットのコミット日（日本時間の`YYYY/MM/DD`）。リポジトリのファイルは書き換えず、CIはコミットしない。
     - `vX.X.X.XX`で、その正式版をまだ出していない（タグも下書きもない）: 正式版。
     - `vX.X.X.XX`で、その正式版をもう出している: 次のパッチ（3つ目と末尾を1つずつ上げる。例: `v4.4.0.72`→`v4.4.1.73`）のベータ。正式版のあと、次期をパッチかマイナーか決めていなくても、そのまま出せる。

@@ -50,7 +50,7 @@ MODULES = [
 # AGENTS.md「バージョン表記」: リポジトリには vX.X.X.XX か vX.X.X.XX (beta) を書く。
 # 配布物には、CIが vX.X.X.XX (beta X) と日付を書き込む
 VERSION_PATTERN = re.compile(r"^v\d+\.\d+\.\d+\.\d+( \(beta( [1-9]\d*)?\))?$")
-LAST_UPDATED_PATTERN = re.compile(r"^(\d{4}/\d{2}/\d{2}|開発版)$")
+LAST_UPDATED_PATTERN = re.compile(r"^(\d{4}/\d{2}/\d{2}|最終更新日（自動挿入）)$")
 
 
 class ImportTest(unittest.TestCase):
