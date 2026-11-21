@@ -13,7 +13,7 @@ from __future__ import annotations
 import asyncio
 from typing import Callable
 
-from presentation.generation_log_format import LOG_TITLE, make_log_layout
+from presentation.generation_log_format import LOG_TITLE, build_log_file, make_log_layout
 from services.error_notification_service import ensure_error_notifier, operator_ids, send_to_users
 
 
@@ -37,6 +37,9 @@ def shutdown_description(reason: str | None, has_state: bool) -> str:
   else:
     when = "Botを再起動する前に"
   return f"{when}、まだ送っていない記録を送ります"
+
+
+LIST_NOTE = "\n-# 一覧（新しい順）は次のメッセージのファイルに書き出しました"
 
 
 def full_description(count: int) -> str:
@@ -99,11 +102,17 @@ class GenerationLogReportService:
     summary = self.generation_log.summarize(records)
     sent = 0
     for user_id in self.operator_user_ids:
-      # discord.File は一度しか送れないので、人ごとに作り直す
-      layout = make_log_layout(summary, newest_first, description)
-      sent += len(await send_to_users(
-        self.client, [user_id], LOG_TITLE, view=layout.view, files=layout.files,
-      ))
+      layout = make_log_layout(summary, description + LIST_NOTE)
+      if not await send_to_users(
+          self.client, [user_id], LOG_TITLE, view=layout.view, files=layout.files,
+      ):
+        continue
+      sent += 1
+      # Components v2 の中ではtxtの中身を表示できないので、一覧はファイルだけの
+      # メッセージで続けて送る。discord.File は一度しか送れないので、人ごとに作り直す
+      await send_to_users(
+        self.client, [user_id], f"{LOG_TITLE}の一覧", file=build_log_file(newest_first),
+      )
     if sent == 0:
       print(f"{LOG_TITLE}（{len(records)}件）を運営者へ送れませんでした")
     return sent

@@ -188,16 +188,14 @@ def build_log_file(records, now: datetime | None = None) -> discord.File:
 
 def make_log_layout(
     summary,
-    records,
     description: str,
     *,
-    now: datetime | None = None,
     layout_type: EmbedType = EmbedType.INFO,
 ) -> LayoutMessage:
-  """集計と、記録の一覧のtxtファイルを載せたメッセージ（Components v2）を作る。
+  """集計を載せたメッセージ（Components v2）を作る。
 
-  records は新しい順に並べて渡す。空ならファイルを付けない。
-  送るたびに作り直す（discord.File は一度しか送れない）。
+  Components v2 の中ではtxtファイルの中身を表示できないので、記録の一覧
+  （build_log_file()）はこのメッセージに載せず、直後に別のメッセージで送る。
   """
   layout = make_layout(LOG_TITLE, description, layout_type=layout_type)
   layout.add_item(discord.ui.Separator())
@@ -205,8 +203,4 @@ def make_log_layout(
     f"**{name}**\n{value}" for name, value in format_summary_fields(summary)
   )
   layout.add_item(discord.ui.TextDisplay(text))
-  if records:
-    file = build_log_file(records, now)
-    layout.add_item(discord.ui.File(f"attachment://{file.filename}"))
-    layout.add_file(file)
   return layout

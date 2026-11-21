@@ -11,7 +11,7 @@ import discord
 
 from presentation.embeds import EmbedType
 from presentation.error_handler import handle_internal_error
-from presentation.generation_log_format import make_log_layout
+from presentation.generation_log_format import build_log_file, make_log_layout
 from presentation.layouts import make_layout
 from services.error_notification_service import ensure_error_notifier, operator_ids
 
@@ -89,12 +89,12 @@ class OperatorCog:
     return user.id in self.operator_user_ids
 
   def build_log_layout(self, records):
-    """記録全体の集計と、直近の記録（新しい順）のファイルを載せたメッセージを作る。"""
+    """記録全体の集計を載せたメッセージを作る（一覧のファイルは別に送る）。"""
     if records:
-      description = f"直近{len(records)}件（新しい順）を添付のファイルに書き出しました"
+      description = f"直近{len(records)}件（新しい順）を次のメッセージのファイルに書き出しました"
     else:
       description = "記録はまだありません"
-    return make_log_layout(self.generation_log.summarize(), records, description)
+    return make_log_layout(self.generation_log.summarize(), description)
 
   async def _refuse(self, ctx) -> None:
     layout = make_layout(
@@ -236,8 +236,12 @@ class OperatorCog:
           await ctx.response.send_message(view=layout.view, files=layout.files, ephemeral=True)
           return
         await ctx.response.defer()
-        layout = self.build_log_layout(self.generation_log.recent(count))
+        records = self.generation_log.recent(count)
+        layout = self.build_log_layout(records)
         await ctx.edit_original_response(view=layout.view, attachments=layout.files)
+        if records:
+          # Components v2 の中ではtxtの中身を表示できないので、ファイルだけのメッセージで送る
+          await ctx.followup.send(file=build_log_file(records))
       except discord.errors.InteractionResponded:
         return
       except discord.errors.HTTPException as error:
