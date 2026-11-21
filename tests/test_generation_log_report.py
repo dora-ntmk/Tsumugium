@@ -48,8 +48,17 @@ def add_success(log, count):
 
 
 def file_rows(kwargs):
-  [file] = kwargs["files"]
-  return file.fp.read().decode("utf-8").splitlines()[1:]
+  return kwargs["file"].fp.read().decode("utf-8").splitlines()[1:]
+
+
+def sent_pairs(user):
+  """（集計のメッセージ, 一覧のファイルだけのメッセージ）の組にする。"""
+  messages = user.sent
+  pairs = list(zip(messages[0::2], messages[1::2]))
+  for layout, file in pairs:
+    assert layout["files"] == [], "Components v2 のメッセージにはファイルを載せない"
+    assert set(file) == {"file"}, "一覧はファイルだけのメッセージで送る"
+  return pairs
 
 
 class UnsentRecordsTest(unittest.TestCase):
@@ -113,16 +122,20 @@ class ReportServiceTest(unittest.TestCase):
 
     log = asyncio.run(scenario())
     for user in (self.user, self.other):
-      [kwargs] = user.sent
-      self.assertNotIn("embed", kwargs)
-      texts = layout_texts(kwargs["view"])
-      self.assertEqual(texts[0], "## 音声生成の記録\n記録が3件たまったため送ります")
+      [(summary, listing)] = sent_pairs(user)
+      self.assertNotIn("embed", summary)
+      texts = layout_texts(summary["view"])
+      self.assertEqual(
+        texts[0],
+        "## 音声生成の記録\n記録が3件たまったため送ります"
+        "\n-# 一覧（新しい順）は次のメッセージのファイルに書き出しました",
+      )
       self.assertIn("成功 3 / スキップ 0 / 失敗 0", texts[1])
-      rows = file_rows(kwargs)
+      rows = file_rows(listing)
       # 新しい順
       self.assertEqual([row.split("|")[2].strip() for row in rows], ["12", "11", "10"])
     # 人ごとに別のファイルを作る
-    self.assertIsNot(self.user.sent[0]["files"][0], self.other.sent[0]["files"][0])
+    self.assertIsNot(self.user.sent[1]["file"], self.other.sent[1]["file"])
     self.assertEqual(log.unsent_count, 0)
 
   def test_shutdown_sends_only_unsent_records(self):
@@ -134,13 +147,12 @@ class ReportServiceTest(unittest.TestCase):
       await service.shutdown()
 
     asyncio.run(scenario())
-    first, second = self.user.sent
-    self.assertEqual(len(file_rows(first)), 3)
-    self.assertEqual(
-      layout_texts(second["view"])[0],
+    (_, first_file), (second, second_file) = sent_pairs(self.user)
+    self.assertEqual(len(file_rows(first_file)), 3)
+    self.assertTrue(layout_texts(second["view"])[0].startswith(
       "## 音声生成の記録\nアップデートの前に、まだ送っていない記録を送ります",
-    )
-    self.assertEqual(len(file_rows(second)), 1)
+    ))
+    self.assertEqual(len(file_rows(second_file)), 1)
     self.assertIn("成功 1 / スキップ 0 / 失敗 0", layout_texts(second["view"])[1])
 
   def test_shutdown_without_unsent_records_sends_nothing(self):
@@ -160,11 +172,11 @@ class ReportServiceTest(unittest.TestCase):
       await service.shutdown()
 
     asyncio.run(scenario())
-    first, second = self.user.sent
+    (first, first_file), (second, second_file) = sent_pairs(self.user)
     self.assertIn("2件たまった", layout_texts(first["view"])[0])
-    self.assertEqual(len(file_rows(first)), 2)
+    self.assertEqual(len(file_rows(first_file)), 2)
     self.assertIn("終了する前に", layout_texts(second["view"])[0])
-    self.assertEqual(len(file_rows(second)), 1)
+    self.assertEqual(len(file_rows(second_file)), 1)
 
   def test_shutdown_descriptions(self):
     cases = {
@@ -196,7 +208,7 @@ class ReportServiceTest(unittest.TestCase):
       await service.shutdown()
 
     asyncio.run(scenario())
-    self.assertEqual(len(self.other.sent), 1)
+    self.assertEqual(len(sent_pairs(self.other)), 1)
 
   def test_does_nothing_without_operators(self):
     async def scenario():

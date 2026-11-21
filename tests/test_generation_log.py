@@ -370,10 +370,19 @@ class FakeResponse:
     self.deferred = kwargs
 
 
+class FakeFollowup:
+  def __init__(self):
+    self.sent = []
+
+  async def send(self, **kwargs):
+    self.sent.append(kwargs)
+
+
 class FakeInteraction:
   def __init__(self, user_id):
     self.user = SimpleNamespace(id=user_id)
     self.response = FakeResponse()
+    self.followup = FakeFollowup()
     self.edits = []
 
   async def edit_original_response(self, **kwargs):
@@ -412,13 +421,16 @@ class SynthesisLogCommandTest(unittest.TestCase):
     [edit] = interaction.edits
     self.assertNotIn("embed", edit)
     texts = layout_texts(edit["view"])
-    self.assertEqual(texts[0], "## 音声生成の記録\n直近2件（新しい順）を添付のファイルに書き出しました")
+    self.assertEqual(texts[0], "## 音声生成の記録\n直近2件（新しい順）を次のメッセージのファイルに書き出しました")
     self.assertIn("**件数**\n成功 1 / スキップ 1 / 失敗 0", texts[1])
-    [file] = edit["attachments"]
-    [component] = [
-      item for item in edit["view"].walk_children() if isinstance(item, discord.ui.File)
-    ]
-    self.assertEqual(component.url, f"attachment://{file.filename}")
+    # Components v2 の中にはファイルを載せず、ファイルだけのメッセージで別に送る
+    self.assertEqual(edit["attachments"], [])
+    self.assertFalse(any(
+      isinstance(item, discord.ui.File) for item in edit["view"].walk_children()
+    ))
+    [followup] = interaction.followup.sent
+    self.assertEqual(set(followup), {"file"})
+    file = followup["file"]
     self.assertTrue(file.filename.startswith("synthesis-log-"))
     text = file.fp.read().decode("utf-8")
     lines = text.splitlines()
@@ -430,8 +442,7 @@ class SynthesisLogCommandTest(unittest.TestCase):
 
   def test_count_limits_rows(self):
     interaction = self.run_command(DUMMY_USER_ID, count=1)
-    [edit] = interaction.edits
-    [file] = edit["attachments"]
+    file = interaction.followup.sent[0]["file"]
     self.assertEqual(len(file.fp.read().decode("utf-8").splitlines()), 2)
 
   def test_no_file_without_records(self):
@@ -442,6 +453,7 @@ class SynthesisLogCommandTest(unittest.TestCase):
     [edit] = interaction.edits
     self.assertEqual(edit["attachments"], [])
     self.assertEqual(layout_texts(edit["view"])[0], "## 音声生成の記録\n記録はまだありません")
+    self.assertEqual(interaction.followup.sent, [])
     self.assertFalse(any(
       isinstance(item, discord.ui.File) for item in edit["view"].walk_children()
     ))

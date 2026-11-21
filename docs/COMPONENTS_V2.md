@@ -31,16 +31,16 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | サーバー退出 | 1 | 0 | 0 | 1 | 0.0% |
 | 運営者: お知らせ（`/announce`） | 0 | 0 | 16 | 16 | 100.0% |
 | 運営者: ストリーミング合成の設定（`/synthesis view`・`set`・`reset`） | 0 | 0 | 5 | 5 | 100.0% |
-| 運営者: 生成の記録（`/synthesis log`・自動送信） | 0 | 0 | 5 | 5 | 100.0% |
+| 運営者: 生成の記録（`/synthesis log`・自動送信） | 2 | 0 | 5 | 7 | 71.4% |
 | 運営者: 更新の知らせ・更新ボタン・`/update` | 3 | 0 | 22 | 25 | 88.0% |
 | 運営者: エラー通知 | 0 | 1 | 0 | 1 | 0.0% |
-| **合計** | **10** | **65** | **56** | **131** | **42.7%** |
+| **合計** | **12** | **65** | **56** | **133** | **42.1%** |
 
 テキストを移し替えの対象から外し、Embedとv2だけで数えると、交換率は 56 / 121 = **46.3%** です。
 
 ---
 
-## テキスト（10）
+## テキスト（12）
 
 ### VCへの接続・切断（1）
 
@@ -76,6 +76,15 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 「今は更新を受け付けられません」 | 更新の見張りが動いていないときにボタンが押された | 本人だけ | [update_watch_service.py:163](../services/update_watch_service.py#L163) |
 | 「この操作は、Botを運営している人だけができます」 | 運営者以外がボタンを押した | 本人だけ | [update_watch_service.py:548](../services/update_watch_service.py#L548) |
 | 「新しいバージョン … があります」／「… への更新は、もう受け付けていません」 | 古いお知らせのボタンが押された | 本人だけ | [update_watch_service.py:562](../services/update_watch_service.py#L562) |
+
+### 運営者: 生成の記録（2）
+
+Components v2 の中ではtxtの中身を表示できないので、集計のv2のメッセージの直後に、一覧のファイルだけを別に送ります。
+
+| 表示 | 場面 | 送り先 | 場所 |
+|---|---|---|---|
+| `synthesis-log-YYYYMMDD-HHMMSS.txt`だけ | `/synthesis log`で記録がある | コマンドの応答（followup） | [operator_cog.py:244](../cogs/operator_cog.py#L244) |
+| `synthesis-log-YYYYMMDD-HHMMSS.txt`だけ | 自動送信（500件たまった・止める直前） | 運営者全員へDM | [generation_log_report_service.py:113](../services/generation_log_report_service.py#L113) |
 
 ---
 
@@ -226,7 +235,7 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 | 更新を受け付けました | 緑 | 「今すぐ更新する」 | [update_watch_service.py:568](../services/update_watch_service.py#L568) |
 | VCが空いたら更新します（更新ボタン付き） | 青 | 「VCが空いたら更新する」 | [update_watch_service.py:577](../services/update_watch_service.py#L577) |
 | Bot運営者専用コマンドです | 赤 | 運営者以外が`/update`・`/synthesis view`・`set`・`reset`を実行（本人だけ） | [operator_cog.py:100](../cogs/operator_cog.py#L100) |
-| 更新できません | 赤 | 更新の見張りがない（`/update`） | [operator_cog.py:266](../cogs/operator_cog.py#L266) |
+| 更新できません | 赤 | 更新の見張りがない（`/update`） | [operator_cog.py:270](../cogs/operator_cog.py#L270) |
 | 新しいバージョンの確認（手動で導入されている） | 赤 | `UPDATE_STATE_DIR`が空欄 | [update_watch_service.py:385](../services/update_watch_service.py#L385) |
 | 新しいバージョンの確認（更新中です） | 黄 | 更新中 | [update_watch_service.py:391](../services/update_watch_service.py#L391) |
 | 新しいバージョンの確認（ほかで更新を問い合わせています） | 黄 | 扱われていない依頼がある | [update_watch_service.py:393](../services/update_watch_service.py#L393) |
@@ -251,14 +260,14 @@ Botが出すメッセージを、表示の形式（テキスト・Embed・Compon
 
 ### 運営者: 生成の記録（5）
 
-集計（`TextDisplay`）と、一覧のtxtファイル（`discord.ui.File`）を載せる。`/synthesis log`と自動送信は同じ`make_log_layout()`で作る。
+集計（`TextDisplay`）だけを載せる。v2の中ではtxtの中身を表示できないので、一覧のtxtファイルは直後にファイルだけのメッセージで別に送る（下の「テキスト」に数える）。`/synthesis log`と自動送信は同じ`make_log_layout()`で作る。
 
 | 見出し | 色 | 場面 | 場所 |
 |---|---|---|---|
 | 音声生成の記録（このコマンドはBotの運営者だけが使えます） | 赤 | 運営者以外が`/synthesis log`を実行（本人だけ） | [operator_cog.py:231](../cogs/operator_cog.py#L231) |
-| 音声生成の記録（集計＋txt添付） | 青 | `/synthesis log`で記録がある | [operator_cog.py:91](../cogs/operator_cog.py#L91)・[generation_log_format.py:189](../presentation/generation_log_format.py#L189) |
+| 音声生成の記録（集計） | 青 | `/synthesis log`で記録がある | [operator_cog.py:91](../cogs/operator_cog.py#L91)・[generation_log_format.py:189](../presentation/generation_log_format.py#L189) |
 | 音声生成の記録（記録はまだありません） | 青 | `/synthesis log`で記録がない | [operator_cog.py:91](../cogs/operator_cog.py#L91) |
-| 音声生成の記録（記録が500件たまったため送ります） | 青 | まだ送っていない記録が500件たまった（運営者全員へDM） | [generation_log_report_service.py:42](../services/generation_log_report_service.py#L42) |
+| 音声生成の記録（記録が500件たまったため送ります） | 青 | まだ送っていない記録が500件たまった（運営者全員へDM） | [generation_log_report_service.py:45](../services/generation_log_report_service.py#L45) |
 | 音声生成の記録（…の前に、まだ送っていない記録を送ります） | 青 | 正常な再起動・停止・更新の直前（文面は理由で4通り、運営者全員へDM） | [generation_log_report_service.py:30](../services/generation_log_report_service.py#L30) |
 
 ### 運営者: お知らせ（16）
