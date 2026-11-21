@@ -127,5 +127,5 @@ BACKUP_KEEP          = os.getenv("BACKUP_KEEP", "7")
 # バージョン情報（AGENTS.md「バージョン表記」）
 # VERSION には人が決めたこと（次の版、正式版にするか）だけを書く。ベータ番号と LAST_UPDATED は、
 # CIが配布物を作るときに決めて書き込むので、PRで上げない
-VERSION      = "v4.4.0.72"
+VERSION      = "v4.4.1.73 (beta)"
 LAST_UPDATED = "開発版"
