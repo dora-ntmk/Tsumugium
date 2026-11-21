@@ -12,12 +12,13 @@ from unittest import mock
 import discord
 from discord import app_commands
 
-from cogs.operator_cog import (
+from cogs.operator_cog import OperatorCog
+from presentation.generation_log_format import (
   LOG_COLUMNS,
-  OperatorCog,
   build_log_file,
   format_log_table,
   format_summary_fields,
+  make_log_layout,
 )
 from presentation.layouts import make_layout
 from models.generation_record import (
@@ -409,10 +410,15 @@ class SynthesisLogCommandTest(unittest.TestCase):
     interaction = self.run_command(DUMMY_USER_ID)
     self.assertEqual(interaction.response.deferred, {})
     [edit] = interaction.edits
-    self.assertIn("直近2件", edit["embed"].description)
-    fields = {field.name: field.value for field in edit["embed"].fields}
-    self.assertIn("成功 1 / スキップ 1 / 失敗 0", fields["件数"])
+    self.assertNotIn("embed", edit)
+    texts = layout_texts(edit["view"])
+    self.assertEqual(texts[0], "## 音声生成の記録\n直近2件（新しい順）を添付のファイルに書き出しました")
+    self.assertIn("**件数**\n成功 1 / スキップ 1 / 失敗 0", texts[1])
     [file] = edit["attachments"]
+    [component] = [
+      item for item in edit["view"].walk_children() if isinstance(item, discord.ui.File)
+    ]
+    self.assertEqual(component.url, f"attachment://{file.filename}")
     self.assertTrue(file.filename.startswith("synthesis-log-"))
     text = file.fp.read().decode("utf-8")
     lines = text.splitlines()
@@ -435,14 +441,18 @@ class SynthesisLogCommandTest(unittest.TestCase):
     interaction = self.run_command(DUMMY_USER_ID, tree=tree)
     [edit] = interaction.edits
     self.assertEqual(edit["attachments"], [])
-    self.assertEqual(edit["embed"].description, "記録はまだありません")
+    self.assertEqual(layout_texts(edit["view"])[0], "## 音声生成の記録\n記録はまだありません")
+    self.assertFalse(any(
+      isinstance(item, discord.ui.File) for item in edit["view"].walk_children()
+    ))
 
   def test_others_are_refused(self):
     interaction = self.run_command(DUMMY_OTHER_USER_ID)
     self.assertEqual(interaction.edits, [])
     [sent] = interaction.response.sent
     self.assertTrue(sent["ephemeral"])
-    self.assertIn("運営者だけ", sent["embed"].description)
+    self.assertNotIn("embed", sent)
+    self.assertIn("運営者だけ", layout_texts(sent["view"])[0])
 
   def test_any_of_several_operators_can_use(self):
     client = discord.Client(intents=discord.Intents.none())

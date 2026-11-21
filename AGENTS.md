@@ -26,7 +26,8 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `services/reconnect_service.py` | つないでいるVCを`UPDATE_STATE_DIR`に書き残し、止めるときは読み上げチャンネルへ知らせてVCを抜け、再起動・更新のあとに同じVCへつなぎ直す |
 | `services/ready_state_service.py` | 起動の準備が終わったことを、インストーラーへ`ready.json`で知らせる。`UPDATE_STATE_DIR`が空欄なら何もしない |
 | `services/streaming_setting_service.py` | ストリーミング合成の設定（モード・基準の文字数・一度に作る長さ）を`BotSettingRepository`へ保存し、`VoicevoxClient.configure_streaming()`で適用する。前の版の`.env`の値を起動時に一度だけ取り込む |
-| `services/generation_log_service.py` | VOICEVOXの音声生成の記録（成功・スキップ・失敗、文字数、順番待ちと生成にかかった時間）を直近500件までメモリに持ち、集計する |
+| `services/generation_log_service.py` | VOICEVOXの音声生成の記録（成功・スキップ・失敗、文字数、順番待ちと生成にかかった時間）を直近500件までメモリに持ち、集計する。まだ運営者へ送っていない件数も数える |
+| `services/generation_log_report_service.py` | 生成の記録を、500件たまったときと、正常に止める直前に、運営者へComponents v2のDMで自動送信する |
 | `cogs/connection_cog.py` | `/join`・`/leave`とVC状態イベントを`ConnectionService`へ接続する登録層 |
 | `cogs/playback_cog.py` | `/clear`と`on_message`を読み上げサービスへ接続する登録層 |
 | `cogs/general_cog.py` | `/version`を登録する一般コマンド層 |
@@ -50,6 +51,7 @@ VOICEVOXを使ったDiscordテキスト読み上げBot。
 | `presentation/embeds.py` | Discord Embedの共通ひな形（色・タイトル・本文）。色は`embed_color()`でComponents v2の枠と共有する |
 | `presentation/layouts.py` | Components v2（`LayoutView`）のメッセージの共通ひな形。`make_embed`と同じく、色の付いた枠に見出しと本文を入れるだけで、中の部品は呼び出し側が足す |
 | `presentation/announcement_layout.py` | 運営者からのお知らせ（区切り線・各お知らせの文・リンクボタン・画像）を、`make_layout`で作った枠に足す |
+| `presentation/generation_log_format.py` | 生成の記録の集計の文・一覧のtxtファイルと、それを載せたComponents v2のメッセージ（`make_log_layout()`）。`/synthesis log`と自動送信で共有する |
 | `presentation/error_handler.py` | コマンド実行時の共通エラー応答 |
 | `models/audio_item.py` | 再生キュー要素（`TTSItem` / `SoundboardItem`）の型定義 |
 | `models/guild_session.py` | ギルド単位のキュー・タスク・一時チャンネル・スキップ状態を保持する `GuildSession` |
@@ -337,7 +339,11 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 - 記録の`wait`（待ち時間）は、生成の順番を待った時間と、再生の順番を待った時間（同じサーバーで前の読み上げが終わるのを待った時間。`VoiceService.enqueue()`でキューに入れてから、`play()`で再生を始められるまで）の合計。再生の順番待ちは再生を始めたときに分かるので、`StreamingAudio.mark_enqueued()`・`mark_playback_started()`で測り、記録に足す。再生しなかったものは、生成の順番待ちだけ。
 - 記録には`first`（メッセージを受け取ってから最初の音を再生するまでの時間から、`wait`〈生成と再生の順番待ち〉を除いたもの）も残す。数え始めは、メッセージがこのプログラムに届いた時刻（`PlaybackCog`の`on_message`に入った時刻。`/tsumugi-tts`・`/t`はコマンドの処理に入った時刻）で、`MessageService.handle()`から`SpeechService.add_message()`・`speak_and_export()`へ`received_at`として渡す（渡されなかったときは、それぞれの始めの時刻を使う）。`SpeechService`がこの時刻を、`VoicevoxClient`が順番を待った時間を`StreamingAudio`に書き、`VoiceService`が`FirstPacketSource`で最初の音のデータをDiscordへ渡した時刻を知らせる。ストリーミングでは記録より先に再生が始まるので、`StreamingAudio.attach_record()`・`mark_played()`のどちらが先でも記録に書き込まれる（`wait`も同じ）。入退室通知など、メッセージから作っていない音声と、再生しなかったものは空欄にする。記録には`wait`のうちの再生の順番待ち（`playback_wait_seconds`）も分けて残す。
 - スキップは`SpeechService`が記録する。理由は、読む文字がない（`empty`）、生成中にクリアされた（`cleared`）、生成中にメッセージが消された（`deleted`）の3つ。クリア・削除のスキップは、生成の成功とは別の記録として残る（生成の時間は使っているため）。生成を始める前にクリア中だったメッセージと、`!t`でクリアされてファイルだけを送ったものは記録しない。
-- `/synthesis log`は、記録全体の集計をEmbedで表示し、直近`count`件の一覧（新しい順）を`synthesis-log-YYYYMMDD-HHMMSS.txt`（日本時間）として添付する。一覧は`datetime | result | chars | synthesis | first | wait | speaker | note`の列をそろえた表で、`note`には作り方（`stream`・`synthesis`・`fallback`）、試した回数（2回以上）、スキップの理由・失敗した例外の名前を書く。Embedの集計は日本語で、表の列に合わせて「件数」（スキップの理由ごとの内訳と、作り方ごとの件数）、「生成時間（成功のみ）」（作り方ごとに、平均と1文字あたり・中央値・95パーセンタイル・最大）、「最初の音まで」（作り方ごとに、`first`の平均・中央値・最大と件数、文字数の区切り〈30字まで・100字まで・それより多い〉ごとの中央値。前の読み上げを待ったもの〈再生の順番待ちが`FIRST_PLAYBACK_WAIT_LIMIT`＝0.5秒以上〉は除く。待っているあいだに音声がたまると、FFmpegの待ちが再生の順番待ちに隠れて`first`が短く出るため。txtの一覧にはそのまま出す）、「待ち時間（生成と再生の順番待ち）」（平均・最大）の4つにする。作り方の表示は「ストリーミング」「通常」「非対応→通常」。記録がないときは「記録はまだありません」とだけ書き、ファイルは添付しない。サーバーの情報は表示しない。
+- `/synthesis log`は、記録全体の集計をComponents v2で表示し、直近`count`件の一覧（新しい順）を`synthesis-log-YYYYMMDD-HHMMSS.txt`（日本時間）として添付する。一覧は`datetime | result | chars | synthesis | first | wait | speaker | note`の列をそろえた表で、`note`には作り方（`stream`・`synthesis`・`fallback`）、試した回数（2回以上）、スキップの理由・失敗した例外の名前を書く。集計は日本語で、表の列に合わせて「件数」（スキップの理由ごとの内訳と、作り方ごとの件数）、「生成時間（成功のみ）」（作り方ごとに、平均と1文字あたり・中央値・95パーセンタイル・最大）、「最初の音まで」（作り方ごとに、`first`の平均・中央値・最大と件数、文字数の区切り〈30字まで・100字まで・それより多い〉ごとの中央値。前の読み上げを待ったもの〈再生の順番待ちが`FIRST_PLAYBACK_WAIT_LIMIT`＝0.5秒以上〉は除く。待っているあいだに音声がたまると、FFmpegの待ちが再生の順番待ちに隠れて`first`が短く出るため。txtの一覧にはそのまま出す）、「待ち時間（生成と再生の順番待ち）」（平均・最大）の4つにする。作り方の表示は「ストリーミング」「通常」「非対応→通常」。記録がないときは「記録はまだありません」とだけ書き、ファイルは添付しない。サーバーの情報は表示しない。メッセージは`presentation/generation_log_format.py`の`make_log_layout()`で作り、集計の各項目を`**項目名**`と値にして1つの`TextDisplay`にまとめ、txtファイルは`discord.ui.File`（`attachment://`）で載せる。
+- 記録は運営者（`OPERATOR_USER_ID`の全員）へ自動でもDMする（`GenerationLogReportService`）。常にオンで、`OPERATOR_USER_ID`が空欄なら何もしない。送るのは前回送ったあとの記録だけで、同じ記録を二度送らず、送ったあともメモリに残す（`/synthesis log`は今までどおり使える）。`GenerationLogService`がまだ送っていない件数を数え、`take_unsent()`で古い順に取り出す。形は`/synthesis log`と同じで、集計は送る記録だけのもの。
+  - まだ送っていない記録が500件（持てる件数）たまったとき: その場で取り出し（次の記録で古いものが押し出される前に）、15秒（`FULL_SEND_DELAY`）待ってから「記録が500件たまったため送ります」で送る。待つのは、最新の数件の`first`・`wait`が再生を始めてから書き込まれるため。
+  - 正常な再起動・停止・更新の直前（SIGTERM・SIGINTで`ManagedDiscordClient.close()`の終了前の処理）: `ReconnectService.shutdown`のあと（VCを抜けて記録が出そろってから、Discordとの接続を閉じる前）に、待っている分とまだ送っていない分をすぐ送る。0件なら送らない。説明は`restart-reason.json`の理由で「アップデートの前に」「Botを停止する前に」「Botを再起動する前に」、`UPDATE_STATE_DIR`が空欄なら「Botを終了する前に」。合わせて10秒（`SHUTDOWN_TIMEOUT`）で打ち切る。異常で落ちたときは送れない。
+  - `discord.File`は一度しか送れないので、運営者ごとにメッセージを作り直す。1人に送れなくても、ほかの人へは送る。送れなかった記録は送り直さない。
 - 両Clientは`aiohttp.ClientSession`を初回通信時に生成して再利用する。通常実行経路で同期`requests`は使用しない。
 - `VoiceService`と`UpdateSoundBoards`はHTTPのURL・認証方法を知らず、Clientのメソッドだけを呼ぶ。
 - Bot終了時は`ManagedDiscordClient.close()`がHTTPセッションと6つのSQLite接続（`config.db`は設定・お知らせ・Bot全体の設定の3つ）を閉じる。
@@ -346,7 +352,7 @@ Bot からのメッセージは通常 TTS をスキップするが、sounddict �
 
 ## Components v2への移行（`presentation/layouts.py`）
 
-Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。`ConnectionService`が送るメッセージ（接続・切断・自動退出・権限エラー・接続失敗）、`cogs/announcement_cog.py`が送るメッセージ（`/announce`の応答・確認・エラー・入力し直すボタン・一覧・削除）、`UpdateWatchService`が送るメッセージ（更新の結果・自動更新の注意・新しいバージョンのお知らせと更新ボタン・ボタンを押したあとの書き換え）と`/update`・`/synthesis view`・`set`・`reset`の応答はすべてv2にした。ほか（`/synthesis log`、`ReconnectService`の再起動の知らせ・再接続、`presentation/error_handler.py`のエラー応答など）は当面Embedのまま残す。どの形式で送っているかの一覧は[`docs/COMPONENTS_V2.md`](docs/COMPONENTS_V2.md)にまとめ、メッセージを足したり移したりしたら直す。
+Embedで送っているメッセージを、Components v2（`discord.ui.LayoutView`）へ順に移す。`ConnectionService`が送るメッセージ（接続・切断・自動退出・権限エラー・接続失敗）、`cogs/announcement_cog.py`が送るメッセージ（`/announce`の応答・確認・エラー・入力し直すボタン・一覧・削除）、`UpdateWatchService`が送るメッセージ（更新の結果・自動更新の注意・新しいバージョンのお知らせと更新ボタン・ボタンを押したあとの書き換え）と`/update`・`/synthesis view`・`set`・`reset`・`log`の応答、生成の記録の自動送信はすべてv2にした。ほか（`ReconnectService`の再起動の知らせ・再接続、`presentation/error_handler.py`のエラー応答など）は当面Embedのまま残す。どの形式で送っているかの一覧は[`docs/COMPONENTS_V2.md`](docs/COMPONENTS_V2.md)にまとめ、メッセージを足したり移したりしたら直す。
 
 - **新しいコマンドとメッセージは、基本的にComponents v2（`make_layout()`）で作る。** Embed（`make_embed()`）で作るのは、v2では表せないなど理由があるときだけにする。既存のコマンドに新しいメッセージを足すときも、そのコマンドがEmbedのままならv2へ移すことを考える。
 - Embedで送った前の版のメッセージを、あとからv2へ書き換えるときは、`edit(embed=None, view=layout.view)`のように`embed=None`を渡す（`content`・`embed`が残っているとv2にできない）。

@@ -39,6 +39,7 @@ from repositories.user_config_repository import UserConfigRepository
 from services.announcement_service import AnnouncementService
 from services.connection_service import ConnectionService
 from services.error_notification_service import ErrorNotificationService
+from services.generation_log_report_service import GenerationLogReportService
 from services.generation_log_service import GenerationLogService
 from services.message_service import MessageService
 from services.ready_state_service import ReadyStateService
@@ -193,6 +194,16 @@ reconnect_service = ReconnectService(
 client.register_closeable(reconnect_service)
 # Discordとの接続を閉じる前に、読み上げチャンネルへ知らせてVCから抜ける
 client.register_shutdown_hook(reconnect_service.shutdown)
+# 生成の記録を運営者へ自動で送る（500件たまったとき、止める直前）。
+# 止めるときは、VCを抜けて記録が出そろってから送る
+generation_log_report = GenerationLogReportService(
+  client,
+  generation_log,
+  OPERATOR_USER_IDS,
+  error_notifier,
+  reason_reader=reconnect_service.read_reason if reconnect_service.enabled else None,
+)
+client.register_shutdown_hook(generation_log_report.shutdown)
 message_service = MessageService(
   client,
   server_config,
